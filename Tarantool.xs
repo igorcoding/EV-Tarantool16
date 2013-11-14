@@ -5,7 +5,12 @@
 #include "ppport.h"
 
 #include "EVAPI.h"
-#include "ext/EVSock.h"
+//#include "ext/EVSock.h"
+
+#include "xsevcnn.h"
+
+//#include "tnt/tnt-perl.c"
+
 //#define MYDEBUG
 
 #include "tnt.h"
@@ -17,19 +22,6 @@
 	SvPOKp_on(sv); \
 	type * ref = (type *) SvPVX( sv ); \
 	memset(ref,0,sizeof(type)); \
-
-
-struct __cnn {
-	EVSockStruct(__cnn);
-	
-	uint32_t pending;
-	uint32_t seq;
-	U32      use_hash;
-	HV      *reqs;
-	HV      *spaces;
-};
-typedef struct __cnn TntCnn;
-
 
 typedef struct {
 	U32   id;
@@ -64,7 +56,17 @@ typedef struct {
 	char format;
 } TntField;
 
-void on_read(Cnn * self, size_t len) {
+typedef struct {
+	xs_ev_cnn_struct;
+	uint32_t pending;
+	uint32_t seq;
+	U32      use_hash;
+	HV      *reqs;
+	HV      *spaces;
+} TntCnn;
+
+
+static void on_read(ev_cnn * self, size_t len) {
 	debug("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
 	dSP;
 	
@@ -164,18 +166,92 @@ void on_read(Cnn * self, size_t len) {
 }
 
 
+static AV * hash_to_array_fields(HV * hf, AV *fields) {
+	AV *rv = (AV *) sv_2mortal((SV *)newAV());
+	int fcnt = HvTOTALKEYS(hf);
+	int k;
+	
+	SV **f;
+	HE *fl;
+	
+	for (k=0; k <= av_len( fields );k++) {
+		f = av_fetch( fields,k,0 );
+		if (unlikely(!f)) croak("Missing field %d entry", k);
+		fl = hv_fetch_ent(hf,*f,0,0);
+		if (fl && SvOK( HeVAL(fl) )) {
+			fcnt--;
+			av_push( rv, SvREFCNT_inc(HeVAL(fl)) );
+		}
+		else {
+			av_push( rv, &PL_sv_undef );
+		}
+	}
+	if (unlikely(fcnt != 0)) {
+		HV *used = (HV*)sv_2mortal((SV*)newHV());
+		for (k=0; k <= av_len( fields );k++) {
+			f = av_fetch( fields,k,0 );
+			fl = hv_fetch_ent(hf,*f,0,0);
+			if (fl && SvOK( HeVAL(fl) )) {
+				hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
+			}
+		}
+		if ((f = hv_fetch(hf,"",0,0)) && SvROK(*f)) {
+			hv_store(used,"",0, &PL_sv_undef,0);
+		}
+		(void) hv_iterinit( hf );
+		STRLEN nlen;
+		while ((fl = hv_iternext( hf ))) {
+			char *name = HePV(fl, nlen);
+			if (!hv_exists(used,name,nlen)) {
+				warn("tuple key = %s; val = %s could not be used in hash fields",name, SvPV_nolen(HeVAL(fl)));
+			}
+		}
+	}
+	return rv;
+}
+
+static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
+	if (SvIOK( *key )) {
+		int iid = SvUV(*key);
+		if ((key = hv_fetch( spc->indexes,(char *)&iid,sizeof(U32),0 )) && *key) {
+			return (TntIndex *) SvPVX(*key);
+		}
+		else {
+			warn("Unknown index %d in space %d",iid,spc->id);
+			return NULL;
+		}
+	}
+	else {
+		if ((key = hv_fetch( spc->indexes,SvPV_nolen(*key),SvCUR(*key),0 )) && *key) {
+			return (TntIndex*) SvPVX(*key);
+		}
+		else {
+			croak("Unknown index %s in space %d",SvPV_nolen(*key),spc->id);
+		}
+	}
+	
+}
+
+MODULE = EV::Tarantool      PACKAGE = EV::Tarantool::DES
+
+void DESTROY(SV *this)
+	PPCODE:
+		cwarn("DESTROY %p -> %p (%d)",this,SvRV(this),SvREFCNT( SvRV(this) ));
+
 MODULE = EV::Tarantool		PACKAGE = EV::Tarantool
 PROTOTYPES: DISABLE
 BOOT:
 {
 	I_EV_API ("EV::Tarantool");
-	I_EV_SOCK_API("EV::Tarantool" );
+	I_EV_CNN_API("EV::Tarantool" );
 }
 
 
 void new(SV *pk, HV *conf)
 	PPCODE:
-		EVSockNew(TntCnn,on_read); //produce self, cnn, conf
+		
+		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0)
+		self->cnn.on_read = (c_cb_read_t) on_read;
 		
 		//cwarn("new     this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(iv),iv, self, self->self);
 		
@@ -380,7 +456,7 @@ void new(SV *pk, HV *conf)
 
 void DESTROY(SV *this)
 	PPCODE:
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		
 		//cwarn("destroy this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(SvRV(this)), SvRV(this), self, self->self);
 		//SV * leak = newSV(1024);
@@ -424,24 +500,24 @@ void DESTROY(SV *this)
 			
 			SvREFCNT_dec(self->spaces);
 		}
-		EVSockDestroy(self);
+		xs_ev_cnn_destroy(self);
 
 void reqs(SV *this)
 	PPCODE:
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->reqs));
 		XSRETURN(1);
 
 void spaces(SV *this)
 	PPCODE:
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->spaces));
 		XSRETURN(1);
 
 void ping(SV *this, SV * cb)
 	PPCODE:
-		EVSockSelf(TntCnn);
-		EVSockCheckConn(self);
+		xs_ev_cnn_self(TntCnn);
+		xs_ev_cnn_checkconn(self,cb);
 		
 		dSVX(ctxsv, ctx, TntCtx);
 		ctx->call = "ping";
@@ -470,9 +546,9 @@ void ping(SV *this, SV * cb)
 
 void lua( SV *this, SV * proc, AV * tuple, ... )
 	PPCODE:
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		EVSockCheckConn(self);
+		xs_ev_cnn_checkconn(self,cb);
 		register uniptr p;
 		
 		//cwarn("lua sp = %p (%d)",sp, PL_stack_sp - PL_stack_base);
@@ -600,13 +676,24 @@ void lua( SV *this, SV * proc, AV * tuple, ... )
 		
 		XSRETURN_UNDEF;
 
+void test1()
+	PPCODE:
+		HV * DESstash = gv_stashpv("EV::Tarantool::DES", TRUE);
+		SV *need = newSVpv("test",4);
+		SV *test = sv_2mortal(sv_bless(newRV_noinc (need), DESstash));
+		SvREFCNT_inc(test);
+		XSRETURN_UNDEF;
+
 void select( SV *this, SV *space, AV * keys, ... )
 	PPCODE:
+	
+		// TODO: croak cleanup may be solved with refcnt+mortal
+		
 		register uniptr p;
 		
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		EVSockCheckConn(self);
+		xs_ev_cnn_checkconn(self,cb);
 		
 		HV *opt = 0;
 		
@@ -622,8 +709,6 @@ void select( SV *this, SV *space, AV * keys, ... )
 		
 		int k,i;
 		SV **key;
-		
-		CHECK_NOT_CONN();
 		
 		TntSpace *spc = 0;
 		TntIndex *idx = 0;
@@ -654,6 +739,9 @@ void select( SV *this, SV *space, AV * keys, ... )
 		if (items == 5) {
 			opt = (HV *) SvRV(ST( 3 ));
 			if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
+				if( idx = evt_find_index( spc, key ) )
+					index = idx->id;
+				/*
 				if (SvIOK( *key )) {
 					index = SvUV(*key);
 				}
@@ -667,15 +755,14 @@ void select( SV *this, SV *space, AV * keys, ... )
 					}
 					
 				}
+				*/
 			}
 			if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 			if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
 			
 			if ((key = hv_fetchs(opt, "quiet", 0)) && SvOK(*key)) flags |= TNT_FLAG_BOX_QUIET;
 			if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
-			if ((key = hv_fetchs(opt, "hash", 0)) ) {
-				ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-			}
+			if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 		}
 		else {
 			ctx->f.size = 0;
@@ -746,15 +833,14 @@ void select( SV *this, SV *space, AV * keys, ... )
 		p.c = (char *)(h+1);
 		
 		for (i = 0; i <= av_len(keys); i++) {
-			SV *t = *av_fetch( keys, i, 0 );
-			if (!SvROK(t) || ( (SvTYPE(SvRV(t)) != SVt_PVAV) && (SvTYPE(SvRV(t)) != SVt_PVHV) ) ) {
-				//SvREFCNT_dec(sv);
-				//SvREFCNT_dec(ctxsv);
+			key = av_fetch( keys, i, 0 );
+			if (unlikely( !key || !*key || !SvROK(*key) || ( (SvTYPE(SvRV(*key)) != SVt_PVAV) && (SvTYPE(SvRV(*key)) != SVt_PVHV) ) )) {
 				sv_2mortal(sv);
 				sv_2mortal(ctxsv);
 				if (!ctx->f.nofree) safefree(ctx->f.f);
 				croak("keys must be ARRAYREF of ARRAYREF or ARRAYREF of HASHREF");
 			}
+			SV *t = *key;
 			AV *fields;
 			if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
 				if (!idx) {
@@ -763,44 +849,7 @@ void select( SV *this, SV *space, AV * keys, ... )
 					if (!ctx->f.nofree) safefree(ctx->f.f);
 					croak("Cannot use hash without index config");
 				}
-				HV *hf = (HV *) SvRV(t);
-				fields = (AV *) sv_2mortal((SV *)newAV());
-				HE *fl;
-				int fcnt = HvTOTALKEYS(hf);
-				for (k=0;k <= av_len( idx->fields );k++) {
-					SV **f = av_fetch( idx->fields,k,0 );
-					if (!f) croak("XXX");
-					fl = hv_fetch_ent(hf,*f,0,0);
-					if (fl && SvOK( HeVAL(fl) )) {
-						fcnt--;
-						av_push( fields, SvREFCNT_inc(HeVAL(fl)) );
-					}
-					else {
-						break;
-					}
-				}
-				if (fcnt != 0) {
-					HV *used = (HV*)sv_2mortal((SV*)newHV());
-					for (k=0;k <= av_len( idx->fields );k++) {
-						SV **f = av_fetch( idx->fields,k,0 );
-						fl = hv_fetch_ent(hf,*f,0,0);
-						if (fl && SvOK( HeVAL(fl) )) {
-							hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
-						}
-						else {
-							break;
-						}
-					}
-					(void) hv_iterinit( hf );
-					STRLEN nlen;
-					HE *ent;
-					while ((ent = hv_iternext( hf ))) {
-						char *name = HePV(ent, nlen);
-						if (!hv_exists(used,name,nlen)) {
-							warn("query key = %s; val = %s in tuple %d could not be used in this index",name, SvPV_nolen(HeVAL(ent)), i);
-						}
-					}
-				}
+				fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields );
 			}
 			else {
 				fields  = (AV *) SvRV(t);
@@ -809,12 +858,12 @@ void select( SV *this, SV *space, AV * keys, ... )
 			*( p.i++ ) = htole32( av_len(fields) + 1 );
 			
 			for (k=0; k <= av_len(fields); k++) {
-				SV *f = *av_fetch( fields, k, 0 );
-				if ( !SvOK(f) || !sv_len(f) ) {
+				key = av_fetch( fields, k, 0 );
+				if ( !key || !SvOK(*key) || !sv_len(*key) ) {
 					*(p.c++) = 0;
 				} else {
-					uptr_sv_size( p, sv, 5 + sv_len(f) );
-					uptr_field_sv_fmt( p, f, k < fmt->size ? fmt->f[k] : fmt->def );
+					uptr_sv_size( p, sv, 5 + sv_len(*key) );
+					uptr_field_sv_fmt( p, *key, k < fmt->size ? fmt->f[k] : fmt->def );
 				}
 			}
 		}
@@ -842,7 +891,6 @@ void select( SV *this, SV *space, AV * keys, ... )
 		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
 		
 		XSRETURN_UNDEF;
-		
 
 void test(HV *hv)
 	PPCODE:
@@ -879,9 +927,9 @@ void insert( SV *this, SV *space, SV * t, ... )
 		delete = TNT_OP_DELETE
 	PPCODE:
 		register uniptr p;
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		EVSockCheckConn(self);
+		xs_ev_cnn_checkconn(self,cb);
 		HV *opt = 0;
 		
 		U32 flags = 0;
@@ -1079,9 +1127,9 @@ void insert( SV *this, SV *space, SV * t, ... )
 void update( SV *this, SV *space, SV * t, AV *ops, ... )
 	PPCODE:
 		register uniptr p;
-		EVSockSelf(TntCnn);
+		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		EVSockCheckConn(self);
+		xs_ev_cnn_checkconn(self,cb);
 		HV *opt = 0;
 
 		U32 flags = 0;
@@ -1194,6 +1242,8 @@ void update( SV *this, SV *space, SV * t, AV *ops, ... )
 		
 		AV *fields;
 		if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+			fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields );
+			/*
 			HV *hf = (HV *) SvRV(t);
 			HE *fl;
 			fields = (AV *) sv_2mortal((SV *)newAV());
@@ -1233,6 +1283,7 @@ void update( SV *this, SV *space, SV * t, AV *ops, ... )
 					}
 				}
 			}
+			*/
 		}
 		else {
 			fields  = (AV *) SvRV(t);
