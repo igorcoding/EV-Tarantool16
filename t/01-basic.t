@@ -13,6 +13,16 @@ use Errno;
 use Scalar::Util 'weaken';
 use TestTarantool;
 
+=for rem
+	{
+	EV::Tarantool::test1();
+	warn "XXX";
+	}
+	warn "YYY";
+	exit;
+	__END__
+=cut
+
 sub meminfo () {
 	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
 	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
@@ -46,6 +56,7 @@ sub memcheck ($$$$) {
 		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
 	}
 }
+
 
 my $spaces = {
 		0 => {
@@ -150,6 +161,9 @@ my $tnt = tnt_run();
 			EV::unloop;
 		},
 	});
+	
+	
+	
 	$nc->($c);
 	$c->connect;
 	EV::loop;
@@ -255,7 +269,7 @@ my $tnt = tnt_run();
 	#$SIG{INT} = sub { $next = 1; };
 	#sleep 0.01 while !$next;
 	
-	$c->update('test1',{id => 'test1'}, [[ 'a' => '=', 'new' ]], { ret =>1 }, sub {
+	$c->update('test1',{id => 'test1'}, [[ 'a' => '=', 'new' ]], { ret => 1 }, sub {
 		ok(ref $_[0], "Got result for update") or BAIL_OUT();
 		#warn Dumper @_;
 		is $_[0]{status},'ok',   "update - status ok";
@@ -265,9 +279,32 @@ my $tnt = tnt_run();
 		EV::unloop;
 	});
 	EV::loop;
+	$c->select('test1',[{ id => 'test1' }], { hash => 1 }, sub {
+		ok(ref $_[0], "Got result for select") or BAIL_OUT();
+		#warn Dumper @_;
+		is $_[0]{status},'ok',   "select - status ok";
+		is $_[0]{count},1,       "select - count ok";
+		is 0+@{$_[0]{tuples}},1, "select - tuples ok";
+		is_deeply $_[0]{tuples}[0], { a => 'new', b => 123, id => 'test1' }, 'select - result';
+		EV::unloop;
+	});
+	EV::loop;
+	$c->select('test1',[{ a => 'new' }], { hash => 1, index => 'ax' }, sub {
+		ok(ref $_[0], "Got result for select") or BAIL_OUT();
+		#warn Dumper @_;
+		is $_[0]{status},'ok',   "select - status ok";
+		is $_[0]{count},1,       "select - count ok";
+		is 0+@{$_[0]{tuples}},1, "select - tuples ok";
+		is_deeply $_[0]{tuples}[0], { a => 'new', b => 123, id => 'test1' }, 'select - result';
+		EV::unloop;
+	});
+	EV::loop;
 
 	
 	my ($cnt,$start);
+	
+	$ENV{MEMCHECK} or done_testing(),exit;
+	
 	memcheck 50000, $c,"ping",[];
 	memcheck 50000, $c,"update",['test1',{ id => 'test1' }, [['a' => '=','new']], { ret => 0, hash => 1, }];
 	undef $c;
@@ -307,6 +344,9 @@ my $tnt = tnt_run();
 	
 	my ($rss1,$vsz1) = meminfo();
 	for (1..2000) {
+		if ($_ == 2) {
+			($rss1,$vsz1) = meminfo();
+		}
 		my $s = EV::Tarantool->new({
 			host => '0',
 			port => 33013,
@@ -355,4 +395,6 @@ my $tnt = tnt_run();
 	memcheck 50000, $c,"select",[1,[['test1']]];
 	memcheck 50000, $c,"select",['test',[{ id => 'test1' }]];
 	memcheck 50000, $c,"insert",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
-	memcheck 50000, $c,"update",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
+	#memcheck 50000, $c,"update",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
+	
+	done_testing();

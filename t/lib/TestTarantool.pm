@@ -11,8 +11,12 @@ our @EXPORT = our @EXPORT_OK = qw(tnt_run);
 
 my %cf = (
 	host => '127.1.1.1',
-	port => '33013',
+	port => '53013',
 );
+
+$cf{pport} = $cf{port};
+$cf{sport} = $cf{port}+1;
+$cf{aport} = $cf{port}+2;
 
 $cf{root} = "$FindBin::Bin/../";
 $cf{tntroot} = "$cf{root}.tarantool";
@@ -213,10 +217,12 @@ __DATA__
 
 custom_proc_title="db-test-ev-tnt"
 slab_alloc_arena = 0.01
-bind_ipaddr      = 127.1.1.1
-primary_port     = 33013
-secondary_port   = 33014
-admin_port       = 33015
+bind_ipaddr      = %{host}
+
+primary_port     = %{pport}
+secondary_port   = %{sport}
+admin_port       = %{aport}
+
 script_dir       = %{tntroot}
 work_dir         = %{tntroot}
 wal_mode         = none
