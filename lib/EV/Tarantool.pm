@@ -1,6 +1,6 @@
 package EV::Tarantool;
 
-use 5.016001;
+use 5.010;
 use strict;
 use warnings;
 
@@ -26,6 +26,8 @@ our @EXPORT = qw(
 );
 
 our $VERSION = '0.01';
+
+use EV ();
 
 require XSLoader;
 XSLoader::load('EV::Tarantool', $VERSION);
