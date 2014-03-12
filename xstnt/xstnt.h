@@ -424,7 +424,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 				//warn("not a ping<%u> or wrong len<%u>!=0 for size=%u", le32toh( hx->type ), le32toh( hx->len ), size);
 			}
 		}
-		//warn("small header");
+		warn("small header");
 		goto shortread;
 	}
 	
@@ -441,7 +441,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 	(void) hv_stores(ret, "id",   newSViv( le32toh( hd->reqid ) ));
 	
 	if ( size < len + sizeof(tnt_res_t) - 4 ) {
-		//warn("Header ok but wrong len");
+		warn("Header ok but wrong len (size=%d < len = %d)", size, len);
 		goto shortread;
 	}
 	

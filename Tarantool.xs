@@ -56,7 +56,7 @@ static void on_read(ev_cnn * self, size_t len) {
 				
 				HV * hv = newHV();
 				
-				int length = parse_reply( hv, rbuf, len+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
+				int length = parse_reply( hv, rbuf, ln+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
 				if (ctx->f.size && !ctx->f.nofree) {
 					safefree(ctx->f.f);
 				}
@@ -109,7 +109,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	}
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
-		cwarn("move buf on %zu",self->ruse);
+		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 	
