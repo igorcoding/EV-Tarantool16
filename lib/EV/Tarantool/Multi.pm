@@ -32,6 +32,8 @@ sub new {
 	$self->{servers} = [];
 	
 	my $i = 0;
+	my $rws = 0;
+	my $ros = 0;
 	for (@$servers) {
 		my $srv;
 		my $id = $i++;
@@ -41,13 +43,14 @@ sub new {
 		else {
 			m{^(?:(rw|ro):|)([^:]+)(?::(\d+)|)};
 			$srv = {
-				rw   => $1 eq 'rw' ? 1 : 0,
+				rw   => $1 eq 'rw' ? 1 : defined $1 ? 0 : 1,
 				host => $2,
 				port => $3 // 33013,
 				id   => $id,
 			};
 		}
 		$srv->{node} = ($srv->{rw} ? 'rw' : 'ro' ) . ':' . $srv->{host} . ':' . $srv->{port};
+		if ($srv->{rw}) { $rws++ } else { $ros++; }
 		push @{$self->{servers}}, $srv;
 		my $warned;
 		$srv->{c} = EV::Tarantool->new({
@@ -76,6 +79,15 @@ sub new {
 		});
 		#$srv->{c}->connect;
 	}
+	if ($self->{connected_mode} eq 'rw' and not $rws ) {
+		die "Cluster could not ever be 'connected' since waiting for at least one 'rw' node, and have none of them (@{$servers})\n";
+	}
+	if ($self->{connected_mode} eq 'ro' and not $ros ) {
+		die "Cluster could not ever be 'connected' since waiting for at least one 'ro' node, and have none of them (@{$servers})\n";
+	}
+	if (not $ros+$rws ) {
+		die "Cluster could not ever be 'connected' since have no servers (@{$servers})\n";
+	}
 	
 	return $self;
 }
@@ -94,11 +106,24 @@ sub disconnect : method {
 	}
 }
 
+sub ok {
+	my $self = shift;
+	if (@_ and $_[0] ne 'any') {
+		return @{ $self->{$_[0].'stores'} } > 0 ? 1 : 0;
+	} else {
+		return @{ $self->{stores} } > 0 ? 1 : 0;
+	}
+}
+
 sub _db_online {
 	my $self = shift;
 	my $srv  = shift;
 	
-	my $first = ( $self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) : ( @{ $self->{stores} } == 0 ) ) || 0;
+	my $first = (
+		$self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) :
+		$self->{connected_mode} eq 'ro' ? ( !$srv->{rw} && (@{ $self->{rostores} } == 0) ) :
+		( @{ $self->{stores} } == 0 )
+	) || 0;
 	
 	#warn "online $srv->{node} for $self->{connected_mode}; first = $first";
 	
@@ -109,6 +134,9 @@ sub _db_online {
 	my $key = $srv->{rw} ? 'rw' : 'ro';
 	my $event = "${key}_connected";
 	my @args = ( U($self,$srv->{c}), @{ $srv->{peer} }{qw(host port)} );
+	
+	$self->{change} and $self->{change}->($self,"connected",$srv->{rw} ? 'rw' : 'ro',@{ $srv->{peer} }{qw(host port)});
+	
 	$self->{$event} && $self->{$event}( @args );
 	$first and $self->{connected} and $self->{connected}( @args );
 	
@@ -125,11 +153,17 @@ sub _db_offline {
 	$self->{rwstores} = [ grep $_ != $c, @{ $self->{rwstores} } ] if $srv->{rw};
 	$self->{rostores} = [ grep $_ != $c, @{ $self->{rostores} } ] if !$srv->{rw};
 	
-	my $last = ( $self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) : ( @{ $self->{stores} } == 0 ) ) || 0;
+	#my $last = ( $self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) : ( @{ $self->{stores} } == 0 ) ) || 0;
+	my $last = (
+		$self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) :
+		$self->{connected_mode} eq 'ro' ? ( !$srv->{rw} && (@{ $self->{rostores} } == 0) ) :
+		( @{ $self->{stores} } == 0 )
+	) || 0;
 	
 	my $key = $srv->{rw} ? 'rw' : 'ro';
 	my $event = "${key}_disconnected";
 	
+	$self->{change} and $self->{change}->($self,"disconnected",$srv->{rw} ? 'rw' : 'ro',@{ $srv->{peer} }{qw(host port)}, @_);
 	my @args = ( U($self,$srv->{c}), @_ );
 	$self->{$event} && $self->{$event}( @args );
 	
@@ -151,6 +185,7 @@ sub _db_offline {
 sub _srv_by_mode {
 	my $self = shift;
 	my $mode;
+	#warn "@_";
 	if ( @_ > 1 and !ref $_[-2] and $_[-2] =~ /^(?:r[ow]|any|a(?:ny|)r[ow])$/i  ) {
 		$mode = splice @_, -2,1;
 	} else {
