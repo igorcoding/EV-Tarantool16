@@ -59,6 +59,7 @@ sub new {
 			timeout => $self->{timeout},
 			reconnect => $self->{reconnect},
 			spaces => $spaces,
+			read_buffer => 1024*1024*1024,
 			connected => sub {
 				my $c = shift;
 				@{ $srv->{peer} = {} }{qw(host port)} = @_;
