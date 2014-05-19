@@ -61,6 +61,7 @@ static void on_read(ev_cnn * self, size_t len) {
 				if (var && SvIV (* var) != 0) {
 					warn("reqid:%d; in code=%d",id,SvIV (*var));
 					warn("reqid:%d; %s",id, dumper(ctx->wbuf));
+					asm("int $0x3\n");
 				}
 				warn("reqid:%d; after code=%d",id,SvIV (*var));
 				SvREFCNT_dec(ctx->wbuf);
