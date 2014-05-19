@@ -57,6 +57,7 @@ static void on_read(ev_cnn * self, size_t len) {
 				
 				int length = parse_reply( hv, rbuf, ln+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
 				SV ** var = hv_fetchs(hv,"code",0);
+				warn("reqid:%d; code=%d",id,SvIV (*var));
 				if (var && SvIV (* var) != 0) {
 					warn("reqid:%d; %s",id, dumper(ctx->wbuf));
 				}
