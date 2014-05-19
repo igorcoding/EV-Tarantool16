@@ -59,6 +59,7 @@ static void on_read(ev_cnn * self, size_t len) {
 				SV ** var = hv_fetchs(hv,"code",0);
 				warn("reqid:%d; code=%d",id,SvIV (*var));
 				if (var && SvIV (* var) != 0) {
+					warn("reqid:%d; in code=%d",id,SvIV (*var));
 					warn("reqid:%d; %s",id, dumper(ctx->wbuf));
 				}
 				warn("reqid:%d; after code=%d",id,SvIV (*var));
