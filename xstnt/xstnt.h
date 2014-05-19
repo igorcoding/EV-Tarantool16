@@ -344,6 +344,35 @@ typedef struct {
 	} \
 } STMT_END
 
+//DUMP//////////////////////
+void dumper(SV *any) {
+	dSP;
+
+	ENTER;
+	SAVETMPS;
+
+	PUSHMARK(SP);
+	EXTEND(SP,1);
+	PUSHs( any );
+	PUTBACK;
+
+	int count = call_pv( "Data::Dumper::Dumper", G_SCALAR | G_EVAL | G_KEEPERR );
+
+	SPAGAIN;
+	if (count != 1) croak("XXX");
+	if (SvTRUE(ERRSV)) {
+			croak("Error - %s\n", SvPV_nolen(ERRSV));
+	}
+	SV *ret = POPs;
+	warn("Dump = %s\n",SvPV_nolen(ret));
+	//printf("Dump = %s\n",POPp);
+
+	PUTBACK;
+
+	FREETMPS;
+	LEAVE;
+}
+////////////////////////////
 
 static inline SV * newSVpvn_pformat ( const char *data, STRLEN size, const unpack_format * format, int idx ) {
 	assert(size >= 0);
@@ -460,12 +489,13 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 		case TNT_OP_CALL:
 			
 			if (code != 0) {
-				//warn("error (%d)", end - data - 1);
+				warn("reqid:%d; error (len:%d); typ=%d; code=%d; len=%d; %-.*s",hd->reqid, end - data - 1, type, code, len, end > data ? end - data - 1 : 0, data);
 				(void) hv_stores(ret, "status", newSVpvs("error"));
 				(void) hv_stores(ret, "errstr", newSVpvn( data, end > data ? end - data - 1 : 0 ));
 				data = end;
 				break;
 			} else {
+				warn("reqid:%d; (len:%d); typ=%d; code=%d; len=%d;",hd->reqid, end - data - 1, type, code, len);
 				(void) hv_stores(ret, "status", newSVpvs("ok"));
 			}
 			
@@ -1043,6 +1073,9 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	evt_opt_out( opt, ctx, ctx->space );
 	evt_opt_in( opt, ctx, ((TntSpace *) 0) );
 	
+	//printf("tuple ");
+	//dumper(sv_2mortal(newRV_inc((SV*) tuple)));
+	
 	rv = sv_2mortal(newSV( TNT_CALL_PREALLOC_SIZE( sv_len(proc), av_len(tuple)+1 ) ));
 	SvUPGRADE( rv, SVt_PV );
 	
@@ -1072,6 +1105,7 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	h->reqid  = htole32( iid );
 	h->flags  = htole32( flags );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
+	warn("reqid:%d rv is_utf8=%d and len=%d and cur=%d and LEN=%d and h->len=%d ",h->reqid, SvUTF8(rv),sv_len(rv),SvCUR(rv),SvLEN(rv),h->len);
 	
 	return SvREFCNT_inc(rv);
 }

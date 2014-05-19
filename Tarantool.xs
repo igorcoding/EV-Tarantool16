@@ -40,7 +40,7 @@ static void on_read(ev_cnn * self, size_t len) {
 		tnt_hdr_t *hx = (tnt_hdr_t *) rbuf;
 		uint32_t id  = le32toh( hx->reqid );
 		uint32_t ln = le32toh( hx->len );
-		debug("packet type: %04x; id:%04x; len: %04x",le32toh( hx->type ),le32toh( hx->reqid ),le32toh( hx->len ));
+		warn("reqid:%d; packet type: %d; len: %d",le32toh( hx->reqid ),le32toh( hx->type ),le32toh( hx->len ));
 		if ( rbuf + 12 + ln <= end ) {
 			debug("enough %p + 12 + %u < %p", rbuf,ln,end);
 			
@@ -220,6 +220,7 @@ void lua( SV *this, SV * proc, AV * tuple, ... )
 		
 		uint32_t iid = ++self->seq;
 		
+		warn("reqid:%d; Len tuple before pkt_lua: %d\n",iid, av_len(tuple)+1);
 		ctx->wbuf = pkt_lua(ctx, iid, self->spaces, proc, tuple, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
 		
 		SvREFCNT_inc(ctx->cb = cb);
