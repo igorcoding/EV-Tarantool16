@@ -52,11 +52,15 @@ static void on_read(ev_cnn * self, size_t len) {
 			}
 			else {
 				ctx = ( TntCtx * ) SvPVX( key );
-				SvREFCNT_dec(ctx->wbuf);
 				
 				HV * hv = newHV();
 				
 				int length = parse_reply( hv, rbuf, ln+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
+				SV ** var = hv_fetchs(hv,"code",0);
+				if (var && SvIV (* var) != 0) {
+					warn("reqid:%d; %s",id, dumper(ctx->wbuf));
+				}
+				SvREFCNT_dec(ctx->wbuf);
 				if (ctx->f.size && !ctx->f.nofree) {
 					safefree(ctx->f.f);
 				}

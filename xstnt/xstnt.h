@@ -345,7 +345,7 @@ typedef struct {
 } STMT_END
 
 //DUMP//////////////////////
-void dumper(SV *any) {
+char *  dumper(SV *any) {
 	dSP;
 
 	ENTER;
@@ -364,13 +364,16 @@ void dumper(SV *any) {
 			croak("Error - %s\n", SvPV_nolen(ERRSV));
 	}
 	SV *ret = POPs;
-	warn("Dump = %s\n",SvPV_nolen(ret));
+	SvREFCNT_inc(ret);
+	//warn("Dump = %s\n",SvPV_nolen(ret));
 	//printf("Dump = %s\n",POPp);
 
 	PUTBACK;
 
 	FREETMPS;
 	LEAVE;
+
+	return SvPV_nolen(ret);
 }
 ////////////////////////////
 
@@ -1078,6 +1081,8 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	
 	rv = sv_2mortal(newSV( TNT_CALL_PREALLOC_SIZE( sv_len(proc), av_len(tuple)+1 ) ));
 	SvUPGRADE( rv, SVt_PV );
+	
+	SvPOK_on(rv);
 	
 	tnt_pkt_call_t *h = (tnt_pkt_call_t *) SvPVX(rv);
 	
