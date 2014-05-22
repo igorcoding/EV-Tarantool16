@@ -150,9 +150,10 @@ sub _db_offline {
 	my $self = shift;
 	my $srv  = shift;
 	my $c = $srv->{c};
-	$self->{stores}   = [ grep $_ != $c, @{ $self->{stores} } ];
-	$self->{rwstores} = [ grep $_ != $c, @{ $self->{rwstores} } ] if $srv->{rw};
-	$self->{rostores} = [ grep $_ != $c, @{ $self->{rostores} } ] if !$srv->{rw};
+	
+	$self->{stores}   = [ grep $_ != $srv, @{ $self->{stores} } ];
+	$self->{rwstores} = [ grep $_ != $srv, @{ $self->{rwstores} } ] if $srv->{rw};
+	$self->{rostores} = [ grep $_ != $srv, @{ $self->{rostores} } ] if !$srv->{rw};
 	
 	#my $last = ( $self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) : ( @{ $self->{stores} } == 0 ) ) || 0;
 	my $last = (
@@ -251,8 +252,8 @@ sub each : method {
 	my $self = shift;
 	my $cb = pop;
 	my $flags = shift;
-	for (@{ $self->{stores} }) {
-		$cb->($_);
+	for my $s (@{ $self->{stores} }) {
+		$cb->($s);
 	}
 }
 
