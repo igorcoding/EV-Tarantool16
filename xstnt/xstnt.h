@@ -473,7 +473,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 	(void) hv_stores(ret, "id",   newSViv( le32toh( hd->reqid ) ));
 	
 	if ( size < len + sizeof(tnt_res_t) - 4 ) {
-		warn("Header ok but wrong len (size=%d < len = %d)", size, len);
+		warn("Header ok but wrong len (size=%zd < len = %u)", size, len);
 		goto shortread;
 	}
 	
@@ -492,13 +492,13 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 		case TNT_OP_CALL:
 			
 			if (code != 0) {
-				warn("reqid:%d; error (len:%d); typ=%d; code=%d; len=%d; %-.*s",hd->reqid, end - data - 1, type, code, len, end > data ? end - data - 1 : 0, data);
+				//warn("reqid:%d; error (len:%d); typ=%d; code=%d; len=%d; %-.*s",hd->reqid, end - data - 1, type, code, len, end > data ? end - data - 1 : 0, data);
 				(void) hv_stores(ret, "status", newSVpvs("error"));
 				(void) hv_stores(ret, "errstr", newSVpvn( data, end > data ? end - data - 1 : 0 ));
 				data = end;
 				break;
 			} else {
-				warn("reqid:%d; (len:%d); typ=%d; code=%d; len=%d;",hd->reqid, end - data - 1, type, code, len);
+				//warn("reqid:%d; (len:%d); typ=%d; code=%d; len=%d;",hd->reqid, end - data - 1, type, code, len);
 				(void) hv_stores(ret, "status", newSVpvs("ok"));
 			}
 			
@@ -585,7 +585,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 						else  {
 							if ( !tail ) {
 								tail = newAV();
-								hv_stores(tuple,"",newRV_noinc( (SV *) tail ));
+								(void) hv_stores(tuple,"",newRV_noinc( (SV *) tail ));
 							}
 							av_push( tail, newSVpvn_pformat( ptr, fsize, format, k ) );
 						}
@@ -716,11 +716,11 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 			f = av_fetch( fields,k,0 );
 			fl = hv_fetch_ent(hf,*f,0,0);
 			if (fl && SvOK( HeVAL(fl) )) {
-				hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
+				(void) hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
 			}
 		}
 		if ((f = hv_fetch(hf,"",0,0)) && SvROK(*f)) {
-			hv_store(used,"",0, &PL_sv_undef,0);
+			(void) hv_store(used,"",0, &PL_sv_undef,0);
 		}
 		(void) hv_iterinit( hf );
 		STRLEN nlen;
@@ -802,7 +802,6 @@ static void configure_spaces(HV *dest, SV * src) {
 			}
 			HV *sph = (HV *) SvRV(src);
 			HE *ent;
-			char *nkey;
 			STRLEN nlen;
 			(void) hv_iterinit( sph );
 			while ((ent = hv_iternext( sph ))) {
@@ -914,7 +913,7 @@ static void configure_spaces(HV *dest, SV * src) {
 							dSVX( fldsv,fld,TntField );
 							fld->id = fid;
 							fld->format = format;
-							hv_store(spc->field,SvPV_nolen(*f),sv_len(*f),fldsv, HeHASH(fhe));
+							(void) hv_store(spc->field,SvPV_nolen(*f),sv_len(*f),fldsv, HeHASH(fhe));
 						}
 					}
 				}
@@ -951,7 +950,6 @@ static void configure_spaces(HV *dest, SV * src) {
 						
 						if ((key = hv_fetch(index, "name", 4, 0)) && SvOK(*key)) {
 							//warn("index %d have name '%s'",iid,SvPV_nolen(*key));
-							SV *ixname = *key;
 							idx->name = newSVsv( *key );
 							if ((key = hv_fetch( spc->indexes,SvPV_nolen(idx->name),SvCUR(idx->name),0 )) && *key) {
 								TntIndex *old  = (TntIndex *) SvPVX(*key);
@@ -994,7 +992,6 @@ static void configure_spaces(HV *dest, SV * src) {
 
 static void destroy_spaces(HV *spaces) {
 			HE *ent;
-			STRLEN nlen;
 			(void) hv_iterinit( spaces );
 			while ((ent = hv_iternext( spaces ))) {
 				HE *he;
@@ -1055,7 +1052,7 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 		if ((key = hv_fetchs(opt, "quiet", 0)) && SvOK(*key)) flags |= TNT_FLAG_BOX_QUIET;
 		if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
 		if ((key = hv_fetchs(opt,"space",0)) && SvOK(*key)) {
-			if (ctx->space = evt_find_space( *key, spaces ) ) {
+			if (( ctx->space = evt_find_space( *key, spaces ) )) {
 				ctx->use_hash = 1;
 			}
 			else {
@@ -1110,7 +1107,7 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	h->reqid  = htole32( iid );
 	h->flags  = htole32( flags );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
-	warn("reqid:%d rv is_utf8=%d and len=%d and cur=%d and LEN=%d and h->len=%d ",h->reqid, SvUTF8(rv),sv_len(rv),SvCUR(rv),SvLEN(rv),h->len);
+	//warn("reqid:%zd rv is_utf8=%zd and len=%d and cur=%d and LEN=%d and h->len=%d ",h->reqid, SvUTF8(rv),sv_len(rv),SvCUR(rv),SvLEN(rv),h->len);
 	
 	return SvREFCNT_inc(rv);
 }
@@ -1132,7 +1129,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 	
-	if( spc = evt_find_space( space, spaces ) ) {
+	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 	}
 	else {
@@ -1141,7 +1138,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if( idx = evt_find_index( spc, key ) )
+			if(( idx = evt_find_index( spc, key ) ))
 				index = idx->id;
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
@@ -1208,13 +1205,13 @@ static inline SV * pkt_insert( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	unpack_format *fmt;
 	dUnpackFormat( format );
 		
-	int k,i;
+	int k;
 	SV **key;
 	
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 	
-	if( spc = evt_find_space( space, spaces ) ) {
+	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
@@ -1274,14 +1271,14 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	unpack_format *fmt;
 	dUnpackFormat( format );
 	
-	int k,i;
+	int k;
 	SV **key,**val;
 	
 	
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 	
-	if( spc = evt_find_space( space, spaces ) ) {
+	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
