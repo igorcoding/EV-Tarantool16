@@ -930,7 +930,6 @@ static void configure_spaces(HV *dest, SV * src) {
 					while ((ent = hv_iternext( idxs ))) {
 						char *iname = HePV(ent, nlen);
 						U32 iid = atoi( iname );
-						//warn("index %d",iid);
 						if (SvTYPE( SvRV( HeVAL(ent) ) ) != SVt_PVHV) croak("Index '%s' config must be hash", iname);
 						HV *index = (HV *) SvRV(HeVAL(ent));
 						
@@ -949,7 +948,7 @@ static void configure_spaces(HV *dest, SV * src) {
 						(void)hv_store( spc->indexes,(char *)&iid,sizeof(U32),idxcf,0 );
 						
 						if ((key = hv_fetch(index, "name", 4, 0)) && SvOK(*key)) {
-							//warn("index %d have name '%s'",iid,SvPV_nolen(*key));
+							//cwarn("index %d have name '%s'",iid,SvPV_nolen(*key));
 							idx->name = newSVsv( *key );
 							if ((key = hv_fetch( spc->indexes,SvPV_nolen(idx->name),SvCUR(idx->name),0 )) && *key) {
 								TntIndex *old  = (TntIndex *) SvPVX(*key);
@@ -959,28 +958,39 @@ static void configure_spaces(HV *dest, SV * src) {
 								(void)hv_store( spc->indexes,SvPV_nolen(idx->name),SvCUR(idx->name),SvREFCNT_inc(idxcf),0 );
 							}
 						}
-						if ((key = hv_fetch(index, "fields", 6, 0)) && SvROK(*key)) {
-							if (SvTYPE( SvRV( *key ) ) != SVt_PVAV) croak("Index fields must be arrayref");
-							SvREFCNT_inc(idx->fields = (AV *)SvRV(*key));
-							AV *fields = (AV *) SvRV(*key);
-							int ix;
-							idx->f.nofree = 1;
-							idx->f.size = av_len(fields)+1;
-							idx->f.f = safemalloc(idx->f.size+1);
-							idx->f.f[idx->f.size] = 0;
-							idx->f.def = 'p';
-							for (ix=0;ix <= av_len(fields); ix++) {
-								SV **f = av_fetch( fields,ix,0 );
-								if (!f) croak("XXX");
-								HE *fhe = hv_fetch_ent(spc->field,*f,1,0);
-								if (SvOK( HeVAL(fhe) )) {
-									idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
-								}
-								else {
-									croak("Unknown field name: '%s' in index %d of space %d",SvPV_nolen( *f ), iid, id);
-								}
+						if ((key = hv_fetch(index, "fields", 6, 0))) {
+							SV* newkey;
+							if (! SvROK(*key) ) {
+								sv_dump(*key);
+								AV *av = newAV();
+								av_store( av, 0, *key);
+								newkey = sv_2mortal(newRV_noinc( (SV*) av));
 							}
-							//warn("index %d format (%zu): %-.*s",iid,idx->f.size,(int)idx->f.size,idx->f.f);
+							if (!newkey) newkey = (SV*) *key;
+							if ((SvROK(newkey) && SvTYPE( SvRV( newkey ) ) == SVt_PVAV)) {
+								SvREFCNT_inc(idx->fields = (AV *)SvRV(newkey));
+								AV *fields = (AV *) SvRV(newkey);
+								int ix;
+								idx->f.nofree = 1;
+								idx->f.size = av_len(fields)+1;
+								idx->f.f = safemalloc(idx->f.size+1);
+								idx->f.f[idx->f.size] = 0;
+								idx->f.def = 'p';
+								for (ix=0;ix <= av_len(fields); ix++) {
+									SV **f = av_fetch( fields,ix,0 );
+									if (!f) croak("XXX");
+									HE *fhe = hv_fetch_ent(spc->field,*f,1,0);
+									if (SvOK( HeVAL(fhe) )) {
+										idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
+									}
+									else {
+										croak("Unknown field name: '%s' in index %d of space %d",SvPV_nolen( *f ), iid, id);
+									}
+								}
+								//cwarn("index %d format (%zu): %-.*s",iid,idx->f.size,(int)idx->f.size,idx->f.f);
+							} else {
+								croak("Index fields mast be array");
+							}
 						}
 					}
 				} else {
@@ -1151,7 +1161,6 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	else {
 		ctx->f.size = 0;
 	}
-	
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
 			idx = (TntIndex*) SvPVX(*key);

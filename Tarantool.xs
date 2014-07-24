@@ -260,14 +260,15 @@ void select( SV *this, SV *space, AV * keys, ... )
 		
 		uint32_t iid = ++self->seq;
 		
-		ctx->wbuf = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		if ((ctx->wbuf = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
 		
-		SvREFCNT_inc(ctx->cb = cb);
-		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-		
-		++self->pending;
-		
-		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+			
+			++self->pending;
+			
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
 		
 		XSRETURN_UNDEF;
 
