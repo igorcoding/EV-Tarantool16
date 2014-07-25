@@ -959,7 +959,7 @@ static void configure_spaces(HV *dest, SV * src) {
 							}
 						}
 						if ((key = hv_fetch(index, "fields", 6, 0))) {
-							SV* newkey = newSV(0);
+							SV* newkey = 0;
 							if (! SvROK(*key) ) {
 								AV *av = newAV();
 								av_store( av, 0, *key);
