@@ -807,7 +807,7 @@ static void configure_spaces(HV *dest, SV * src) {
 			while ((ent = hv_iternext( sph ))) {
 				char *name = HePV(ent, nlen);
 				U32 id = atoi( name );
-				//warn("hash key = %s; val = %s",name, SvPV_nolen(HeVAL(ent)));
+				//cwarn("hash id = %d; key = %s; val = %s",id,name, SvPV_nolen(HeVAL(ent)));
 				if (SvTYPE( SvRV( HeVAL(ent) ) ) != SVt_PVHV) {
 					croak("Space '%s' config must be hash", name);
 				}
@@ -959,14 +959,13 @@ static void configure_spaces(HV *dest, SV * src) {
 							}
 						}
 						if ((key = hv_fetch(index, "fields", 6, 0))) {
-							SV* newkey;
+							SV* newkey = newSV(0);
 							if (! SvROK(*key) ) {
-								sv_dump(*key);
 								AV *av = newAV();
 								av_store( av, 0, *key);
 								newkey = sv_2mortal(newRV_noinc( (SV*) av));
 							}
-							if (!newkey) newkey = (SV*) *key;
+							if (! newkey || ! SvROK(newkey)) newkey = (SV*) *key;
 							if ((SvROK(newkey) && SvTYPE( SvRV( newkey ) ) == SVt_PVAV)) {
 								SvREFCNT_inc(idx->fields = (AV *)SvRV(newkey));
 								AV *fields = (AV *) SvRV(newkey);
