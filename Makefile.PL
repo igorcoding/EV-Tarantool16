@@ -15,7 +15,7 @@ WriteMakefile(
 	ABSTRACT_FROM     => 'lib/EV/Tarantool.pm',
 	PREREQ_PM         => { EV => 4 },
 	LIBS              => ['-lcares19'],
-	DEFINE            => '-g -ggdb -O2',
+	DEFINE            => '-g -ggdb -O0',
 	CONFIGURE => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(

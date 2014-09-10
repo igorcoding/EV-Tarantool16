@@ -325,7 +325,10 @@ typedef struct {
 				uptr_field_sv_fmt( p, *key, k < fmt->size ? fmt->f[k] : fmt->def ); \
 			} \
 		} \
-		else { *(p.c++) = 0; } \
+		else {\
+			uptr_sv_size( p, rv, 1 ); \
+			*(p.c++) = 0;\
+		} \
 	} \
 } STMT_END
 
@@ -680,7 +683,8 @@ int varint_size(uint32_t value) {
 
 #define uptr_sv_size( up, svx, need ) \
 	STMT_START {                                                           \
-		if ( up.c - SvPVX(svx) + need < SvLEN(svx) ) {} \
+		if ( up.c - SvPVX(svx) + need < SvLEN(svx) )  { \
+		} \
 		else {\
 			STRLEN used = up.c - SvPVX(svx); \
 			up.c = sv_grow(svx, SvLEN(svx) + need ); \
@@ -1361,6 +1365,7 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		// Splice always 'p'
 		// num ops always force format l or i (32 or 64), depending on size
 		
+		uptr_sv_size( p,rv, 2);
 		switch (*opname) {
 			case '#': //delete
 				*( p.c++ ) = TNT_UPDATE_DELETE;
