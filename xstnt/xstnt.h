@@ -14,6 +14,7 @@
 #define TNT_FLAG_BOX_QUIET 0x08
 #define TNT_FLAG_NOT_STORE 0x10
 
+#define TUPLE_FIELD_DEFAULT 32
 enum {
 	TNT_UPDATE_ASSIGN = 0,
 	TNT_UPDATE_ADD,
@@ -322,6 +323,30 @@ typedef struct {
 			if ( !SvOK(*key) || !sv_len(*key) ) { *(p.c++) = 0; } \
 			else { \
 				uptr_sv_size( p, rv, 5 + 8 + sv_len(*key) ); \
+				uptr_field_sv_fmt( p, *key, k < fmt->size ? fmt->f[k] : fmt->def ); \
+			} \
+		} \
+		else {\
+			uptr_sv_size( p, rv, 1 ); \
+			*(p.c++) = 0;\
+		} \
+	} \
+} STMT_END
+
+#define uptr_tuple_calc_size(p, rv, t, hfields, fmt, const_len, var_len) STMT_START { \
+	AV *fields; \
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), hfields, cb ); } \
+	else { fields  = (AV *) SvRV(t); } \
+	*( p.i++ ) = htole32( av_len(fields) + 1 ); \
+	for (k=0; k <= av_len(fields); k++) { \
+		key = av_fetch( fields, k, 0 ); \
+		if (key && *key) { \
+			if ( !SvOK(*key) || !sv_len(*key) ) { \
+				var_len -= TUPLE_FIELD_DEFAULT; \
+				*(p.c++) = 0; \
+			} else { \
+				var_len += sv_len(*key) - TUPLE_FIELD_DEFAULT; \
+				uptr_sv_check( p, rv, const_len + var_len ); \
 				uptr_field_sv_fmt( p, *key, k < fmt->size ? fmt->f[k] : fmt->def ); \
 			} \
 		} \
@@ -688,6 +713,17 @@ int varint_size(uint32_t value) {
 		else {\
 			STRLEN used = up.c - SvPVX(svx); \
 			up.c = sv_grow(svx, SvLEN(svx) + need ); \
+			up.c += used; \
+		}\
+	} STMT_END
+
+#define uptr_sv_check( up, svx, totalneed ) \
+	STMT_START {                                                           \
+		if ( totalneed < SvLEN(svx) )  { \
+		} \
+		else {\
+			STRLEN used = up.c - SvPVX(svx); \
+			up.c = sv_grow(svx, totalneed ); \
 			up.c += used; \
 		}\
 	} STMT_END
@@ -1312,6 +1348,22 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 	
+	int cardinality = (  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+	int opcount = ( av_len(ops)+1 );
+	STRLEN const_len, var_len;
+	const_len =
+		5 * cardinality // cardinality * (field <w> )
+		+ 4 // count
+		+ (
+			4 + // fieldno
+			1 + // opcode
+			5   // field <w>
+		) * opcount;
+	var_len =
+		TUPLE_FIELD_DEFAULT * cardinality + // take 32 as average/estimated tuple field length
+		( TUPLE_FIELD_DEFAULT ) * opcount // every field value
+	;
+	
 	SV *rv = sv_2mortal(newSV( TNT_UPDATE_PREALLOC_SIZE(
 		(  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 ),
 		av_len(ops)+1
@@ -1322,7 +1374,7 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	
 	p.c = (char *)(h+1);
 	
-	uptr_tuple(p, rv, t, idx->fields, fmt);
+	uptr_tuple_calc_size(p, rv, t, idx->fields, fmt, const_len, var_len);
 	
 	AV *aop;
 	
@@ -1332,7 +1384,6 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		val = av_fetch( ops, k, 0 );
 		if (!*val || !SvROK( *val ) || SvTYPE( SvRV(*val) ) != SVt_PVAV )
 			croak_cb(cb,"Single update operation byst be arrayref");
-			//croak("Wrong update operation format: %s", val ? SvPV_nolen(*val) : "undef");
 		aop = (AV *)SvRV(*val);
 		
 		if ( av_len( aop ) < 1 ) croak_cb(cb,"Too short operation argument list");
@@ -1365,7 +1416,6 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		// Splice always 'p'
 		// num ops always force format l or i (32 or 64), depending on size
 		
-		uptr_sv_size( p,rv, 2);
 		switch (*opname) {
 			case '#': //delete
 				*( p.c++ ) = TNT_UPDATE_DELETE;
@@ -1375,10 +1425,12 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 				*( p.c++ ) =  TNT_UPDATE_ASSIGN;
 				val = av_fetch( aop, 2, 0 );
 				if (val && *val && SvOK(*val)) {
-					uptr_sv_size( p,rv, 5 + sv_len(*val));
+					var_len += sv_len(*val) - TUPLE_FIELD_DEFAULT;
+					uptr_sv_check( p, rv, const_len + var_len );
 					uptr_field_sv_fmt( p, *val, av_len(aop) > 2 ? *SvPV_nolen( *av_fetch( aop, 3, 0 ) ) : field_format ? field_format : 'p' );
 				} else {
 					warn("undef in assign");
+					var_len -= TUPLE_FIELD_DEFAULT;
 					*( p.c++ ) = 0;
 				}
 				break;
@@ -1387,7 +1439,8 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 				*( p.c++ ) = TNT_UPDATE_INSERT;
 				val = av_fetch( aop, 2, 0 );
 				if (val && *val && SvOK(*val)) {
-					uptr_sv_size( p,rv, 5 + sv_len(*val));
+					var_len += sv_len(*val) - TUPLE_FIELD_DEFAULT;
+					uptr_sv_check( p, rv, const_len + var_len );
 					uptr_field_sv_fmt( p, *val, av_len(aop) > 2 ? *SvPV_nolen( *av_fetch( aop, 3, 0 ) ) : 'p' );
 				} else {
 					warn("undef in insert");
@@ -1401,16 +1454,17 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 				
 				val = av_fetch( aop, 4, 0 );
 				
-				uptr_sv_size( p, rv, 15 + sv_len(*val));
+				var_len += ( 1 + 4 + 1 + 4 + 5 + sv_len(*val) ) - TUPLE_FIELD_DEFAULT;
+				uptr_sv_check( p, rv, const_len + var_len );
 				
 				p.c = varint( p.c, 1+4 + 1+4  + varint_size( sv_len(*val) ) + sv_len(*val) );
 				
 				*(p.c++) = 4;
-				*(p.i++) = (U32)SvIV( *av_fetch( aop, 2, 0 ) );
+				*(p.i++) = (U32)SvIV( *av_fetch( aop, 2, 0 ) ); // offset
 				*(p.c++) = 4;
-				*(p.i++) = (U32)SvIV( *av_fetch( aop, 3, 0 ) );
+				*(p.i++) = (U32)SvIV( *av_fetch( aop, 3, 0 ) ); // length
 				
-				uptr_field_sv_fmt( p, *val, 'p' );
+				uptr_field_sv_fmt( p, *val, 'p' ); // string
 				break;
 			case '+': //add
 				opcode = TNT_UPDATE_ADD;
@@ -1436,9 +1490,11 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 			if (v > 0xffffffff) {
 				*( p.c++ ) = 8;
 				*( p.q++ ) = (U64) v;
+				var_len += 8 - TUPLE_FIELD_DEFAULT;
 			} else {
 				*( p.c++ ) = 4;
 				*( p.i++ ) = (U32) v;
+				var_len += 4 - TUPLE_FIELD_DEFAULT;
 			}
 		}
 	}
