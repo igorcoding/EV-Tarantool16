@@ -1124,8 +1124,20 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	
 	//printf("tuple ");
 	//dumper(sv_2mortal(newRV_inc((SV*) tuple)));
+
+	int cardinality = ( av_len(tuple)+1 );
+	STRLEN const_len, var_len;
+	const_len =
+		sizeof(tnt_pkt_call_t) // base of requset
+		+ 5 + sv_len(proc) // proc_name: <w><data>
+		+ 4 // cardinality
+		+ 5 * cardinality // (field <w> ) * cardinality
+	;
+	var_len =
+		TUPLE_FIELD_DEFAULT * cardinality // take 32 as average/estimated tuple field length
+	;
 	
-	rv = sv_2mortal(newSV( TNT_CALL_PREALLOC_SIZE( sv_len(proc), av_len(tuple)+1 ) ));
+	rv = sv_2mortal(newSV( const_len +  var_len ));
 	SvUPGRADE( rv, SVt_PV );
 	
 	SvPOK_on(rv);
@@ -1144,11 +1156,12 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 		if ( !SvOK(f) || !sv_len(f) ) {
 			*(p.c++) = 0;
 		} else {
-			uptr_sv_size( p, rv, 5 + sv_len(f) );
+			var_len += sv_len(f) - TUPLE_FIELD_DEFAULT;
+			uptr_sv_check( p, rv, const_len + var_len );
 			uptr_field_sv_fmt( p, f, k < format.size ? format.f[k] : format.def );
 		}
 	}
-	
+
 	SvCUR_set( rv, p.c - SvPVX(rv) );
 	
 	h = (tnt_pkt_call_t *) SvPVX( rv ); // for sure
@@ -1211,8 +1224,18 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
+
+	int tuple_count = ( av_len(keys)+1 );
+	STRLEN const_len, var_len;
+	const_len =
+		sizeof(tnt_pkt_select_t) // base of requset
+		+ 4 * tuple_count // (field <w> ) * tuple
+	;
+	var_len =
+		TUPLE_FIELD_DEFAULT * tuple_count // take 32 as average/estimated tuple field length
+	;
 	
-	SV *rv = sv_2mortal(newSV( TNT_SELECT_PREALLOC_SIZE( av_len(keys)+1 ) ));
+	SV *rv = sv_2mortal(newSV( const_len +  var_len ));
 	SvUPGRADE( rv, SVt_PV );
 	
 	tnt_pkt_select_t *h = (tnt_pkt_select_t *) SvPVX(rv);
@@ -1226,7 +1249,8 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 			croak_cb(cb,"keys must be ARRAYREF of ARRAYREF or ARRAYREF of HASHREF");
 		}
 		SV *t = *key;
-		uptr_tuple( p, rv, t, idx->fields, fmt );
+		var_len += ( (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+		uptr_tuple_calc_size( p, rv, t, idx->fields, fmt, const_len, var_len );
 	}
 	
 	SvCUR_set( rv, p.c - SvPVX(rv) );
@@ -1289,15 +1313,25 @@ static inline SV * pkt_insert( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		check_tuple(t, idx);
 		evt_opt_in( opt, ctx, idx );
 	}
-	SV *rv = sv_2mortal(newSV( TNT_INSERT_PREALLOC_SIZE(
-		(  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 )
-	) ));
+
+	int cardinality = (  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+	STRLEN const_len, var_len;
+	const_len =
+		sizeof(tnt_pkt_update_t) // base of requset
+		+ 4 // cardinality
+		+ 5 * cardinality // (field <w> ) * cardinality
+	;
+	var_len =
+		TUPLE_FIELD_DEFAULT * cardinality // take 32 as average/estimated tuple field length
+	;
+
+	SV *rv = sv_2mortal(newSV( const_len + var_len ));
 	SvUPGRADE( rv, SVt_PV );
-	
+
 	tnt_pkt_insert_t *h = (tnt_pkt_insert_t *) SvPVX(rv);
 	p.c = (char *)(h+1);
 	
-	uptr_tuple(p, rv, t, ( insert_or_delete == TNT_OP_INSERT ? spc->fields : idx->fields ), fmt);
+	uptr_tuple_calc_size(p, rv, t, ( insert_or_delete == TNT_OP_INSERT ? spc->fields : idx->fields ), fmt, const_len, var_len);
 	
 	SvCUR_set( rv, p.c - SvPVX(rv) );
 	h = (tnt_pkt_insert_t *) SvPVX( rv ); // for sure
@@ -1352,7 +1386,9 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	int opcount = ( av_len(ops)+1 );
 	STRLEN const_len, var_len;
 	const_len =
-		5 * cardinality // cardinality * (field <w> )
+		sizeof(tnt_pkt_update_t) // base of requset
+		+ 4 // cardinality
+		+ 5 * cardinality // cardinality * (field <w> )
 		+ 4 // count
 		+ (
 			4 + // fieldno
@@ -1364,10 +1400,7 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		( TUPLE_FIELD_DEFAULT ) * opcount // every field value
 	;
 	
-	SV *rv = sv_2mortal(newSV( TNT_UPDATE_PREALLOC_SIZE(
-		(  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 ),
-		av_len(ops)+1
-	) ));
+	SV *rv = sv_2mortal(newSV( const_len + var_len ));
 	
 	SvUPGRADE( rv, SVt_PV );
 	tnt_pkt_update_t *h = (tnt_pkt_update_t *) SvPVX(rv);
