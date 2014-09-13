@@ -351,7 +351,7 @@ typedef struct {
 			} \
 		} \
 		else {\
-			uptr_sv_size( p, rv, 1 ); \
+			var_len -= TUPLE_FIELD_DEFAULT; \
 			*(p.c++) = 0;\
 		} \
 	} \
@@ -1229,14 +1229,15 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	STRLEN const_len, var_len;
 	const_len =
 		sizeof(tnt_pkt_select_t) // base of requset
-		+ 4 * tuple_count // (field <w> ) * tuple
+		+ 4 * tuple_count // (<cardinality>) * tuple_count
 	;
 	var_len =
-		TUPLE_FIELD_DEFAULT * tuple_count // take 32 as average/estimated tuple field length
+		0 // empty on start
 	;
-	
-	SV *rv = sv_2mortal(newSV( const_len +  var_len ));
+
+	SV *rv = sv_2mortal(newSV( const_len +  var_len + TUPLE_FIELD_DEFAULT*tuple_count)); // to avoid reallocation we request + TUPLE_FIELD_DEFAULT*tuple_count because tuples probably will not be empty
 	SvUPGRADE( rv, SVt_PV );
+	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	
 	tnt_pkt_select_t *h = (tnt_pkt_select_t *) SvPVX(rv);
 	
@@ -1249,8 +1250,11 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 			croak_cb(cb,"keys must be ARRAYREF of ARRAYREF or ARRAYREF of HASHREF");
 		}
 		SV *t = *key;
-		var_len += ( (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+		int cardinality = ( (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+		var_len += (5 + TUPLE_FIELD_DEFAULT) * cardinality;
+		//warn("(2)[%d]before c_len: %d and v_len: %d, sv_len:%d, sv_cur:%d",i, const_len, var_len, SvLEN(rv), p.c - SvPVX(rv));
 		uptr_tuple_calc_size( p, rv, t, idx->fields, fmt, const_len, var_len );
+		//warn("(2)[%d]after c_len: %d and v_len: %d, sv_len:%d, sv_cur:%d",i, const_len, var_len, SvLEN(rv), p.c - SvPVX(rv));
 	}
 	
 	SvCUR_set( rv, p.c - SvPVX(rv) );
@@ -1266,6 +1270,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	h->count  = htole32( htole32( av_len(keys) + 1 ) );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
 	
+	//warn("on return: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	return SvREFCNT_inc(rv);
 }
 
