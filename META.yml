@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               EV-Tarantool
-version:            0.01
+version:            0.03
 abstract:           Perl extension for blah blah blah
 author:
     - Mons Anderson <mons@cpan.org>

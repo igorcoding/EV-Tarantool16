@@ -60,13 +60,12 @@ static void on_read(ev_cnn * self, size_t len) {
 				HV * hv = newHV();
 				
 				int length = parse_reply( hv, rbuf, ln+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
-				/*
 				SV ** var = hv_fetchs(hv,"code",0);
-				//warn("reqid:%d; code=%d",id,SvIV (*var));
-				if (var && SvIV (* var) != 0) {
-					warn("reqid:%d; %s\n\n",id, dumper(ctx->wbuf));
+				if (var && SvIV (*var) != 0) {
+					
+					
+				//	warn("reqid:%d; %s\n\n",id, dumper(ctx->wbuf));
 				}
-				*/
 				
 				SvREFCNT_dec(ctx->wbuf);
 				if (ctx->f.size && !ctx->f.nofree) {
@@ -83,10 +82,23 @@ static void on_read(ev_cnn * self, size_t len) {
 					
 					ENTER; SAVETMPS;
 					
-					PUSHMARK(SP);
-					EXTEND(SP, 1);
-					PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
-					PUTBACK;
+					SV ** var = hv_fetchs(hv,"code",0);
+					if (var && SvIV (*var) == 0) {
+						PUSHMARK(SP);
+						EXTEND(SP, 1);
+						PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+						PUTBACK;
+					}
+					else {
+						var = hv_fetchs(hv,"errstr",0);
+						PUSHMARK(SP);
+						EXTEND(SP, 3);
+						PUSHs( &PL_sv_undef );
+						PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
+						PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+						PUTBACK;
+						
+					}
 					
 					(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
 					
