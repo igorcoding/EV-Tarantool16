@@ -5,6 +5,7 @@
 #include "ppport.h"
 
 #include "EVAPI.h"
+#define XSEV_CON_HOOKS 1
 #include "xsevcnn.h"
 
 //#define MYDEBUG
@@ -13,6 +14,12 @@
 
 typedef struct {
 	xs_ev_cnn_struct;
+	
+	void (*on_disconnect_before)(void *, int);
+	void (*on_disconnect_after)(void *, int);
+	void (*on_connect_before)(void *, struct sockaddr *);
+	void (*on_connect_after)(void *, struct sockaddr *);
+	
 	uint32_t pending;
 	uint32_t seq;
 	U32      use_hash;
@@ -97,7 +104,6 @@ static void on_read(ev_cnn * self, size_t len) {
 						PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
 						PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
 						PUTBACK;
-						
 					}
 					
 					(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
@@ -139,6 +145,64 @@ static void on_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
+void free_reqs (TntCnn *self, const char * message) {
+	
+	ENTER;SAVETMPS;
+	
+	dSP;
+	
+	HE *ent;
+	(void) hv_iterinit( self->reqs );
+	while ((ent = hv_iternext( self->reqs ))) {
+		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
+		SvREFCNT_dec(ctx->wbuf);
+		if (ctx->f.size && !ctx->f.nofree) {
+			safefree(ctx->f.f);
+		}
+		
+		if (ctx->cb) {
+			SPAGAIN;
+			ENTER; SAVETMPS;
+			
+			PUSHMARK(SP);
+			EXTEND(SP, 2);
+			PUSHs( &PL_sv_undef );
+			PUSHs( sv_2mortal(newSVpvf(message)) );
+			PUTBACK;
+			
+			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+			
+			//SPAGAIN;PUTBACK;
+			
+			SvREFCNT_dec(ctx->cb);
+		
+			FREETMPS; LEAVE;
+		}
+		
+		--self->pending;
+	}
+	
+	hv_clear(self->reqs);
+	
+	FREETMPS;LEAVE;
+}
+
+
+static void on_disconnect (TntCnn * self, int err) {
+	ENTER;SAVETMPS;
+	
+	//warn("disconnect: %s", strerror(err));
+	if (err == 0) {
+		free_reqs(self, "Connection closed");
+	} else {
+		SV *msg = sv_2mortal(newSVpvf("Disconnected: %s",strerror(err)));
+		free_reqs(self, SvPVX(msg));
+	}
+	
+	FREETMPS;LEAVE;
+}
+
+
 MODULE = EV::Tarantool      PACKAGE = EV::Tarantool::DES
 
 void DESTROY(SV *this)
@@ -159,6 +223,8 @@ void new(SV *pk, HV *conf)
 		if (0) pk = pk;
 		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0)
 		self->cnn.on_read = (c_cb_read_t) on_read;
+		self->on_disconnect_before = on_disconnect;
+		
 		
 		//cwarn("new     this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(iv),iv, self, self->self);
 		
@@ -190,6 +256,7 @@ void DESTROY(SV *this)
 		
 		if (self->reqs) {
 			//TODO
+			free_reqs(self, "Destroyed");
 			SvREFCNT_dec(self->reqs);
 		}
 		if (self->spaces) {
