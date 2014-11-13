@@ -248,19 +248,16 @@ void DESTROY(SV *this)
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		
-		if (PL_dirty)
-			return;
-		
 		//cwarn("destroy this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(SvRV(this)), SvRV(this), self, self->self);
 		//SV * leak = newSV(1024);
-		
-		if (self->reqs) {
-			//TODO
-			free_reqs(self, "Destroyed");
-			SvREFCNT_dec(self->reqs);
-		}
-		if (self->spaces) {
-			destroy_spaces(self->spaces);
+		if (!PL_dirty) {
+			if (self->reqs) {
+				free_reqs(self, "Destroyed");
+				SvREFCNT_dec(self->reqs);
+			}
+			if (self->spaces) {
+				destroy_spaces(self->spaces);
+			}
 		}
 		xs_ev_cnn_destroy(self);
 
