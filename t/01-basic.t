@@ -395,6 +395,9 @@ my $tnt = tnt_run();
 	memcheck 50000, $c,"select",[1,[['test1']]];
 	memcheck 50000, $c,"select",['test',[{ id => 'test1' }]];
 	memcheck 50000, $c,"insert",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
+	memcheck 50000, $c,"lua",['box.dostring',["return box.info.version"]];
+	memcheck 50000, $c,"lua",['box.dostring',["return box.info.version", { timeout => 0 }]];
+	memcheck 50000, $c,"lua",['box.dostring',["return box.info.version", { timeout => 0 }]];
 	#memcheck 50000, $c,"update",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
 	
 	done_testing();

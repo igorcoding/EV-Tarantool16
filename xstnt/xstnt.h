@@ -130,6 +130,9 @@ typedef struct {
 } TntSpace;
 
 typedef struct {
+	ev_timer t;
+	uint32_t id;
+	void *self;
 	SV * cb;
 	SV * wbuf;
 	U32  use_hash;

@@ -27,6 +27,44 @@ typedef struct {
 	HV      *spaces;
 } TntCnn;
 
+static void on_request_timer(EV_P_ ev_timer *t, int flags ) {
+	TntCtx * ctx = (TntCtx *) t;
+	TntCnn * self = (TntCnn *) ctx->self;
+	cwarn("timer called on %p: %s", ctx, ctx->call);
+	ENTER;SAVETMPS;
+	dSP;
+	
+	SvREFCNT_dec(ctx->wbuf);
+	if (ctx->f.size && !ctx->f.nofree) {
+		safefree(ctx->f.f);
+	}
+	
+	if (ctx->cb) {
+		SPAGAIN;
+		ENTER; SAVETMPS;
+		
+		PUSHMARK(SP);
+		EXTEND(SP, 2);
+		PUSHs( &PL_sv_undef );
+		PUSHs( sv_2mortal(newSVpvf("Request timed out")) );
+		PUTBACK;
+		
+		(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+		
+		//SPAGAIN;PUTBACK;
+		
+		SvREFCNT_dec(ctx->cb);
+		
+		FREETMPS; LEAVE;
+	}
+	
+	hv_delete( self->reqs, (char *) &ctx->id, sizeof(ctx->id),0);
+	
+	--self->pending;
+	
+	FREETMPS;LEAVE;
+}
+
 static void on_read(ev_cnn * self, size_t len) {
 	debug("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
 	//dSP;
@@ -63,6 +101,7 @@ static void on_read(ev_cnn * self, size_t len) {
 			}
 			else {
 				ctx = ( TntCtx * ) SvPVX( key );
+				ev_timer_stop(self->loop,&ctx->t);
 				
 				HV * hv = newHV();
 				
@@ -155,6 +194,7 @@ void free_reqs (TntCnn *self, const char * message) {
 	(void) hv_iterinit( self->reqs );
 	while ((ent = hv_iternext( self->reqs ))) {
 		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
+		ev_timer_stop(self->cnn.loop,&ctx->t);
 		SvREFCNT_dec(ctx->wbuf);
 		if (ctx->f.size && !ctx->f.nofree) {
 			safefree(ctx->f.f);
@@ -301,6 +341,7 @@ void lua( SV *this, SV * proc, AV * tuple, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
@@ -310,12 +351,30 @@ void lua( SV *this, SV * proc, AV * tuple, ... )
 		uint32_t iid = ++self->seq;
 		
 		//warn("reqid:%d; Len tuple before pkt_lua: %d\n",iid, av_len(tuple)+1);
-		ctx->wbuf = pkt_lua(ctx, iid, self->spaces, proc, tuple, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->wbuf = pkt_lua(ctx, iid, self->spaces, proc, tuple, opts, cb );
 		
 		SvREFCNT_inc(ctx->cb = cb);
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
 		
 		++self->pending;
+		
+		
+		double timeout;
+		SV **key;
+		
+		if ( opts && (key = hv_fetchs( opts, "timeout", 0 ))) {
+			timeout = SvNV( *key );
+			cwarn("to from args: %f",timeout);
+		} else {
+			timeout = self->cnn.rw_timeout;
+		}
+		
+		if (timeout > 0) {
+			ctx->id = iid;
+			ctx->self = self;
+			ev_timer_init(&ctx->t, on_request_timer, timeout, 0.);
+			ev_timer_start(self->cnn.loop, &ctx->t);
+		}
 		
 		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
 		
