@@ -1,5 +1,6 @@
 #include <string.h>
 #include "xsmy.h"
+#include "msgpuck/msgpuck.h"
 
 #define TNT_OP_INSERT      13
 #define TNT_OP_SELECT      17
@@ -25,6 +26,70 @@ enum {
 	TNT_UPDATE_DELETE,
 	TNT_UPDATE_INSERT,
 };
+
+enum tp_type {
+	TP_NIL = MP_NIL,
+	TP_UINT = MP_UINT,
+	TP_INT = MP_INT,
+	TP_STR = MP_STR,
+	TP_BIN = MP_BIN,
+	TP_ARRAY = MP_ARRAY,
+	TP_MAP = MP_MAP,
+	TP_BOOL = MP_BOOL,
+	TP_FLOAT = MP_FLOAT,
+	TP_DOUBLE = MP_DOUBLE,
+	TP_EXT = MP_EXT
+};
+
+/* header */
+enum tp_header_key_t {
+	TP_CODE = 0x00,
+	TP_SYNC = 0x01
+};
+
+/* request body */
+enum tp_body_key_t {
+	TP_SPACE = 0x10,
+	TP_INDEX = 0x11,
+	TP_LIMIT = 0x12,
+	TP_OFFSET = 0x13,
+	TP_ITERATOR = 0x14,
+	TP_KEY = 0x20,
+	TP_TUPLE = 0x21,
+	TP_FUNCTION = 0x22,
+	TP_USERNAME = 0x23
+};
+
+/* response body */
+enum tp_response_key_t {
+	TP_DATA = 0x30,
+	TP_ERROR = 0x31
+};
+
+/* request types */
+enum tp_request_type {
+	TP_SELECT = 1,
+	TP_INSERT = 2,
+	TP_REPLACE = 3,
+	TP_UPDATE = 4,
+	TP_DELETE = 5,
+	TP_CALL = 6,
+	TP_AUTH = 7,
+	TP_PING = 64
+};
+
+static const uint32_t SCRAMBLE_SIZE = 20;
+
+typedef struct {
+	const char *description;
+	const char *salt_base64;
+} tnt_greet_t;
+
+typedef struct {
+	char *s, *p, *e;
+	char *size;
+	char *sync;
+} tnt_req_t;
 
 typedef struct {
 	uint32_t type;
@@ -471,7 +536,58 @@ static inline SV * newSVpvn_pformat ( const char *data, STRLEN size, const unpac
 
 static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
 	const char *ptr, *beg, *end;
+
+	const char *p = data;
+	const char *test = p;
 	
+	// len
+
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_UINT)
+		return -1;
+
+	uint32_t len = mp_decode_int(&p);
+
+	// header
+	test = p;
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_MAP)
+		return -1;
+
+	uint32_t n = mp_decode_map(&p);
+	uint32_t code, sync;
+	while (n-- > 0) {
+		if (mp_typeof(*p) != MP_UINT)
+			return -1;
+
+		uint32_t key = mp_decode_uint(&p);
+		switch (key) {
+			case TP_SYNC:
+				if (mp_typeof(*p) != MP_UINT)
+					return -1;
+
+				sync = mp_decode_uint(&p);
+				break;
+			case TP_CODE:
+				if (mp_typeof(*p) != MP_UINT)
+					return -1;
+
+				code = mp_decode_uint(&p);
+				break;
+		}
+	}
+
+	// body
+	if (p == buf + len + 5) {
+		return len + 5;
+	}
+	test = p;
+	// TODO: next we parse the body
+
+	ptr = NULL; // just for now
+		
 	//warn("parse data of size %d",size);
 	if ( size < sizeof(tnt_res_t) ) { // ping could have no count, so + 4
 		if ( size >= sizeof(tnt_hdr_t) ) {
