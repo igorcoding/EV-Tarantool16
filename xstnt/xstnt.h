@@ -80,6 +80,11 @@ enum tp_request_type {
 
 static const uint32_t SCRAMBLE_SIZE = 20;
 
+// typedef struct {
+// 	SV *sv;
+// 	uint32_t size;
+// } pkt_t;
+
 typedef struct {
 	const char *description;
 	const char *salt_base64;
@@ -150,21 +155,21 @@ typedef
 	} uniptr;
 
 unsigned char allowed_format[256] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 
-	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 
-	1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+	1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
@@ -186,11 +191,11 @@ typedef struct {
 typedef struct {
 	U32   id;
 	SV   *name;
-	
+
 	AV   *fields;
 	HV   *indexes;
 	HV   *field;
-	
+
 	unpack_format f;
 } TntSpace;
 
@@ -200,6 +205,7 @@ typedef struct {
 	void *self;
 	SV * cb;
 	SV * wbuf;
+	uint32_t wbuf;
 	U32  use_hash;
 	TntSpace *space;
 	unpack_format *fmt;
@@ -539,7 +545,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 
 	const char *p = data;
 	const char *test = p;
-	
+
 	// len
 
 	if (mp_check(&test, data + size))
@@ -587,7 +593,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 	// TODO: next we parse the body
 
 	ptr = NULL; // just for now
-		
+
 	//warn("parse data of size %d",size);
 	if ( size < sizeof(tnt_res_t) ) { // ping could have no count, so + 4
 		if ( size >= sizeof(tnt_hdr_t) ) {
@@ -606,28 +612,28 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 		warn("small header");
 		goto shortread;
 	}
-	
+
 	beg = data; // save ptr;
-	
+
 	tnt_res_t *hd = (tnt_res_t *) data;
-	
+
 	uint32_t type = le32toh( hd->type );
 	uint32_t len  = le32toh( hd->len );
 	uint32_t code = le32toh( hd->code );
-	
+
 	(void) hv_stores(ret, "type", newSViv( type ));
 	(void) hv_stores(ret, "code", newSViv( code ));
 	(void) hv_stores(ret, "id",   newSViv( le32toh( hd->reqid ) ));
-	
+
 	if ( size < len + sizeof(tnt_res_t) - 4 ) {
 		warn("Header ok but wrong len (size=%zd < len = %u)", size, len);
 		goto shortread;
 	}
-	
+
 	data += sizeof(tnt_res_t);
 	end = data + len - 4;
-	
-	
+
+
 	//warn ("type = %d, len=%d (size=%d/%d)", type, len, size, size - sizeof( tnt_hdr_t ));
 	switch (type) {
 		case TNT_OP_PING:
@@ -637,7 +643,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 		case TNT_OP_DELETE:
 		case TNT_OP_SELECT:
 		case TNT_OP_CALL:
-			
+
 			if (code != 0) {
 				//warn("reqid:%d; error (len:%d); typ=%d; code=%d; len=%d; %-.*s",hd->reqid, end - data - 1, type, code, len, end > data ? end - data - 1 : 0, data);
 				(void) hv_stores(ret, "status", newSVpvs("error"));
@@ -648,7 +654,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 				//warn("reqid:%d; (len:%d); typ=%d; code=%d; len=%d;",hd->reqid, end - data - 1, type, code, len);
 				(void) hv_stores(ret, "status", newSVpvs("ok"));
 			}
-			
+
 			if (data == end) {
 				// result without tuples
 				//warn("no more data");
@@ -663,14 +669,14 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 				//warn("have more len: %d", len);
 			}
 			*/
-			
+
 			uint32_t count = le32toh( ( *(uint32_t *) data ) );
 			//warn ("count = %d",count);
-			
+
 			data += 4;
-			
+
 			(void) hv_stores(ret, "count", newSViv(count));
-			
+
 			if (data == end) {
 				// result without tuples
 				//warn("no more data");
@@ -678,20 +684,20 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 			} else {
 				//warn("have more data: +%u", end - data);
 			}
-			
+
 			if (data > end) {
 				//warn("data > end");
 				data = end;
 				break;
 			}
-			
+
 			int i,k;
 			AV *tuples = newAV();
 			//warn("count = %d", count);
 			if (count < 1024) {
 				av_extend(tuples, count);
 			}
-			
+
 			(void) hv_stores( ret, "tuples", newRV_noinc( (SV *) tuples ) );
 			for (i=0;i < count;i++) {
 				uint32_t tsize = le32toh( ( *(uint32_t *) data ) ); data += 4;
@@ -700,9 +706,9 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 					warn("Intersection1: data=%p, size = %u, end = %p", data, tsize, end);
 					goto intersection;
 				}
-					
+
 				uint32_t cardinality = le32toh( ( *(uint32_t *) data ) ); data +=4;
-				
+
 				ptr = data;
 				data += tsize;
 				size -= tsize;
@@ -715,7 +721,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 					for ( k=0; k < cardinality; k++ ) {
 						unsigned int fsize = 0;
 						do { fsize = ( fsize << 7 ) | ( *ptr & 0x7f ); } while ( *ptr++ & 0x80 && ptr < end );
-						
+
 						if (ptr + fsize > end) {
 							warn("Intersection2: k=%d < card=%d (fsize: %d) (ptr: %p :: end: %p)", k, cardinality, fsize, ptr, end);
 							goto intersection;
@@ -738,25 +744,25 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 						}
 						ptr += fsize;
 					}
-					
+
 				} else {
 					AV *tuple = newAV();
 					if (cardinality < 1024) {
 						av_extend(tuple, cardinality);
 					}
 					av_push(tuples, newRV_noinc((SV *)tuple));
-					
+
 					for ( k=0; k < cardinality; k++ ) {
 						unsigned int fsize = 0;
 						do {
 							fsize = ( fsize << 7 ) | ( *ptr & 0x7f );
 						} while ( *ptr++ & 0x80 && ptr < end );
-						
+
 						if (ptr + fsize > end) {
 							warn("Intersection2: k=%d < card=%d (fsize: %d) (ptr: %p :: end: %p)", k, cardinality, fsize, ptr, end);
 							goto intersection;
 						}
-						
+
 						av_push( tuple, newSVpvn_pformat( ptr, fsize, format, k ) );
 						ptr += fsize;
 					}
@@ -769,7 +775,7 @@ static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpac
 			return end - beg;
 	}
 	return end - beg;
-	
+
 	intersection:
 		(void) hv_stores(ret, "status", newSVpvs("intersect"));
 		(void) hv_stores(ret, "errstr", newSVpvs("Nested structure intersect packet boundary"));
@@ -851,10 +857,10 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	AV *rv = (AV *) sv_2mortal((SV *)newAV());
 	int fcnt = HvTOTALKEYS(hf);
 	int k;
-	
+
 	SV **f;
 	HE *fl;
-	
+
 	for (k=0; k <= av_len( fields );k++) {
 		f = av_fetch( fields,k,0 );
 		if (unlikely(!f)) {
@@ -913,7 +919,7 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 			//croak("Unknown index %s in space %d",SvPV_nolen(*key),spc->id);
 		}
 	}
-	
+
 }
 
 static TntSpace * evt_find_space(SV *space, HV*spaces) {
@@ -932,11 +938,11 @@ static TntSpace * evt_find_space(SV *space, HV*spaces) {
 			SvPOKp_on(spcf);
 			TntSpace * spc = (TntSpace *) SvPVX(spcf);
 			memset(spc,0,sizeof(TntSpace));
-			
+
 			spc->id = ns;
 			spc->name = newSVpvf( "%u",ns );
 			spc->f.def = 'p';
-			
+
 			(void)hv_store( spaces, (char *)&ns,sizeof(U32),spcf,0 );
 			(void)hv_store( spaces, SvPV_nolen(spc->name),SvLEN(spc->name),SvREFCNT_inc(spcf),0 );
 			return spc;
@@ -974,23 +980,23 @@ static void configure_spaces(HV *dest, SV * src) {
 					TntSpace *old  = (TntSpace *) SvPVX(*key);
 					croak("Duplicate id '%f' for space %d. Already set by space %s", id, SvPV_nolen(old->name));
 				}
-				
+
 				HV *space = (HV *) SvRV(HeVAL(ent));
-				
+
 				SV *spcf = newSV( sizeof(TntSpace) );
-				
+
 				SvUPGRADE( spcf, SVt_PV );
 				SvCUR_set(spcf,sizeof(TntSpace));
 				SvPOKp_on(spcf);
 				TntSpace * spc = (TntSpace *) SvPVX(spcf);
 				memset(spc,0,sizeof(TntSpace));
-				
+
 				(void)hv_store( dest,(char *)&id,sizeof(U32),spcf,0 );
-				
+
 				spc->id = id;
 				spc->indexes = newHV();
 				spc->field   = newHV();
-				
+
 				if ((key = hv_fetch(space, "name", 4, 0)) && SvOK(*key)) {
 					//cwarn("space %d have name '%s'",id,SvPV_nolen(*key));
 					spc->name = newSVsv( *key );
@@ -1055,7 +1061,7 @@ static void configure_spaces(HV *dest, SV * src) {
 					for(fid = 0; fid <= av_len(fields); fid++) {
 						SV **f = av_fetch( fields,fid,0 );
 						if (!f) croak("Bad field entry for space %d at offset %d", id, fid);
-						
+
 						char format;
 						if ( fid < spc->f.size ) {
 							format = spc->f.f[fid];
@@ -1091,21 +1097,21 @@ static void configure_spaces(HV *dest, SV * src) {
 						U32 iid = atoi( iname );
 						if (SvTYPE( SvRV( HeVAL(ent) ) ) != SVt_PVHV) croak("Index '%s' config must be hash", iname);
 						HV *index = (HV *) SvRV(HeVAL(ent));
-						
+
 						SV *idxcf = newSV( sizeof(TntIndex) );
 						SvUPGRADE(idxcf, SVt_PV);
 						SvCUR_set(idxcf,sizeof(TntIndex));
 						SvPOKp_on(idxcf);
 						TntIndex *idx  = (TntIndex *) SvPVX(idxcf);
 						memset(idx,0,sizeof(TntIndex));
-						
+
 						idx->id = iid;
 						if ((key = hv_fetch( spc->indexes,(char *)&iid,sizeof(U32),0 )) && *key) {
 							TntIndex *old  = (TntIndex *) SvPVX(*key);
 							croak("Duplicate id '%d' for index in space %d. Already set by index %s", iid, id, SvPV_nolen(old->name));
 						}
 						(void)hv_store( spc->indexes,(char *)&iid,sizeof(U32),idxcf,0 );
-						
+
 						if ((key = hv_fetch(index, "name", 4, 0)) && SvOK(*key)) {
 							//cwarn("index %d have name '%s'",iid,SvPV_nolen(*key));
 							idx->name = newSVsv( *key );
@@ -1154,7 +1160,7 @@ static void configure_spaces(HV *dest, SV * src) {
 				} else {
 					croak("Space %d requires at least one index", id);
 				}
-				
+
 			}
 }
 
@@ -1191,20 +1197,38 @@ static void destroy_spaces(HV *spaces) {
 						safefree(spc->f.f);
 					}
 				}
-				
+
 			}
 			SvREFCNT_dec(spaces);
 }
 
+static inline char * add_length(char *p, uint32_t size) {
+	*p = 0xce;
+	*((uint32_t *)(p+1)) = htole32(size);
+	return p;
+}
+
 static inline SV * pkt_ping( uint32_t iid ) {
-	SV * rv = newSV(12);
-	SvUPGRADE( rv, SVt_PV );
-	
-	tnt_hdr_t *s = (tnt_hdr_t *) SvPVX( rv );
-	s->type  = htole32( TNT_OP_PING );
-	s->reqid = htole32( iid );
-	s->len   = 0;
-	
+	int sz = 5 +
+		mp_sizeof_map(2) +
+		mp_sizeof_uint(TP_CODE) +
+		mp_sizeof_uint(TP_PING) +
+		mp_sizeof_uint(TP_SYNC) +
+		mp_sizeof_uint(iid);
+
+	SV * rv = newSV(sz);
+	SvUPGRADE(rv, SVt_PV);
+
+	char *p = (char *) rv;
+	char *h = p;
+
+	h = mp_encode_map(p + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, TP_PING);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = mp_encode_uint(h, iid);
+
+	p = add_length(p, sz);
 	return rv;
 }
 
@@ -1215,7 +1239,7 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	SV **key;
 	SV *rv;
 	ctx->use_hash = 0; // default for lua is no hash
-	
+
 	if (opt) {
 		if ((key = hv_fetchs(opt, "quiet", 0)) && SvOK(*key)) flags |= TNT_FLAG_BOX_QUIET;
 		if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
@@ -1234,13 +1258,13 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 			}
 		}
 	}
-	
+
 	unpack_format *fmt;
 	dUnpackFormat( format );
-	
+
 	evt_opt_out( opt, ctx, ctx->space );
 	evt_opt_in( opt, ctx, ((TntSpace *) 0) );
-	
+
 	//printf("tuple ");
 	//dumper(sv_2mortal(newRV_inc((SV*) tuple)));
 
@@ -1255,20 +1279,20 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	var_len =
 		TUPLE_FIELD_DEFAULT * cardinality // take 32 as average/estimated tuple field length
 	;
-	
+
 	rv = sv_2mortal(newSV( const_len +  var_len ));
 	SvUPGRADE( rv, SVt_PV );
-	
+
 	SvPOK_on(rv);
-	
+
 	tnt_pkt_call_t *h = (tnt_pkt_call_t *) SvPVX(rv);
-	
+
 	p.c = (char *)(h+1);
-	
+
 	uptr_field_sv_fmt( p, proc, 'p' );
-	
+
 	*(p.i++) = htole32( av_len(tuple) + 1 );
-	
+
 	int k;
 	for (k=0; k <= av_len(tuple); k++) {
 		SV *f = *av_fetch( tuple, k, 0 );
@@ -1282,41 +1306,41 @@ static inline SV * pkt_lua( TntCtx *ctx, uint32_t iid, HV * spaces, SV *proc, AV
 	}
 
 	SvCUR_set( rv, p.c - SvPVX(rv) );
-	
+
 	h = (tnt_pkt_call_t *) SvPVX( rv ); // for sure
 	h->type   = htole32( TNT_OP_CALL );
 	h->reqid  = htole32( iid );
 	h->flags  = htole32( flags );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
 	//warn("reqid:%zd rv is_utf8=%zd and len=%d and cur=%d and LEN=%d and h->len=%d ",h->reqid, SvUTF8(rv),sv_len(rv),SvCUR(rv),SvLEN(rv),h->len);
-	
+
 	return SvREFCNT_inc(rv);
 }
 
 static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, AV *keys, HV * opt, SV *cb ) {
 	register uniptr p;
-		
+
 	U32 limit  = 0xffffffff;
 	U32 offset = 0;
 	U32 index  = 0;
 	U32 flags  = 0;
-		
+
 	unpack_format *fmt;
 	dUnpackFormat( format );
-		
+
 	int k,i;
 	SV **key;
-		
+
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
-	
+
 	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 	}
 	else {
 		ctx->use_hash = 0;
 	}
-	
+
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
 			if(( idx = evt_find_index( spc, key ) ))
@@ -1324,7 +1348,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
-		
+
 		if ((key = hv_fetchs(opt, "quiet", 0)) && SvOK(*key)) flags |= TNT_FLAG_BOX_QUIET;
 		if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
@@ -1340,7 +1364,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 			//warn("No index %d config. Using without formats",index);
 		}
 	}
-	
+
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
@@ -1357,11 +1381,11 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	SV *rv = sv_2mortal(newSV( const_len +  var_len + TUPLE_FIELD_DEFAULT*tuple_count)); // to avoid reallocation we request + TUPLE_FIELD_DEFAULT*tuple_count because tuples probably will not be empty
 	SvUPGRADE( rv, SVt_PV );
 	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-	
+
 	tnt_pkt_select_t *h = (tnt_pkt_select_t *) SvPVX(rv);
-	
+
 	p.c = (char *)(h+1);
-		
+
 	for (i = 0; i <= av_len(keys); i++) {
 		key = av_fetch( keys, i, 0 );
 		if (unlikely( !key || !*key || !SvROK(*key) || ( (SvTYPE(SvRV(*key)) != SVt_PVAV) && (SvTYPE(SvRV(*key)) != SVt_PVHV) ) )) {
@@ -1375,11 +1399,11 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		uptr_tuple_calc_size( p, rv, t, idx->fields, fmt, const_len, var_len );
 		//warn("(2)[%d]after c_len: %d and v_len: %d, sv_len:%d, sv_cur:%d",i, const_len, var_len, SvLEN(rv), p.c - SvPVX(rv));
 	}
-	
+
 	SvCUR_set( rv, p.c - SvPVX(rv) );
-	
+
 	h = (tnt_pkt_select_t *) SvPVX( rv ); // for sure
-	
+
 	h->type   = htole32( TNT_OP_SELECT );
 	h->reqid  = htole32( htole32( iid ) );
 	h->space  = htole32( htole32( spc->id ) );
@@ -1388,7 +1412,7 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	h->limit  = htole32( htole32( limit ) );
 	h->count  = htole32( htole32( av_len(keys) + 1 ) );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
-	
+
 	//warn("on return: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	return SvREFCNT_inc(rv);
 }
@@ -1397,16 +1421,16 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 static inline SV * pkt_insert( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *t, uint32_t insert_or_delete, HV * opt, SV * cb ) {
 	register uniptr p;
 	U32 flags = 0;
-	
+
 	unpack_format *fmt;
 	dUnpackFormat( format );
-		
+
 	int k;
 	SV **key;
-	
+
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
-	
+
 	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
@@ -1416,7 +1440,7 @@ static inline SV * pkt_insert( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	else {
 		ctx->use_hash = 0;
 	}
-	
+
 	if (opt) {
 		if ((key = hv_fetchs(opt, "return", 0)) && SvOK(*key)) flags |= TNT_FLAG_RETURN;
 		if ((key = hv_fetchs(opt, "ret", 0)) && SvOK(*key)) flags |= TNT_FLAG_RETURN;
@@ -1454,9 +1478,9 @@ static inline SV * pkt_insert( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 
 	tnt_pkt_insert_t *h = (tnt_pkt_insert_t *) SvPVX(rv);
 	p.c = (char *)(h+1);
-	
+
 	uptr_tuple_calc_size(p, rv, t, ( insert_or_delete == TNT_OP_INSERT ? spc->fields : idx->fields ), fmt, const_len, var_len);
-	
+
 	SvCUR_set( rv, p.c - SvPVX(rv) );
 	h = (tnt_pkt_insert_t *) SvPVX( rv ); // for sure
 	h->type   = htole32( insert_or_delete );
@@ -1473,17 +1497,17 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	// out: tuple by spaceX. format from space or out
 	register uniptr p;
 	U32 flags = 0;
-	
+
 	unpack_format *fmt;
 	dUnpackFormat( format );
-	
+
 	int k;
 	SV **key,**val;
-	
-	
+
+
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
-	
+
 	if(( spc = evt_find_space( space, spaces ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
@@ -1493,19 +1517,19 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 	else {
 		ctx->use_hash = 0;
 	}
-	
+
 	check_tuple(t,idx);
-	
+
 	if (opt) {
 		if ((key = hv_fetchs(opt, "return", 0)) && SvOK(*key)) flags |= TNT_FLAG_RETURN;
 		if ((key = hv_fetchs(opt, "ret", 0)) && SvOK(*key)) flags |= TNT_FLAG_RETURN;
 		if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
-	
+
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
-	
+
 	int cardinality = (  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
 	int opcount = ( av_len(ops)+1 );
 	STRLEN const_len, var_len;
@@ -1523,28 +1547,28 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		TUPLE_FIELD_DEFAULT * cardinality + // take 32 as average/estimated tuple field length
 		( TUPLE_FIELD_DEFAULT ) * opcount // every field value
 	;
-	
+
 	SV *rv = sv_2mortal(newSV( const_len + var_len ));
-	
+
 	SvUPGRADE( rv, SVt_PV );
 	tnt_pkt_update_t *h = (tnt_pkt_update_t *) SvPVX(rv);
-	
+
 	p.c = (char *)(h+1);
-	
+
 	uptr_tuple_calc_size(p, rv, t, idx->fields, fmt, const_len, var_len);
-	
+
 	AV *aop;
-	
+
 	*( p.i++ ) = htole32( av_len(ops) + 1 );
-	
+
 	for (k = 0; k <= av_len( ops ); k++) {
 		val = av_fetch( ops, k, 0 );
 		if (!*val || !SvROK( *val ) || SvTYPE( SvRV(*val) ) != SVt_PVAV )
 			croak_cb(cb,"Single update operation byst be arrayref");
 		aop = (AV *)SvRV(*val);
-		
+
 		if ( av_len( aop ) < 1 ) croak_cb(cb,"Too short operation argument list");
-		
+
 		key = av_fetch( aop, 0, 0 );
 		char field_format = 0;
 		if (SvIOK(*key) && SvIVX(*key) >= 0) {
@@ -1564,15 +1588,15 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 				croak_cb(cb,"Unknown field name: '%s' in space %d",SvPV_nolen( *key ), spc->id);
 			}
 		}
-		
+
 		char *opname = SvPV_nolen( *av_fetch( aop, 1, 0 ) );
-		
+
 		U8     opcode = 0;
-		
+
 		// Assign and insert allow formats. by default: p
 		// Splice always 'p'
 		// num ops always force format l or i (32 or 64), depending on size
-		
+
 		switch (*opname) {
 			case '#': //delete
 				*( p.c++ ) = TNT_UPDATE_DELETE;
@@ -1606,21 +1630,21 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 				break;
 			case ':': //splice
 				//if ( av_len( aop ) < 4 ) croak("Too short operation argument list for %c. Need 5, have %d", *opname, av_len( aop ) );
-				
+
 				*( p.c++ ) = TNT_UPDATE_SPLICE;
-				
+
 				val = av_fetch( aop, 4, 0 );
-				
+
 				var_len += ( 1 + 4 + 1 + 4 + 5 + sv_len(*val) ) - TUPLE_FIELD_DEFAULT;
 				uptr_sv_check( p, rv, const_len + var_len );
-				
+
 				p.c = varint( p.c, 1+4 + 1+4  + varint_size( sv_len(*val) ) + sv_len(*val) );
-				
+
 				*(p.c++) = 4;
 				*(p.i++) = (U32)SvIV( *av_fetch( aop, 2, 0 ) ); // offset
 				*(p.c++) = 4;
 				*(p.i++) = (U32)SvIV( *av_fetch( aop, 3, 0 ) ); // length
-				
+
 				uptr_field_sv_fmt( p, *val, 'p' ); // string
 				break;
 			case '+': //add
@@ -1640,9 +1664,9 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		}
 		if (opcode) { // Arith ops
 			if ( av_len( aop ) < 2 ) croak_cb(cb,"Too short operation argument list for %c", *opname);
-			
+
 			*( p.c++ ) = opcode;
-			
+
 			unsigned long long v = SvUV( *av_fetch( aop, 2, 0 ) );
 			if (v > 0xffffffff) {
 				*( p.c++ ) = 8;
@@ -1656,14 +1680,14 @@ static inline SV * pkt_update( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 		}
 	}
 	SvCUR_set( rv, p.c - SvPVX(rv) );
-	
+
 	h = (tnt_pkt_insert_t *) SvPVX( rv ); // for sure
-	
+
 	h->type   = htole32( TNT_OP_UPDATE );
 	h->reqid  = htole32( iid );
 	h->space  = htole32( spc ? spc->id : 0 );
 	h->flags  = htole32( flags );
 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
-	
+
 	return SvREFCNT_inc(rv);
 }
