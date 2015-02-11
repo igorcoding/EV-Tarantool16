@@ -6,6 +6,8 @@ use Time::HiRes 'sleep';
 use Exporter 'import';
 use POSIX ':sys_wait_h';
 use Fcntl 'O_NONBLOCK', 'F_SETFL';
+use feature 'say';
+use Data::Dumper;
 
 our @EXPORT = our @EXPORT_OK = qw(tnt_run);
 
@@ -67,7 +69,7 @@ sub terminate($) {
 
 
 sub tnt_run (;$) {
-	
+
 	mkdir($cf{tntroot});
 	if (-e "$cf{tntroot}/tarantool.pid") {
 		my $tpid = do { open my $f, '<',"$cf{tntroot}/tarantool.pid"; local $/; <$f> };
@@ -78,7 +80,7 @@ sub tnt_run (;$) {
 	$config =~ s/ %\{([^}]+)\} /$cf{$1}/xsg;
 	my @files = split /^@@\s*(.+?)\s*\r?\n/m, $config;
 	shift @files;
-	
+
 	my $f;
 	open $f, '>:raw', "$cf{tntroot}/00000000000000000001.snap" or die "$!";
 	print {$f} pack 'H*','534e41500a302e31310a0a1eabad10';
@@ -89,7 +91,7 @@ sub tnt_run (;$) {
 		print {$f} $data;
 		close $f;
 	}
-	
+
 	pipe(my $rd, my $wr) or die "pipe: $!";
 	defined(my $cpid = fork) or die "Can't fork: $!";
 	if ($cpid) {
@@ -106,17 +108,17 @@ sub tnt_run (;$) {
 		close $wr;
 		fcntl $rd, F_SETFL, O_NONBLOCK;
 		my $ppid = getppid();
-		
+
 		%PIDS = (); # child process should not kill others
-		
+
 		sleep 0.1;
 		my $next_action = 'run';
-		
+
 		$SIG{INT} = 'IGNORE';
-		
+
 		while () {
 			warn "TNTMASTER[$$]: Watching $ppid";
-			
+
 			kill 0 => $ppid or do {
 				warn "TNTMASTER[$$]: lost parent. exit\n";
 				exit;
@@ -126,10 +128,10 @@ sub tnt_run (;$) {
 				$SIG{TERM} = 'DEFAULT';
 				$SIG{USR1} = 'DEFAULT';
 				$SIG{CHLD} = 'DEFAULT';
-				
+
 				sleep 0.3 if $next_action eq 'wait';
 				defined(my $tpid = fork()) or die "fork 2 failed: $!";
-				
+
 				if ($tpid) {
 					warn "TNTMASTER[$$]: forked TNT: $tpid";
 					my $leave;
@@ -149,7 +151,7 @@ sub tnt_run (;$) {
 						terminate($tpid);
 						$leave = 1;
 					};
-					
+
 					while (!$leave) {
 						my $r = sysread($rd,my $buf, 4096);
 						if ($r) {
@@ -179,9 +181,9 @@ sub tnt_run (;$) {
 						};
 						sleep 0.01;
 					}
-					
+
 				} else {
-					exec("tarantool_box -c '$cf{tntroot}/test.conf'");
+					exec("tarantool -c '$cf{tntroot}/test.conf'");
 					die;
 				}
 			}

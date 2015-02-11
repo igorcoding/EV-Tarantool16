@@ -85,16 +85,7 @@ static const uint32_t SCRAMBLE_SIZE = 20;
 // 	uint32_t size;
 // } pkt_t;
 
-typedef struct {
-	const char *description;
-	const char *salt_base64;
-} tnt_greet_t;
 
-typedef struct {
-	char *s, *p, *e;
-	char *size;
-	char *sync;
-} tnt_req_t;
 
 typedef struct {
 	uint32_t type;
@@ -205,7 +196,7 @@ typedef struct {
 	void *self;
 	SV * cb;
 	SV * wbuf;
-	uint32_t wbuf;
+	uint32_t wbuf_size;
 	U32  use_hash;
 	TntSpace *space;
 	unpack_format *fmt;
@@ -1202,7 +1193,7 @@ static void destroy_spaces(HV *spaces) {
 			SvREFCNT_dec(spaces);
 }
 
-static inline char * add_length(char *p, uint32_t size) {
+static inline void add_length(char *p, uint32_t size) {
 	*p = 0xce;
 	*((uint32_t *)(p+1)) = htole32(size);
 	return p;
@@ -1218,17 +1209,19 @@ static inline SV * pkt_ping( uint32_t iid ) {
 
 	SV * rv = newSV(sz);
 	SvUPGRADE(rv, SVt_PV);
+	SvPOK_on(rv);
 
-	char *p = (char *) rv;
-	char *h = p;
+	char *h = (char *) SvPVX(rv);
 
-	h = mp_encode_map(p + 5, 2);
+	add_length(h, sz);
+	h = mp_encode_map(h + 5, 2);
 	h = mp_encode_uint(h, TP_CODE);
 	h = mp_encode_uint(h, TP_PING);
 	h = mp_encode_uint(h, TP_SYNC);
 	h = mp_encode_uint(h, iid);
 
-	p = add_length(p, sz);
+
+	SvCUR_set(rv, sz);
 	return rv;
 }
 
@@ -1415,6 +1408,46 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 
 	//warn("on return: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	return SvREFCNT_inc(rv);
+
+
+	int sz = 5 +
+		mp_sizeof_map(2) +
+		mp_sizeof_uint(TP_CODE) +
+		mp_sizeof_uint(TP_SELECT) +
+		mp_sizeof_uint(TP_SYNC) +
+		mp_sizeof_uint(iid) +
+		mp_sizeof_map(5) +
+		mp_sizeof_uint(TP_SPACE) +
+		mp_sizeof_uint(spc->id) +
+		mp_sizeof_uint(TP_INDEX) +
+		mp_sizeof_uint(index) +
+		mp_sizeof_uint(TP_OFFSET) +
+		mp_sizeof_uint(offset) +
+		mp_sizeof_uint(TP_LIMIT) +
+		mp_sizeof_uint(limit) +
+		mp_sizeof_uint(TP_KEY);
+
+
+	SV *rv = ???; // TODO: allocate sz;
+	char *p = (char *) SvPVX(rv);
+
+	char *h = mp_encode_map(p + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, TP_SELECT);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = mp_encode_uint(h, reqid);
+	h = mp_encode_map(h, 5);
+	h = mp_encode_uint(h, TP_SPACE);
+	h = mp_encode_uint(h, spc->id);
+	h = mp_encode_uint(h, TP_INDEX);
+	h = mp_encode_uint(h, index);
+	h = mp_encode_uint(h, TP_OFFSET);
+	h = mp_encode_uint(h, offset);
+	h = mp_encode_uint(h, TP_LIMIT);
+	h = mp_encode_uint(h, limit);
+	h = mp_encode_uint(h, TP_KEY);
+
+	return tp_add(p, sz);
 }
 
 

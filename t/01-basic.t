@@ -94,7 +94,7 @@ my $spaces = {
 			}
 		}
 	};
-	
+
 my $realspaces = {
 	1 => {
 		name => 'test1',
@@ -152,7 +152,7 @@ my $tnt = tnt_run();
 			is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
 			$nc->(@_) if $cfs == 0;
 			$cfs++;
-			# and 
+			# and
 				EV::unloop;
 		},
 		disconnected => sub {
@@ -161,20 +161,20 @@ my $tnt = tnt_run();
 			EV::unloop;
 		},
 	});
-	
-	
-	
+
+
+
 	$nc->($c);
 	$c->connect;
 	EV::loop;
 	is $cfs, 1, "Got one connfail";
 	EV::loop;
 	is $connected, 1, "Connected" or BAIL_OUT("Fail");
-	
+
 	#kill USR1 => $pid;
 	#EV::loop;
 	#exit;
-	
+
 	$c->lua('box.dostring',["return box.info.version"], sub {
 		ok(ref $_[0], "Got result for lua") or BAIL_OUT();
 		is $_[0]{status},'ok',   "lua - status ok";
@@ -183,7 +183,7 @@ my $tnt = tnt_run();
 		EV::unloop;
 	});
 	EV::loop;
-	
+
 	$c->select(1,[['test1']], sub {
 		ok(ref $_[0], "Got result for select") or BAIL_OUT();
 		is $_[0]{status},'ok',   "select - status ok";
@@ -193,7 +193,7 @@ my $tnt = tnt_run();
 		EV::unloop;
 	});
 	EV::loop;
-	
+
 	$c->insert(2,['test1','test2','testtest','xxx','yyy','string'], { ret =>1 }, sub {
 		ok(ref $_[0], "Got result for insert") or BAIL_OUT();
 		is $_[0]{status},'ok',   "insert - status ok";
@@ -203,7 +203,7 @@ my $tnt = tnt_run();
 		EV::unloop;
 	});
 	EV::loop;
-	
+
 	#TODO: update
 
 	$c->delete(2,['test1','test2'], { ret =>1 }, sub {
@@ -215,9 +215,9 @@ my $tnt = tnt_run();
 		EV::unloop;
 	});
 	EV::loop;
-	
+
 	$tnt->restart();
-	
+
 	while () {
 		my $cur = $disconnected;
 		EV::loop;
@@ -225,7 +225,7 @@ my $tnt = tnt_run();
 		last if ( $disconnected > $cur );
 	}
 	warn "got discon";
-	
+
 	while () {
 		my $curcfs = $cfs;
 		EV::loop;
@@ -233,9 +233,9 @@ my $tnt = tnt_run();
 		last if ( $cfs == $curcfs );
 	}
 	warn "connected again";
-	
+
 	undef $c;
-	
+
 	$connected = 0;
 	my $c = EV::Tarantool->new({
 		host => $tnt->{host},
@@ -252,7 +252,7 @@ my $tnt = tnt_run();
 			is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
 			$nc->(@_) if $cfs == 0;
 			$cfs++;
-			# and 
+			# and
 				EV::unloop;
 		},
 		disconnected => sub {
@@ -264,11 +264,11 @@ my $tnt = tnt_run();
 	$c->connect;
 	EV::loop;
 	$connected or die;
-	
+
 	#my $next;
 	#$SIG{INT} = sub { $next = 1; };
 	#sleep 0.01 while !$next;
-	
+
 	$c->update('test1',{id => 'test1'}, [[ 'a' => '=', 'new' ]], { ret => 1 }, sub {
 		ok(ref $_[0], "Got result for update") or BAIL_OUT();
 		#warn Dumper @_;
@@ -300,15 +300,15 @@ my $tnt = tnt_run();
 	});
 	EV::loop;
 
-	
+
 	my ($cnt,$start);
-	
+
 	$ENV{MEMCHECK} or done_testing(),exit;
-	
+
 	memcheck 50000, $c,"ping",[];
 	memcheck 50000, $c,"update",['test1',{ id => 'test1' }, [['a' => '=','new']], { ret => 0, hash => 1, }];
 	undef $c;
-	
+
 	$cnt = 0;
 	$c = EV::Tarantool->new({
 		host => $tnt->{host},
@@ -332,16 +332,16 @@ my $tnt = tnt_run();
 	});
 	my ($rss1,$vsz1) = meminfo();
 	warn sprintf "%0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024;
-	
+
 	$c->connect;
 	EV::loop;
 	undef $c;
-	
+
 	my ($rss2,$vsz2) = meminfo();
 	my $run = time - $start;
 	warn sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
 	warn sprintf "%0.2fM/%0.2fM", $rss2/1024/1024,$vsz2/1024/1024;
-	
+
 	my ($rss1,$vsz1) = meminfo();
 	for (1..2000) {
 		if ($_ == 2) {
@@ -366,7 +366,7 @@ my $tnt = tnt_run();
 	my $run = time - $start;
 	warn sprintf "new/destroy: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
 	warn sprintf "%0.2fM/%0.2fM", $rss2/1024/1024,$vsz2/1024/1024;
-	
+
 	$connected = 0;
 	$c = EV::Tarantool->new({
 		host => $tnt->{host},
@@ -390,7 +390,7 @@ my $tnt = tnt_run();
 	$c->connect;
 	EV::loop;
 	$connected or die;
-	
+
 	memcheck 50000, $c,"ping",[];
 	memcheck 50000, $c,"select",[1,[['test1']]];
 	memcheck 50000, $c,"select",['test',[{ id => 'test1' }]];
@@ -399,5 +399,5 @@ my $tnt = tnt_run();
 	memcheck 50000, $c,"lua",['box.dostring',["return box.info.version", { timeout => 0 }]];
 	memcheck 50000, $c,"lua",['box.dostring',["return box.info.version", { timeout => 0 }]];
 	#memcheck 50000, $c,"update",['test',{ id => 4, a => "xxx", c => "123" }, { ret => 1, hash => 1, }];
-	
+
 	done_testing();
