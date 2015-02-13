@@ -301,48 +301,48 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 // 	LEAVE;
 // }
 
-// void free_reqs (TntCnn *self, const char * message) {
+void free_reqs (TntCnn *self, const char * message) {
 
-// 	ENTER;SAVETMPS;
+	ENTER;SAVETMPS;
 
-// 	dSP;
+	dSP;
 
-// 	HE *ent;
-// 	(void) hv_iterinit( self->reqs );
-// 	while ((ent = hv_iternext( self->reqs ))) {
-// 		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
-// 		ev_timer_stop(self->cnn.loop,&ctx->t);
-// 		SvREFCNT_dec(ctx->wbuf);
-// 		if (ctx->f.size && !ctx->f.nofree) {
-// 			safefree(ctx->f.f);
-// 		}
+	HE *ent;
+	(void) hv_iterinit( self->reqs );
+	while ((ent = hv_iternext( self->reqs ))) {
+		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
+		ev_timer_stop(self->cnn.loop,&ctx->t);
+		SvREFCNT_dec(ctx->wbuf);
+		if (ctx->f.size && !ctx->f.nofree) {
+			safefree(ctx->f.f);
+		}
 
-// 		if (ctx->cb) {
-// 			SPAGAIN;
-// 			ENTER; SAVETMPS;
+		if (ctx->cb) {
+			SPAGAIN;
+			ENTER; SAVETMPS;
 
-// 			PUSHMARK(SP);
-// 			EXTEND(SP, 2);
-// 			PUSHs( &PL_sv_undef );
-// 			PUSHs( sv_2mortal(newSVpvf(message)) );
-// 			PUTBACK;
+			PUSHMARK(SP);
+			EXTEND(SP, 2);
+			PUSHs( &PL_sv_undef );
+			PUSHs( sv_2mortal(newSVpvf(message)) );
+			PUTBACK;
 
-// 			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
 
-// 			//SPAGAIN;PUTBACK;
+			//SPAGAIN;PUTBACK;
 
-// 			SvREFCNT_dec(ctx->cb);
+			SvREFCNT_dec(ctx->cb);
 
-// 			FREETMPS; LEAVE;
-// 		}
+			FREETMPS; LEAVE;
+		}
 
-// 		--self->pending;
-// 	}
+		--self->pending;
+	}
 
-// 	hv_clear(self->reqs);
+	hv_clear(self->reqs);
 
-// 	FREETMPS;LEAVE;
-// }
+	FREETMPS;LEAVE;
+}
 
 
 static void on_disconnect (TntCnn * self, int err) {
