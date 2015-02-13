@@ -69,7 +69,87 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags ) {
 
 static void on_read(ev_cnn * self, size_t len) {
 	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	cwarn("self->ruse: %zu", (int)self->ruse);
+
+	ENTER;
+	SAVETMPS;
+
 	do_disable_rw_timer(self);
+
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
+
+	ptrdiff_t buf_len = end - rbuf;
+
+	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	cwarn("pkt_length = %zu", pkt_length);
+
+	if (buf_len - 5 < pkt_length) {
+		cwarn("not enough");
+		return;
+	}
+
+	HV *hv = newHV();
+
+	int length = parse_reply_hdr(hv, rbuf, buf_len);
+
+	SV ** sv_sync = hv_fetchs(hv,"sync",0);
+	int id = SvIV(*sv_sync);
+	cwarn("%d", id);
+
+	TntCtx *ctx;
+	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id),0);
+
+	if (!key) {
+		cwarn("key %d not found",id);
+		return;
+	}
+	else {
+		ctx = (TntCtx *) SvPVX(key);
+		ev_timer_stop(self->loop, &ctx->t);
+	}
+
+	length = parse_reply_body(hv, rbuf+length, buf_len, /*&ctx->f*/ NULL, /*ctx->use_hash ? ctx->space->fields :*/ 0);
+	cwarn("length = %d", length);
+
+	dSP;
+
+	if (ctx->cb) {
+		SPAGAIN;
+
+		ENTER; SAVETMPS;
+
+		SV ** var = hv_fetchs(hv,"code",0);
+		if (var && SvIV (*var) == 0) {
+			PUSHMARK(SP);
+			EXTEND(SP, 1);
+			PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+			PUTBACK;
+		}
+		else {
+			var = hv_fetchs(hv,"errstr",0);
+			PUSHMARK(SP);
+			EXTEND(SP, 3);
+			PUSHs( &PL_sv_undef );
+			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+			PUTBACK;
+		}
+
+		(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+
+		//SPAGAIN;PUTBACK;
+
+		SvREFCNT_dec(ctx->cb);
+
+		FREETMPS; LEAVE;
+	}
+
+	--tnt->pending;
+
+	FREETMPS;
+	LEAVE;
 }
 
 static void on_greet_read(ev_cnn * self, size_t len) {
@@ -84,20 +164,25 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
-	if (end - rbuf < 128) {
+	ptrdiff_t buf_len = end - rbuf;
+	if (buf_len < 128) {
 		return;
 	}
 
 	cwarn("greeting success!");
 
 	// perform authentication here
+
+	self->ruse -= buf_len;
+	cwarn("on_greet_read:: self->ruse: %zu", (int)self->ruse);
+
 	self->on_read = (c_cb_read_t) on_read;
 
 	FREETMPS;
 	LEAVE;
 }
 
-// static void on_read(ev_cnn * self, size_t len) {
+// static void on_read_(ev_cnn * self, size_t len) {
 // 	debug("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
 // 	//dSP;
 
@@ -216,48 +301,48 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 // 	LEAVE;
 // }
 
-void free_reqs (TntCnn *self, const char * message) {
+// void free_reqs (TntCnn *self, const char * message) {
 
-	ENTER;SAVETMPS;
+// 	ENTER;SAVETMPS;
 
-	dSP;
+// 	dSP;
 
-	HE *ent;
-	(void) hv_iterinit( self->reqs );
-	while ((ent = hv_iternext( self->reqs ))) {
-		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
-		ev_timer_stop(self->cnn.loop,&ctx->t);
-		SvREFCNT_dec(ctx->wbuf);
-		if (ctx->f.size && !ctx->f.nofree) {
-			safefree(ctx->f.f);
-		}
+// 	HE *ent;
+// 	(void) hv_iterinit( self->reqs );
+// 	while ((ent = hv_iternext( self->reqs ))) {
+// 		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
+// 		ev_timer_stop(self->cnn.loop,&ctx->t);
+// 		SvREFCNT_dec(ctx->wbuf);
+// 		if (ctx->f.size && !ctx->f.nofree) {
+// 			safefree(ctx->f.f);
+// 		}
 
-		if (ctx->cb) {
-			SPAGAIN;
-			ENTER; SAVETMPS;
+// 		if (ctx->cb) {
+// 			SPAGAIN;
+// 			ENTER; SAVETMPS;
 
-			PUSHMARK(SP);
-			EXTEND(SP, 2);
-			PUSHs( &PL_sv_undef );
-			PUSHs( sv_2mortal(newSVpvf(message)) );
-			PUTBACK;
+// 			PUSHMARK(SP);
+// 			EXTEND(SP, 2);
+// 			PUSHs( &PL_sv_undef );
+// 			PUSHs( sv_2mortal(newSVpvf(message)) );
+// 			PUTBACK;
 
-			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+// 			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
 
-			//SPAGAIN;PUTBACK;
+// 			//SPAGAIN;PUTBACK;
 
-			SvREFCNT_dec(ctx->cb);
+// 			SvREFCNT_dec(ctx->cb);
 
-			FREETMPS; LEAVE;
-		}
+// 			FREETMPS; LEAVE;
+// 		}
 
-		--self->pending;
-	}
+// 		--self->pending;
+// 	}
 
-	hv_clear(self->reqs);
+// 	hv_clear(self->reqs);
 
-	FREETMPS;LEAVE;
-}
+// 	FREETMPS;LEAVE;
+// }
 
 
 static void on_disconnect (TntCnn * self, int err) {
@@ -362,7 +447,7 @@ void ping(SV *this, SV * cb)
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), ctxsv, 0 );
 
 		ctx->wbuf = pkt_ping(iid);
-		cwarn("wbuf_size: %d", SvCUR(ctx->wbuf));
+		cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		++self->pending;
 		do_write( &self->cnn,SvPVX(ctx->wbuf),SvCUR(ctx->wbuf) );

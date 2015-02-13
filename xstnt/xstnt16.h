@@ -103,9 +103,23 @@ typedef struct {
 	char format;
 } TntField;
 
-static inline void write_length(char *p, uint32_t size) {
-	*(p) = 0xce;
-	*((uint32_t *)(p+1)) = htole32(size);
+static inline uint32_t decode_pkt_len(char **h) {
+	char *p = *h;
+	uint32_t l = *((uint32_t *)(p+1));
+	*h += 5;
+	return be32toh(l);
+}
+
+static inline void write_length(char *h, uint32_t size) {
+	*h = 0xce;
+	*((uint32_t *)(h+1)) = htobe32(size);
+}
+
+static inline char * write_iid(char *h, uint32_t iid) {
+	*h = 0xce;
+	*(uint32_t*)(h + 1) = htobe32(iid);
+	h += 5;
+	return h;
 }
 
 static inline SV * pkt_ping( uint32_t iid ) {
@@ -127,15 +141,109 @@ static inline SV * pkt_ping( uint32_t iid ) {
 	h = mp_encode_uint(h, TP_CODE);
 	h = mp_encode_uint(h, TP_PING);
 	h = mp_encode_uint(h, TP_SYNC);
-	// h = mp_encode_uint(h, iid);
-	*h = 0xce;
-	*(uint32_t*)(h + 1) = htole32(iid);
-	h += 5;
+	h = write_iid(h, iid);
 
 	SvCUR_set(rv, sz);
 	return rv;
 }
 
-static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
-	return 0;
+static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size) {
+	const char *ptr, *beg, *end;
+
+	const char *p = data;
+	const char *test = p;
+
+	// // len
+
+	// if (mp_check(&test, data + size))
+	// 	return -1;
+	// if (mp_typeof(*p) != MP_UINT)
+	// 	return -1;
+
+	// uint32_t len = mp_decode_int(&p);
+
+	// header
+	test = p;
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_MAP)
+		return -2;
+
+	uint32_t n = mp_decode_map(&p);
+	uint32_t code, sync;
+	while (n-- > 0) {
+		if (mp_typeof(*p) != MP_UINT)
+			return -3;
+
+		uint32_t key = mp_decode_uint(&p);
+		switch (key) {
+			case TP_CODE:
+				if (mp_typeof(*p) != MP_UINT)
+					return -4;
+
+				code = mp_decode_uint(&p);
+				break;
+
+			case TP_SYNC:
+				if (mp_typeof(*p) != MP_UINT)
+					return -5;
+
+				sync = mp_decode_uint(&p);
+				break;
+		}
+	}
+
+	// cwarn("code = %d", code);
+	// cwarn("sync = %d", sync);
+
+	(void) hv_stores(ret, "code", newSViv(code));
+	(void) hv_stores(ret, "sync", newSViv(sync));
+
+	return p - data;
+}
+
+static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
+	const char *ptr, *beg, *end;
+
+	const char *p = data;
+	const char *test = p;
+	// body
+	if (p == data + size) {
+		return size;
+	}
+
+	test = p;
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_MAP)
+		return -1;
+	int n = mp_decode_map(&p);
+	while (n-- > 0) {
+		uint32_t key = mp_decode_uint(&p);
+		switch (key) {
+		case TP_ERROR: {
+			if (mp_typeof(*p) != MP_STR)
+				return -1;
+			uint32_t elen = 0;
+			char *err_str = mp_decode_str(&p, &elen);
+
+			(void) hv_stores(ret, "status", newSVpvs("error"));
+			(void) hv_stores(ret, "errstr", newSVpvn(err_str, elen));
+			break;
+		}
+
+		case TP_DATA: {
+			if (mp_typeof(*p) != MP_ARRAY)
+				return -1;
+
+			(void) hv_stores(ret, "status", newSVpvs("ok"));
+			// r->data = p;
+			// mp_next(&p);
+			// r->data_end = p;
+			break;
+		}
+		}
+		// r->bitmap |= (1ULL << key);
+	}
+	return p - data;
 }

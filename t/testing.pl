@@ -33,6 +33,8 @@ my $c; $c = EV::Tarantool->new({
 		$connected++;
 		my $t; $t = EV::timer 0.5, 0, sub {
 			$c->ping(sub {
+				my $a = @_[0];
+				say Dumper $a;
 				say "Pong";
 			});
 			undef $t;
