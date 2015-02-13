@@ -80,6 +80,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
+	/* len */
 	ptrdiff_t buf_len = end - rbuf;
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
@@ -92,17 +93,20 @@ static void on_read(ev_cnn * self, size_t len) {
 
 	HV *hv = newHV();
 
-	int length = parse_reply_hdr(hv, rbuf, buf_len);
-
-	SV ** sv_sync = hv_fetchs(hv,"sync",0);
-	int id = SvIV(*sv_sync);
-	cwarn("%d", id);
+	/* header */
+	uint32_t id = 0;
+	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+	if (unlikely(id == 0)) {
+		// TODO: error
+		cwarn("id == 0");
+		return;
+	}
 
 	TntCtx *ctx;
 	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id),0);
 
 	if (!key) {
-		cwarn("key %d not found",id);
+		cwarn("key %d not found", id);
 		return;
 	}
 	else {
@@ -110,7 +114,9 @@ static void on_read(ev_cnn * self, size_t len) {
 		ev_timer_stop(self->loop, &ctx->t);
 	}
 
-	length = parse_reply_body(hv, rbuf+length, buf_len, /*&ctx->f*/ NULL, /*ctx->use_hash ? ctx->space->fields :*/ 0);
+	/* body */
+
+	length = parse_reply_body(hv, rbuf+length, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
 	cwarn("length = %d", length);
 
 	dSP;

@@ -147,7 +147,7 @@ static inline SV * pkt_ping( uint32_t iid ) {
 	return rv;
 }
 
-static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size) {
+static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_t *id) {
 	const char *ptr, *beg, *end;
 
 	const char *p = data;
@@ -198,6 +198,8 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size) {
 
 	(void) hv_stores(ret, "code", newSViv(code));
 	(void) hv_stores(ret, "sync", newSViv(sync));
+
+	*id = sync;
 
 	return p - data;
 }
