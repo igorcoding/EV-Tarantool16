@@ -29,7 +29,7 @@ typedef struct {
 	SV      *salt;
 } TntCnn;
 
-static void on_request_timer(EV_P_ ev_timer *t, int flags ) {
+static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TntCtx * ctx = (TntCtx *) t;
 	TntCnn * self = (TntCnn *) ctx->self;
 	cwarn("timer called on %p: %s", ctx, ctx->call);
@@ -69,7 +69,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags ) {
 
 static void on_read(ev_cnn * self, size_t len) {
 	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	cwarn("self->ruse: %zu", (int)self->ruse);
+	cwarn("self->ruse: %zu", self->ruse);
 
 	ENTER;
 	SAVETMPS;
@@ -82,9 +82,13 @@ static void on_read(ev_cnn * self, size_t len) {
 
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
+	if (buf_len == 0) {
+		cwarn("buflen==0. weird.");
+		return;
+	}
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
-	cwarn("pkt_length = %zu", pkt_length);
+	cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
 		cwarn("not enough");
@@ -96,6 +100,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+	cwarn("hdr_length = %d", length);
 	if (unlikely(id == 0)) {
 		// TODO: error
 		cwarn("id == 0");
@@ -103,7 +108,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	}
 
 	TntCtx *ctx;
-	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id),0);
+	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 	if (!key) {
 		cwarn("key %d not found", id);
@@ -117,7 +122,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* body */
 
 	length = parse_reply_body(hv, rbuf+length, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
-	cwarn("length = %d", length);
+	cwarn("body length = %d", length);
 
 	dSP;
 
@@ -143,7 +148,7 @@ static void on_read(ev_cnn * self, size_t len) {
 			PUTBACK;
 		}
 
-		(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
+		(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
 
 		//SPAGAIN;PUTBACK;
 
@@ -180,7 +185,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	// perform authentication here
 
 	self->ruse -= buf_len;
-	cwarn("on_greet_read:: self->ruse: %zu", (int)self->ruse);
+	cwarn("on_greet_read:: self->ruse: %d", (int)self->ruse);
 
 	self->on_read = (c_cb_read_t) on_read;
 
@@ -402,7 +407,7 @@ void new(SV *pk, HV *conf)
 		self->spaces = newHV();
 
 		if ((key = hv_fetchs(conf, "spaces", 0)) && SvROK(*key)) {
-			// configure_spaces( self->spaces, *key );
+			configure_spaces( self->spaces, *key );
 		}
 		XSRETURN(1);
 
@@ -420,7 +425,7 @@ void DESTROY(SV *this)
 				SvREFCNT_dec(self->reqs);
 			}
 			if (self->spaces) {
-				// destroy_spaces(self->spaces);
+				destroy_spaces(self->spaces);
 			}
 		}
 		xs_ev_cnn_destroy(self);
@@ -456,6 +461,34 @@ void ping(SV *this, SV * cb)
 		cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		++self->pending;
-		do_write( &self->cnn,SvPVX(ctx->wbuf),SvCUR(ctx->wbuf) );
+		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf) );
+
+		XSRETURN_UNDEF;
+
+void select( SV *this, SV *space, SV * keys, ... )
+	PPCODE:
+		if (0) this = this;
+		// TODO: croak cleanup may be solved with refcnt+mortal
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "select";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if ((ctx->wbuf = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
+			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+
+			++self->pending;
+
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
 
 		XSRETURN_UNDEF;

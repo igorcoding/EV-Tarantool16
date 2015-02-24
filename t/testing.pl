@@ -24,22 +24,38 @@ my $tnt = {
 	host => '127.0.0.1'
 };
 
+my $realspaces = {
+	1 => {
+		name => 'test1',
+		fields => [qw( id a b c d e f )],
+		types  => [qw(STR STR NUM64 )],
+		indexes => {
+			0 => { name => 'id', fields => ['id'] },
+			1 => { name => 'ax', fields => ['a'] },
+			2 => { name => 'bx', fields => ['b'] },
+		}
+	},
+	2 => {
+		name => 'test2',
+		fields => [qw( id a b c d e f )],
+		types  => [qw(STR STR NUM64 )],
+		indexes => {
+			0 => { name => 'id', fields => ['id','a'] },
+			1 => { name => 'ax', fields => ['e'] },
+			2 => { name => 'bx', fields => ['b'] },
+		}
+	},
+};
+
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
+	spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
 		warn "connected: @_";
 		$connected++;
-		my $t; $t = EV::timer 0.5, 0, sub {
-			$c->ping(sub {
-				my $a = @_[0];
-				say Dumper $a;
-				say "Pong";
-			});
-			undef $t;
-		};
-		# EV::unloop;
+		EV::unloop;
 	},
 	connfail => sub {
 		my $err = 0+$!;
@@ -57,4 +73,23 @@ my $c; $c = EV::Tarantool->new({
 });
 
 $c->connect;
+EV::loop;
+
+my $t; $t = EV::timer 0.5, 0, sub {
+	# $c->ping(sub {
+	# 	my $a = @_[0];
+	# 	say Dumper $a;
+	# 	say "Pong";
+	# 	EV::unloop;
+	# });
+
+	$c->select(1, ['test1', 'testx', '123'], sub {
+		my $a = \@_;
+		say Dumper $a;
+		say "done;";
+		EV::unloop;
+	});
+	undef $t;
+};
+
 EV::loop;

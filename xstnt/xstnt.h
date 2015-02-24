@@ -534,56 +534,6 @@ static inline SV * newSVpvn_pformat ( const char *data, STRLEN size, const unpac
 static int parse_reply(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
 	const char *ptr, *beg, *end;
 
-	const char *p = data;
-	const char *test = p;
-
-	// len
-
-	if (mp_check(&test, data + size))
-		return -1;
-	if (mp_typeof(*p) != MP_UINT)
-		return -1;
-
-	uint32_t len = mp_decode_int(&p);
-
-	// header
-	test = p;
-	if (mp_check(&test, data + size))
-		return -1;
-	if (mp_typeof(*p) != MP_MAP)
-		return -1;
-
-	uint32_t n = mp_decode_map(&p);
-	uint32_t code, sync;
-	while (n-- > 0) {
-		if (mp_typeof(*p) != MP_UINT)
-			return -1;
-
-		uint32_t key = mp_decode_uint(&p);
-		switch (key) {
-			case TP_SYNC:
-				if (mp_typeof(*p) != MP_UINT)
-					return -1;
-
-				sync = mp_decode_uint(&p);
-				break;
-			case TP_CODE:
-				if (mp_typeof(*p) != MP_UINT)
-					return -1;
-
-				code = mp_decode_uint(&p);
-				break;
-		}
-	}
-
-	// body
-	if (p == buf + len + 5) {
-		return len + 5;
-	}
-	test = p;
-	// TODO: next we parse the body
-
-	ptr = NULL; // just for now
 
 	//warn("parse data of size %d",size);
 	if ( size < sizeof(tnt_res_t) ) { // ping could have no count, so + 4
@@ -1408,46 +1358,6 @@ static inline SV * pkt_select( TntCtx *ctx, uint32_t iid, HV * spaces, SV *space
 
 	//warn("on return: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	return SvREFCNT_inc(rv);
-
-
-	int sz = 5 +
-		mp_sizeof_map(2) +
-		mp_sizeof_uint(TP_CODE) +
-		mp_sizeof_uint(TP_SELECT) +
-		mp_sizeof_uint(TP_SYNC) +
-		mp_sizeof_uint(iid) +
-		mp_sizeof_map(5) +
-		mp_sizeof_uint(TP_SPACE) +
-		mp_sizeof_uint(spc->id) +
-		mp_sizeof_uint(TP_INDEX) +
-		mp_sizeof_uint(index) +
-		mp_sizeof_uint(TP_OFFSET) +
-		mp_sizeof_uint(offset) +
-		mp_sizeof_uint(TP_LIMIT) +
-		mp_sizeof_uint(limit) +
-		mp_sizeof_uint(TP_KEY);
-
-
-	SV *rv = ???; // TODO: allocate sz;
-	char *p = (char *) SvPVX(rv);
-
-	char *h = mp_encode_map(p + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_SELECT);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = mp_encode_uint(h, reqid);
-	h = mp_encode_map(h, 5);
-	h = mp_encode_uint(h, TP_SPACE);
-	h = mp_encode_uint(h, spc->id);
-	h = mp_encode_uint(h, TP_INDEX);
-	h = mp_encode_uint(h, index);
-	h = mp_encode_uint(h, TP_OFFSET);
-	h = mp_encode_uint(h, offset);
-	h = mp_encode_uint(h, TP_LIMIT);
-	h = mp_encode_uint(h, limit);
-	h = mp_encode_uint(h, TP_KEY);
-
-	return tp_add(p, sz);
 }
 
 

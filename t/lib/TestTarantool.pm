@@ -251,5 +251,12 @@ space[2] = {
 
 @@ init.lua
 
-box.insert(1,"test1","testx",123ULL);
-box.insert(1,"test2","testx",456ULL);
+box.cfg{
+	listen: %{pport}
+}
+
+s = box.schema.space.create('tester', {id = 1})
+i = s:create_index('primary', {type = 'hash', parts = {1, 'STR', 2, 'STR', 3, 'NUM64'}})
+
+s:insert("test1","testx",123ULL);
+s:insert("test2","testx",456ULL);
