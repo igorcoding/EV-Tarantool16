@@ -1,5 +1,21 @@
 #!/usr/bin/env perl
 
+package ttt;
+use 5.010;
+use strict;
+
+$ttt::true  = do { bless \(my $dummy = 1) };
+
+use overload (
+   "0+"     => sub { ${$_[0]} },
+   "++"     => sub { $_[0] = ${$_[0]} + 1 },
+   "--"     => sub { $_[0] = ${$_[0]} - 1 },
+   fallback => 1,
+);
+
+
+package main;
+
 use 5.010;
 use strict;
 use Test::More;
@@ -11,7 +27,6 @@ use Time::HiRes 'sleep','time';
 use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
-use TestTarantool;
 # use AE;
 
 # my $tnt = tnt_run();
@@ -24,15 +39,18 @@ my $tnt = {
 	host => '127.0.0.1'
 };
 
+my $s = $ttt::true + 1;
+say Dumper($s);
+
 my $realspaces = {
 	1 => {
 		name => 'test1',
 		fields => [qw( id a b c d e f )],
-		types  => [qw(STR STR NUM64 )],
+		types  => [qw(STR STR NUM )],
 		indexes => {
-			0 => { name => 'id', fields => ['id'] },
-			1 => { name => 'ax', fields => ['a'] },
-			2 => { name => 'bx', fields => ['b'] },
+			0 => { name => 'id', fields => ['id', 'a', 'b'] },
+			# 1 => { name => 'ax', fields => ['a'] },
+			# 2 => { name => 'bx', fields => ['b'] },
 		}
 	},
 	2 => {
@@ -83,7 +101,7 @@ my $t; $t = EV::timer 0.5, 0, sub {
 	# 	EV::unloop;
 	# });
 
-	$c->select(1, ['test1', 'testx', '123'], sub {
+	$c->select(1, [], sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";

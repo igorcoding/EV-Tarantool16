@@ -1,23 +1,9 @@
 #define MP_SOURCE 1
+
 #include <string.h>
 #include "xsmy.h"
 #include "msgpuck.h"
 #include "defines.h"
-
-/* types */
-enum tp_type {
-	TP_NIL = MP_NIL,
-	TP_UINT = MP_UINT,
-	TP_INT = MP_INT,
-	TP_STR = MP_STR,
-	TP_BIN = MP_BIN,
-	TP_ARRAY = MP_ARRAY,
-	TP_MAP = MP_MAP,
-	TP_BOOL = MP_BOOL,
-	TP_FLOAT = MP_FLOAT,
-	TP_DOUBLE = MP_DOUBLE,
-	TP_EXT = MP_EXT
-};
 
 /* header */
 enum tp_header_key_t {
@@ -103,6 +89,9 @@ typedef struct {
 	U32  id;
 	char format;
 } TntField;
+
+static HV *types_boolean_stash;
+static SV *types_true, *types_false;
 
 #define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def  = 'p'
 
@@ -474,6 +463,7 @@ static void destroy_spaces(HV *spaces) {
 	} \
 	else \
 	if (idx) { \
+		cwarn("!index"); \
 		fmt = &idx->f; \
 	} \
 	else \
@@ -597,7 +587,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	U32 limit  = 0xffffffff;
 	U32 offset = -1;
-	U32 index  = -1;
+	U32 index  = 0;
 	U32 flags  = 0;
 
 	unpack_format *fmt;
@@ -639,11 +629,16 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			//warn("No index %d config. Using without formats",index);
 		}
 	}
-
+	cwarn("idx = %p", idx);
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
-	fmt = &ctx->f;
+	// if (!fmt) {
+	// 	cwarn("!fmt");
+	// 	fmt = &ctx->f;
+	// }
+	// fmt = &ctx->f;
+
 
 	// TODO: add ITERATOR
 
@@ -880,6 +875,109 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 	return p - data;
 }
 
+
+static SV* data_parser(const char **p) {
+	uint32_t i = 0;
+	const char *str = NULL;
+	uint32_t str_len = 0;
+
+	switch (mp_typeof(**p)) {
+	case MP_UINT: {
+		uint32_t value = mp_decode_uint(p);
+		return (SV *) newSVuv(value);
+	}
+	case MP_INT: {
+		int32_t value = mp_decode_int(p);
+		return (SV *) newSViv(value);
+	}
+	case MP_STR: {
+		str = mp_decode_str(p, &str_len);
+		return (SV *) newSVpvn(str, str_len);
+	}
+	case MP_BOOL: {
+		bool value = mp_decode_bool(p);
+		if (value) {
+			return newSVsv(types_true);
+		} else {
+			return newSVsv(types_false);
+		}
+	}
+	case MP_FLOAT: {
+		float value = mp_decode_float(p);
+		return (SV *) newSVnv((double) value);
+	}
+	case MP_DOUBLE: {
+		double value = mp_decode_double(p);
+		return (SV *) newSVnv(value);
+	}
+	case MP_ARRAY: {
+		uint32_t arr_size = mp_decode_array(p);
+
+		AV *arr = newAV();
+		av_extend(arr, arr_size);
+		for (i = 0; i < arr_size; ++i) {
+			av_push(arr, data_parser(p));
+		}
+		return newRV_noinc((SV *) arr);
+	}
+
+	case MP_MAP: {
+		uint32_t map_size = mp_decode_map(p);
+		cwarn("map_size = %d", map_size);
+
+		const char *map_key_str = NULL;
+		uint32_t map_key_len = 0;
+
+		HV *hash = newHV();
+		for (i = 0; i < map_size; ++i) {
+			bool _set = true;
+			SV *key;
+			switch(mp_typeof(**p)) {
+			case MP_STR: {
+				map_key_str = mp_decode_str(p, &map_key_len);
+				break;
+			}
+			case MP_UINT: {
+				uint32_t value = mp_decode_uint(p);
+				SV *s = newSVuv(value);
+				STRLEN l;
+
+				map_key_str = SvPV(s, l);
+				map_key_len = (uint32_t) l;
+				break;
+			}
+			case MP_INT: {
+				int32_t value = mp_decode_int(p);
+				SV *s = newSViv(value);
+				STRLEN l;
+
+				map_key_str = SvPV(s, l);
+				map_key_len = (uint32_t) l;
+				break;
+			}
+			default:
+				_set = false;
+				break;
+			}
+			if (_set) {
+				SV *value = data_parser(p);
+				(void) hv_store(hash, map_key_str, map_key_len, value, 0);
+			} else {
+				mp_next(p); // skip the current key
+				mp_next(p); // skip the value of current key
+			}
+		}
+		return newRV_noinc((SV *) hash);
+	}
+	case MP_NIL:
+		mp_next(p);
+		return &PL_sv_undef;
+	default:
+		warn("Got unexpected type as a tuple element value");
+		return &PL_sv_undef;
+	}
+}
+
 static int parse_reply_body_data(HV *ret, const char const *data_begin, const char const *data_end, const unpack_format const * format, AV *fields) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
@@ -897,18 +995,13 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 
 	case MP_ARRAY:
 		cont_size = mp_decode_array(&p);
-		cwarn("array.size=%d", cont_size);
+		cwarn("tuples count = %d", cont_size);
 
 		AV *tuples = newAV();
 		av_extend(tuples, cont_size);
 		(void) hv_stores(ret, "count", newSViv(cont_size));
 		(void) hv_stores(ret, "tuples", newRV_noinc((SV *) tuples ));
 
-
-		const char *str = NULL;
-		uint32_t str_len = 0;
-		uint32_t unum = 0;
-		int32_t num = 0;
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k = 0;
@@ -923,24 +1016,7 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 				for (k = 0; k < tuple_size; ++k) {
 					name = av_fetch(fields, k, 0);
 					if (name && *name) {
-						switch (mp_typeof(*p)) {
-						case MP_STR:
-							str = mp_decode_str(&p, &str_len);
-							// TODO: (void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), newSVpvn_pformat( ptr, fsize, format, k ), 0);
-							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), newSVpvn(str, str_len), 0);
-							// (void) av_push(tuple, newSVpvn(str, str_len));
-							break;
-						case MP_UINT:
-							unum = mp_decode_uint(&p);
-							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), newSVuv(unum), 0);
-							// (void) av_push(tuple, newSVuv(unum));
-							break;
-						case MP_INT:
-							num = mp_decode_int(&p);
-							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), newSViv(num), 0);
-							// (void) av_push(tuple, newSViv(num));
-							break;
-						}
+						(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), data_parser(&p), 0);
 					}
 					else {
 						cwarn("Field name for field %d is not defined",k);
@@ -957,20 +1033,7 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 				tuple_size = mp_decode_array(&p);
 
 				for (k = 0; k < tuple_size; ++k) {
-					switch (mp_typeof(*p)) {
-					case MP_STR:
-						str = mp_decode_str(&p, &str_len);
-						(void) av_push(tuple, newSVpvn(str, str_len));
-						break;
-					case MP_UINT:
-						unum = mp_decode_uint(&p);
-						(void) av_push(tuple, newSVuv(unum));
-						break;
-					case MP_INT:
-						num = mp_decode_int(&p);
-						(void) av_push(tuple, newSViv(num));
-						break;
-					}
+					(void) av_push(tuple, data_parser(&p));
 				}
 			}
 		}

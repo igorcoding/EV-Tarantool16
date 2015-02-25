@@ -3,9 +3,9 @@ package EV::Tarantool;
 use 5.010;
 use strict;
 use warnings;
+use Types::Serialiser;
 
 our $VERSION = '0.03';
-
 use EV ();
 
 require XSLoader;

@@ -12,6 +12,12 @@
 
 #include "xstnt16.h"
 
+#if __GNUC__ >= 3
+# define INLINE static inline
+#else
+# define INLINE static
+#endif
+
 typedef struct {
 	xs_ev_cnn_struct;
 
@@ -370,6 +376,15 @@ static void on_disconnect (TntCnn * self, int err) {
 	FREETMPS;LEAVE;
 }
 
+INLINE SV *get_bool (const char *name) {
+	SV *sv = get_sv(name, 1);
+
+	SvREADONLY_on(sv);
+	SvREADONLY_on(SvRV (sv));
+
+	return sv;
+}
+
 
 MODULE = EV::Tarantool      PACKAGE = EV::Tarantool::DES
 
@@ -382,7 +397,12 @@ PROTOTYPES: DISABLE
 BOOT:
 {
 	I_EV_API ("EV::Tarantool");
-	I_EV_CNN_API("EV::Tarantool" );
+	I_EV_CNN_API("EV::Tarantool");
+
+	types_boolean_stash = gv_stashpv("Types::Serialiser::Boolean", 1);
+
+    types_true  = get_bool("Types::Serialiser::true");
+    types_false = get_bool("Types::Serialiser::false");
 }
 
 
