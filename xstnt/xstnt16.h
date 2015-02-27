@@ -496,7 +496,6 @@ static void destroy_spaces(HV *spaces) {
 	} \
 	else \
 	if (idx) { \
-		cwarn("!index"); \
 		fmt = &idx->f; \
 	} \
 	else \
@@ -589,14 +588,6 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	return rv;
 }
 
-
-static inline uint32_t decode_pkt_len(char **h) {
-	char *p = *h;
-	uint32_t l = *((uint32_t *)(p+1));
-	*h += 5;
-	return be32toh(l);
-}
-
 static inline void write_length(char *h, uint32_t size) {
 	*h = 0xce;
 	*((uint32_t *)(h+1)) = htobe32(size);
@@ -630,6 +621,7 @@ static inline SV * pkt_ping( uint32_t iid ) {
 }
 
 static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
+	cwarn("req.sync = %d", iid);
 	// register uniptr p;
 
 	U32 limit  = 0xffffffff;
@@ -723,9 +715,8 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 
-	char *p = (char *) SvPVX(rv);
-	char *h = p;
-	h = mp_encode_map(p + 5, 2);
+	char *h = (char *) SvPVX(rv);
+	h = mp_encode_map(h + 5, 2);
 	h = mp_encode_uint(h, TP_CODE);
 	h = mp_encode_uint(h, TP_SELECT);
 	h = mp_encode_uint(h, TP_SYNC);
@@ -771,101 +762,110 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 	}
 
-
+	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
 	SvCUR_set(rv, h-p);
 
 	return SvREFCNT_inc(rv);
 }
 
-// static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, HV * opt, SV * cb) {
-// 	uint32_t op_code = TP_INSERT;
+static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, HV * opt, SV * cb) {
+	uint32_t op_code = TP_INSERT;
 
-// 	unpack_format *fmt;
-// 	dUnpackFormat( format );
+	unpack_format *fmt;
+	dUnpackFormat( format );
 
-// 	int k;
-// 	SV **key;
+	int k;
+	SV **key;
 
-// 	TntSpace *spc = 0;
-// 	TntIndex *idx = 0;
+	TntSpace *spc = 0;
+	TntIndex *idx = 0;
 
-// 	if(( spc = evt_find_space( space, spaces ) )) {
-// 		ctx->space = spc;
-// 		SV * i0 = sv_2mortal(newSVuv(0));
-// 		key = &i0;
-// 		idx = evt_find_index( spc, key );
-// 	}
-// 	else {
-// 		ctx->use_hash = 0;
-// 	}
+	if(( spc = evt_find_space( space, spaces ) )) {
+		ctx->space = spc;
+		SV * i0 = sv_2mortal(newSVuv(0));
+		key = &i0;
+		idx = evt_find_index( spc, key );
+	}
+	else {
+		ctx->use_hash = 0;
+	}
 
-// 	if (opt) {
-// 		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key)) op_code = TP_REPLACE;
-// 		if ((key = hv_fetchs(opt, "rep", 0)) && SvOK(*key)) op_code = TP_REPLACE;
-// 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-// 	}
-// 	evt_opt_out( opt, ctx, spc );
-// 	check_tuple(t, spc);
-// 	evt_opt_in( opt, ctx, spc );
-
-
-// 	int sz = 5 +
-// 		mp_sizeof_map(2) +
-// 		mp_sizeof_uint(TP_CODE) +
-// 		mp_sizeof_uint(op_code) +
-// 		mp_sizeof_uint(TP_SYNC) +
-// 		5 +
-// 		mp_sizeof_map(2) +
-// 		mp_sizeof_uint(TP_SPACE) +
-// 		mp_sizeof_uint(spc->id) +
-// 		mp_sizeof_uint(TP_TUPLE);
-
-// 	p->size = p->p;
-// 	char *h = mp_encode_map(p->p + 5, 2);
-// 	h = mp_encode_uint(h, TP_CODE);
-// 	h = mp_encode_uint(h, TP_INSERT);
-// 	h = mp_encode_uint(h, TP_SYNC);
-// 	p->sync = h;
-// 	*h = 0xce;
-// 	*(uint32_t*)(h + 1) = 0;
-// 	h += 5;
-// 	h = mp_encode_map(h, 2);
-// 	h = mp_encode_uint(h, TP_SPACE);
-// 	h = mp_encode_uint(h, space);
-// 	h = mp_encode_uint(h, TP_TUPLE);
-// 	return tp_add(p, sz);
+	if (opt) {
+		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key)) op_code = TP_REPLACE;
+		if ((key = hv_fetchs(opt, "rep", 0)) && SvOK(*key)) op_code = TP_REPLACE;
+		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+	}
+	evt_opt_out( opt, ctx, spc );
+	check_tuple(tuple, spc);
+	evt_opt_in( opt, ctx, spc );
 
 
-// 	int cardinality = (  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
-// 	STRLEN const_len, var_len;
-// 	const_len =
-// 		sizeof(tnt_pkt_update_t) // base of requset
-// 		+ 4 // cardinality
-// 		+ 5 * cardinality // (field <w> ) * cardinality
-// 	;
-// 	var_len =
-// 		TUPLE_FIELD_DEFAULT * cardinality // take 32 as average/estimated tuple field length
-// 	;
+	int sz = HEADER_CONST_LEN +
+		1 + // mp_sizeof_map(2) +
+		1 + // mp_sizeof_uint(TP_SPACE) +
+		mp_sizeof_uint(spc->id) +
+		1; // mp_sizeof_uint(TP_TUPLE);
 
-// 	SV *rv = sv_2mortal(newSV( const_len + var_len ));
-// 	SvUPGRADE( rv, SVt_PV );
+	// counting fields in keys
+	SV *t = tuple;
+	AV *fields;
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb ); }
+	else { fields  = (AV *) SvRV(t); }
+	uint32_t cardinality = av_len(fields) + 1;
 
-// 	tnt_pkt_insert_t *h = (tnt_pkt_insert_t *) SvPVX(rv);
-// 	p.c = (char *)(h+1);
+	sz += mp_sizeof_array(cardinality);
+	sz += cardinality * EST_FIELD_SIZE;
 
-// 	uptr_tuple_calc_size(p, rv, t, ( insert_or_delete == TNT_OP_INSERT ? spc->fields : idx->fields ), fmt, const_len, var_len);
+	SV *rv = sv_2mortal(newSV( sz ));
+	SvUPGRADE( rv, SVt_PV );
+	SvPOK_on(rv);
 
-// 	SvCUR_set( rv, p.c - SvPVX(rv) );
-// 	h = (tnt_pkt_insert_t *) SvPVX( rv ); // for sure
-// 	h->type   = htole32( insert_or_delete );
-// 	h->reqid  = htole32( iid );
-// 	h->space  = htole32( spc->id );
-// 	h->flags  = htole32( flags );
-// 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
-// 	return SvREFCNT_inc(rv);
-// }
+	char *h = (char *) SvPVX(rv);
+	h = mp_encode_map(h + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, op_code);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = write_iid(h, iid);
 
+	h = mp_encode_map(h, 2);
+	h = mp_encode_uint(h, TP_SPACE);
+	h = mp_encode_uint(h, spc->id);
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, cardinality);
+
+	uint32_t field_max_size = 0;
+	for (k = 0; k < cardinality; k++) {
+		key = av_fetch( fields, k, 0 );
+		if (key && *key) {
+			if ( !SvOK(*key) || !sv_len(*key) ) {
+				cwarn("something is going on wrong1");
+			} else {
+				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+				field_size_sv_fmt(field_max_size, _fmt);
+				sz += field_max_size - EST_FIELD_SIZE;
+				sv_size_check(rv, h, sz);
+				field_sv_fmt( h, *key, _fmt);
+			}
+		}
+		else {
+			cwarn("something is going on wrong2");
+		}
+	}
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+
+	return SvREFCNT_inc(rv);
+}
+
+static inline uint32_t decode_pkt_len(char **h) {
+	char *p = *h;
+	uint32_t l = *((uint32_t *)(p+1));
+	*h += 5;
+	return be32toh(l);
+}
 
 static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_t *id) {
 	const char *ptr, *beg, *end;
@@ -887,6 +887,7 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 			return -1;
 
 		uint32_t key = mp_decode_uint(&p);
+		cwarn("key = %d", key);
 		switch (key) {
 			case TP_CODE:
 				if (mp_typeof(*p) != MP_UINT)
@@ -900,7 +901,9 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 				if (mp_typeof(*p) != MP_UINT)
 					return -1;
 
+
 				*id = mp_decode_uint(&p);
+				cwarn("sync: %d", *id);
 				break;
 		}
 	}
@@ -908,8 +911,8 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 	// cwarn("code = %d", code);
 	// cwarn("sync = %d", sync);
 
-	(void) hv_stores(ret, "code", newSViv(code));
-	(void) hv_stores(ret, "sync", newSViv(*id));
+	(void) hv_stores(ret, "code", newSVuv(code));
+	(void) hv_stores(ret, "sync", newSVuv(*id));
 
 	return p - data;
 }
@@ -1027,13 +1030,14 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	case MP_MAP:
+	case MP_MAP: {
 		cont_size = mp_decode_map(&p);
 		cwarn("map.size=%d", cont_size);
 		// TODO: this is not valid probably
 		break;
+	}
 
-	case MP_ARRAY:
+	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		cwarn("tuples count = %d", cont_size);
 
@@ -1078,6 +1082,10 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 			}
 		}
 
+		break;
+	}
+	default:
+		cwarn("response data type = %d", mp_typeof(*p));
 		break;
 	}
 

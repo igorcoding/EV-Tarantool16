@@ -56,7 +56,7 @@ my $realspaces = {
 	2 => {
 		name => 'test2',
 		fields => [qw( id a b c d e f )],
-		types  => [qw(STR STR NUM64 )],
+		types  => [qw(STR STR NUM )],
 		indexes => {
 			0 => { name => 'id', fields => ['id','a'] },
 			1 => { name => 'ax', fields => ['e'] },
@@ -105,7 +105,13 @@ my $t; $t = EV::timer 0.5, 0, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";
-		EV::unloop;
+
+		$c->insert(1, ["t1", "t2", 4, "hellozzz"], {replace => 1}, sub {
+			my $a = \@_;
+			say Dumper $a;
+			say "done;";
+			EV::unloop;
+		});
 	});
 	undef $t;
 };

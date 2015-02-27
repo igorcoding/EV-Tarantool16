@@ -126,9 +126,11 @@ static void on_read(ev_cnn * self, size_t len) {
 	}
 
 	/* body */
+	rbuf += length;
 
-	length = parse_reply_body(hv, rbuf+length, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
+	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
 	cwarn("body length = %d", length);
+	rbuf += length;
 
 	dSP;
 
@@ -164,6 +166,12 @@ static void on_read(ev_cnn * self, size_t len) {
 	}
 
 	--tnt->pending;
+
+	self->ruse = end - rbuf;
+	if (self->ruse > 0) {
+		//cwarn("move buf on %zu",self->ruse);
+		memmove(self->rbuf,rbuf,self->ruse);
+	}
 
 	FREETMPS;
 	LEAVE;
@@ -394,5 +402,27 @@ void select( SV *this, SV *space, SV * keys, ... )
 
 		XSRETURN_UNDEF;
 
+void insert( SV *this, SV *space, SV * t, ... )
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
 
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "insert";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if(( ctx->wbuf = pkt_insert(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ) )) {
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+			++self->pending;
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
+
+		XSRETURN_UNDEF;
 
