@@ -43,6 +43,13 @@ enum tp_request_type {
 };
 
 static const uint32_t SCRAMBLE_SIZE = 20;
+static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
+										 1 + // mp_sizeof_map(2) +
+										 1 + // mp_sizeof_uint(TP_CODE) +
+										 1 + // mp_sizeof_uint(TP COMMAND) +
+										 1 + // mp_sizeof_uint(TP_SYNC) +
+										 5;  // sync len
+static const uint32_t EST_FIELD_SIZE = 5;
 
 /* Tnt legacy structures */
 
@@ -92,6 +99,32 @@ typedef struct {
 
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
+
+#define check_tuple(tuple, allow_hash) STMT_START { \
+	if (SvROK(tuple)) { \
+		if ( SvTYPE(SvRV(tuple)) == SVt_PVHV ) { \
+			if (unlikely(!(allow_hash))) { \
+				croak_cb(cb,"Cannot use hash without space or index"); \
+			} \
+		} else \
+		if ( unlikely(SvTYPE(SvRV(tuple)) != SVt_PVAV) ) { \
+			croak_cb(cb,"Tuple must be %s, but have %s", (allow_hash) ? "ARRAYREF or HASHREF" : "ARRAYREF", SvPV_nolen(tuple) ); \
+		} \
+	} else { \
+		croak_cb(cb,"Tuple must be %s, but have %s", (allow_hash) ? "ARRAYREF or HASHREF" : "ARRAYREF", SvPV_nolen(tuple) ); \
+	} \
+} STMT_END
+
+#define sv_size_check( svx, svx_end, totalneed ) \
+	STMT_START {                                                           \
+		if ( totalneed < SvLEN(svx) )  { \
+		} \
+		else {\
+			STRLEN used = svx_end - SvPVX(svx); \
+			svx_end = sv_grow(svx, totalneed); \
+			svx_end += used; \
+		}\
+	} STMT_END
 
 #define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def  = 'p'
 
@@ -472,6 +505,25 @@ static void destroy_spaces(HV *spaces) {
 	} \
 } STMT_END
 
+#define field_size_sv_fmt( s, format )                                     \
+	STMT_START {                                                           \
+		switch( format ) {                                                 \
+			case 'l':                                                      \
+			case 'L':                                                      \
+			case 'i':                                                      \
+			case 'I':                                                      \
+			case 's':                                                      \
+			case 'S':                                                      \
+			case 'c':                                                      \
+			case 'C':                                                      \
+				s = 9; break;                                              \
+			case 'p': case 'u':                                            \
+				s = 5; break;                                              \
+			default:                                                       \
+				croak_cb(cb,"Unsupported format: %c", format);             \
+		}                                                                  \
+	} STMT_END
+
 #define field_sv_fmt( dest, src, format )                                        \
 	STMT_START {                                                                 \
 		switch( format ) {                                                       \
@@ -558,12 +610,7 @@ static inline char * write_iid(char *h, uint32_t iid) {
 }
 
 static inline SV * pkt_ping( uint32_t iid ) {
-	int sz = 5 +
-		mp_sizeof_map(2) +
-		mp_sizeof_uint(TP_CODE) +
-		mp_sizeof_uint(TP_PING) +
-		mp_sizeof_uint(TP_SYNC) +
-		5;
+	int sz = HEADER_CONST_LEN;
 
 	SV * rv = newSV(sz);
 	SvUPGRADE(rv, SVt_PV);
@@ -613,9 +660,6 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
-
-		// if ((key = hv_fetchs(opt, "quiet", 0)) && SvOK(*key)) flags |= TNT_FLAG_BOX_QUIET;
-		// if ((key = hv_fetchs(opt, "nostore", 0)) && SvOK(*key)) flags |= TNT_FLAG_NOT_STORE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	else {
@@ -629,28 +673,17 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			//warn("No index %d config. Using without formats",index);
 		}
 	}
-	cwarn("idx = %p", idx);
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
-
-	// if (!fmt) {
-	// 	cwarn("!fmt");
-	// 	fmt = &ctx->f;
-	// }
-	// fmt = &ctx->f;
 
 
 	// TODO: add ITERATOR
 
-	int body_map_sz = 3 + (index != -1) + (offset != -1);
-	int keys_size = 0;
+	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1);
+	uint32_t keys_size = 0;
 
-	int sz = 5 +
-		mp_sizeof_map(2) +
-		mp_sizeof_uint(TP_CODE) +
-		mp_sizeof_uint(TP_SELECT) +
-		mp_sizeof_uint(TP_SYNC) +
-		5 +
+
+	int sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_SPACE) +
 		mp_sizeof_uint(spc->id) +
@@ -666,47 +699,28 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		sz += mp_sizeof_uint(TP_OFFSET) +
 			  mp_sizeof_uint(offset);
 	}
-
-
 	sz += mp_sizeof_uint(TP_KEY);
 
-
-	// keys
-
-
-
-	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
-		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
-	}
-
+	// counting fields in keys
 	SV *t = keys;
-
 	AV *fields;
 	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb ); }
 	else { fields  = (AV *) SvRV(t); }
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
+	sz += keys_size * EST_FIELD_SIZE;
 
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				sz += mp_sizeof_str(sv_len(*key));
-			}
-		}
-		else {
-			cwarn("something is going on wrong2");
-		}
-	}
-
-
-	SV *rv = sv_2mortal(newSV( sz )); // to avoid reallocation we request + TUPLE_FIELD_DEFAULT*tuple_count because tuples probably will not be empty
+	SV *rv = sv_2mortal(newSV( sz ));
 	SvUPGRADE( rv, SVt_PV );
 	SvPOK_on(rv);
+
+	// TODO: check_tuple(keys, spc);
+	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
+	}
+
 	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 
 	char *p = (char *) SvPVX(rv);
@@ -716,10 +730,6 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	h = mp_encode_uint(h, TP_SELECT);
 	h = mp_encode_uint(h, TP_SYNC);
 	h = write_iid(h, iid);
-	// int count = 5;
-	// if (limit == -1) {
-	// 	--count;
-	// }
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -739,31 +749,19 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	h = mp_encode_uint(h, TP_KEY);
 	h = mp_encode_array(h, keys_size);
 
+	uint8_t field_max_size = 0;
 
-
-	for (k=0; k < keys_size; k++) {
+	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
 		if (key && *key) {
 			if ( !SvOK(*key) || !sv_len(*key) ) {
 				cwarn("something is going on wrong1");
-				// var_len -= TUPLE_FIELD_DEFAULT;
-				// *(p.c++) = 0;
 			} else {
-				// cwarn("data.key: %.*s", (int) sv_len(*key), SvPV_nolen(*key));
-				// h = mp_encode_str(h, SvPV_nolen(*key), sv_len(*key));
-				field_sv_fmt( h, *key, k < fmt->size ? fmt->f[k] : fmt->def );
-				// switch(SvTYPE(SvRV(t))) {
-				// case SVt_IV:
-				// 	h = mp_encode_int(h, SvIV(*key));
-				// 	break;
-				// case SVt_PV:
-				// 	h = mp_encode_str(h, SvPV_nolen(*key), sv_len(*key));
-				// 	break;
-				// }
-
-				// var_len += sv_len(*key) - TUPLE_FIELD_DEFAULT;
-				// uptr_sv_check( p, rv, const_len + var_len );
-				// uptr_field_sv_fmt( p, *key, k < fmt->size ? fmt->f[k] : fmt->def );
+				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+				field_size_sv_fmt(field_max_size, _fmt);
+				sz += field_max_size - EST_FIELD_SIZE;
+				sv_size_check(rv, h, sz);
+				field_sv_fmt( h, *key, _fmt);
 			}
 		}
 		else {
@@ -777,62 +775,103 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	write_length(p, h-p-5);
 	SvCUR_set(rv, h-p);
 
-
-
-	// int tuple_count = ( av_len(keys)+1 );
-	// STRLEN const_len, var_len;
-	// const_len =
-	// 	sizeof(tnt_pkt_select_t) // base of requset
-	// 	+ 4 * tuple_count // (<cardinality>) * tuple_count
-	// ;
-
-
-
-	// for (i = 0; i <= av_len(keys); i++) {
-	// 	key = av_fetch( keys, i, 0 );
-	// 	if (unlikely( !key || !*key || !SvROK(*key) || ( (SvTYPE(SvRV(*key)) != SVt_PVAV) && (SvTYPE(SvRV(*key)) != SVt_PVHV) ) )) {
-	// 		if (!ctx->f.nofree) safefree(ctx->f.f);
-	// 		croak_cb(cb,"keys must be ARRAYREF of ARRAYREF or ARRAYREF of HASHREF");
-	// 	}
-	// 	SV *t = *key;
-	// 	int cardinality = ( (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
-	// 	var_len += (5 + TUPLE_FIELD_DEFAULT) * cardinality;
-	// 	//warn("(2)[%d]before c_len: %d and v_len: %d, sv_len:%d, sv_cur:%d",i, const_len, var_len, SvLEN(rv), p.c - SvPVX(rv));
-	// 	uptr_tuple_calc_size( p, rv, t, idx->fields, fmt, const_len, var_len );
-	// 	//warn("(2)[%d]after c_len: %d and v_len: %d, sv_len:%d, sv_cur:%d",i, const_len, var_len, SvLEN(rv), p.c - SvPVX(rv));
-	// }
-
-	// SvCUR_set( rv, p.c - SvPVX(rv) );
-
-	// h = (tnt_pkt_select_t *) SvPVX( rv ); // for sure
-
-	// h->type   = htole32( TNT_OP_SELECT );
-	// h->reqid  = htole32( htole32( iid ) );
-	// h->space  = htole32( htole32( spc->id ) );
-	// h->index  = htole32( htole32( index ) );
-	// h->offset = htole32( htole32( offset ) );
-	// h->limit  = htole32( htole32( limit ) );
-	// h->count  = htole32( htole32( av_len(keys) + 1 ) );
-	// h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
-
-	//warn("on return: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
 	return SvREFCNT_inc(rv);
 }
+
+// static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, HV * opt, SV * cb) {
+// 	uint32_t op_code = TP_INSERT;
+
+// 	unpack_format *fmt;
+// 	dUnpackFormat( format );
+
+// 	int k;
+// 	SV **key;
+
+// 	TntSpace *spc = 0;
+// 	TntIndex *idx = 0;
+
+// 	if(( spc = evt_find_space( space, spaces ) )) {
+// 		ctx->space = spc;
+// 		SV * i0 = sv_2mortal(newSVuv(0));
+// 		key = &i0;
+// 		idx = evt_find_index( spc, key );
+// 	}
+// 	else {
+// 		ctx->use_hash = 0;
+// 	}
+
+// 	if (opt) {
+// 		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key)) op_code = TP_REPLACE;
+// 		if ((key = hv_fetchs(opt, "rep", 0)) && SvOK(*key)) op_code = TP_REPLACE;
+// 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+// 	}
+// 	evt_opt_out( opt, ctx, spc );
+// 	check_tuple(t, spc);
+// 	evt_opt_in( opt, ctx, spc );
+
+
+// 	int sz = 5 +
+// 		mp_sizeof_map(2) +
+// 		mp_sizeof_uint(TP_CODE) +
+// 		mp_sizeof_uint(op_code) +
+// 		mp_sizeof_uint(TP_SYNC) +
+// 		5 +
+// 		mp_sizeof_map(2) +
+// 		mp_sizeof_uint(TP_SPACE) +
+// 		mp_sizeof_uint(spc->id) +
+// 		mp_sizeof_uint(TP_TUPLE);
+
+// 	p->size = p->p;
+// 	char *h = mp_encode_map(p->p + 5, 2);
+// 	h = mp_encode_uint(h, TP_CODE);
+// 	h = mp_encode_uint(h, TP_INSERT);
+// 	h = mp_encode_uint(h, TP_SYNC);
+// 	p->sync = h;
+// 	*h = 0xce;
+// 	*(uint32_t*)(h + 1) = 0;
+// 	h += 5;
+// 	h = mp_encode_map(h, 2);
+// 	h = mp_encode_uint(h, TP_SPACE);
+// 	h = mp_encode_uint(h, space);
+// 	h = mp_encode_uint(h, TP_TUPLE);
+// 	return tp_add(p, sz);
+
+
+// 	int cardinality = (  (SvTYPE(SvRV(t)) == SVt_PVHV) ? HvTOTALKEYS((HV*)SvRV(t)) : av_len((AV*)SvRV(t))+1 );
+// 	STRLEN const_len, var_len;
+// 	const_len =
+// 		sizeof(tnt_pkt_update_t) // base of requset
+// 		+ 4 // cardinality
+// 		+ 5 * cardinality // (field <w> ) * cardinality
+// 	;
+// 	var_len =
+// 		TUPLE_FIELD_DEFAULT * cardinality // take 32 as average/estimated tuple field length
+// 	;
+
+// 	SV *rv = sv_2mortal(newSV( const_len + var_len ));
+// 	SvUPGRADE( rv, SVt_PV );
+
+// 	tnt_pkt_insert_t *h = (tnt_pkt_insert_t *) SvPVX(rv);
+// 	p.c = (char *)(h+1);
+
+// 	uptr_tuple_calc_size(p, rv, t, ( insert_or_delete == TNT_OP_INSERT ? spc->fields : idx->fields ), fmt, const_len, var_len);
+
+// 	SvCUR_set( rv, p.c - SvPVX(rv) );
+// 	h = (tnt_pkt_insert_t *) SvPVX( rv ); // for sure
+// 	h->type   = htole32( insert_or_delete );
+// 	h->reqid  = htole32( iid );
+// 	h->space  = htole32( spc->id );
+// 	h->flags  = htole32( flags );
+// 	h->len    = htole32( SvCUR(rv) - sizeof( tnt_hdr_t ) );
+// 	return SvREFCNT_inc(rv);
+// }
+
 
 static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_t *id) {
 	const char *ptr, *beg, *end;
 
 	const char *p = data;
 	const char *test = p;
-
-	// // len
-
-	// if (mp_check(&test, data + size))
-	// 	return -1;
-	// if (mp_typeof(*p) != MP_UINT)
-	// 	return -1;
-
-	// uint32_t len = mp_decode_int(&p);
 
 	// header
 	test = p;
@@ -974,6 +1013,7 @@ static SV* data_parser(const char **p) {
 		return &PL_sv_undef;
 	default:
 		warn("Got unexpected type as a tuple element value");
+		mp_next(p);
 		return &PL_sv_undef;
 	}
 }

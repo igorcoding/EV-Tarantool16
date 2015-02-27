@@ -101,7 +101,7 @@ my $t; $t = EV::timer 0.5, 0, sub {
 	# 	EV::unloop;
 	# });
 
-	$c->select(1, [], sub {
+	$c->select(1, ["t1", "t2"], sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";

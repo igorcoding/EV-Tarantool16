@@ -199,125 +199,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-// static void on_read_(ev_cnn * self, size_t len) {
-// 	debug("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-// 	//dSP;
-
-// 	ENTER;
-// 	SAVETMPS;
-// 	//cwarn("remember stack sp = %d",PL_stack_sp - PL_stack_base);
-// 	//SV **sp1 = PL_stack_sp;
-
-// 	do_disable_rw_timer(self);
-// 	//do_enable_rw_timer(self);
-// 	TntCnn * tnt = (TntCnn *) self;
-// 	char *rbuf = self->rbuf;
-// 	char *end = rbuf + self->ruse;
-
-// 	SV *key;
-// 	TntCtx * ctx;
-
-// 	dSP;
-
-// 	while ( rbuf < end ) {
-// 		tnt_hdr_t *hx = (tnt_hdr_t *) rbuf;
-// 		uint32_t id  = le32toh( hx->reqid );
-// 		uint32_t ln = le32toh( hx->len );
-// 		//warn("reqid:%d; packet type: %d; len: %d",le32toh( hx->reqid ),le32toh( hx->type ),le32toh( hx->len ));
-// 		if ( rbuf + 12 + ln <= end ) {
-// 			debug("enough %p + 12 + %u < %p", rbuf,ln,end);
-
-// 			key = hv_delete(tnt->reqs, (char *) &id, sizeof(id),0);
-
-// 			if (!key) {
-// 				cwarn("key %d not found",id);
-// 				rbuf += 12 + ln;
-// 			}
-// 			else {
-// 				ctx = ( TntCtx * ) SvPVX( key );
-// 				ev_timer_stop(self->loop,&ctx->t);
-
-// 				HV * hv = newHV();
-
-// 				int length = parse_reply( hv, rbuf, ln+12, &ctx->f, ctx->use_hash ? ctx->space->fields : 0 );
-// 				SV ** var = hv_fetchs(hv,"code",0);
-// 				if (var && SvIV (*var) != 0) {
-
-
-// 				//	warn("reqid:%d; %s\n\n",id, dumper(ctx->wbuf));
-// 				}
-
-// 				SvREFCNT_dec(ctx->wbuf);
-// 				if (ctx->f.size && !ctx->f.nofree) {
-// 					safefree(ctx->f.f);
-// 				}
-// 				if (length > 0) {
-// 					(void) hv_stores(hv, "size", newSVuv(length));
-// 				}
-
-// 				if (ctx->cb) {
-// 					//cwarn("read sp in  = %p (%d)",sp, PL_stack_sp - PL_stack_base);
-
-// 					SPAGAIN;
-
-// 					ENTER; SAVETMPS;
-
-// 					SV ** var = hv_fetchs(hv,"code",0);
-// 					if (var && SvIV (*var) == 0) {
-// 						PUSHMARK(SP);
-// 						EXTEND(SP, 1);
-// 						PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
-// 						PUTBACK;
-// 					}
-// 					else {
-// 						var = hv_fetchs(hv,"errstr",0);
-// 						PUSHMARK(SP);
-// 						EXTEND(SP, 3);
-// 						PUSHs( &PL_sv_undef );
-// 						PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-// 						PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
-// 						PUTBACK;
-// 					}
-
-// 					(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
-
-// 					//SPAGAIN;PUTBACK;
-
-// 					SvREFCNT_dec(ctx->cb);
-
-// 					FREETMPS; LEAVE;
-// 				}
-
-// 				--tnt->pending;
-
-// 				rbuf += 12 + ln;
-// 				if (rbuf == end) {
-// 					self->ruse = 0;
-// 					if (tnt->pending == 0) {
-// 						//do_disable_rw_timer(self);
-// 					}
-// 					else {
-// 						//do_enable_rw_timer(self);
-// 					}
-// 					break;
-// 				}
-// 			}
-// 		}
-// 		else {
-// 			debug("need more");
-// 			break;
-// 		}
-// 	}
-// 	self->ruse = end - rbuf;
-// 	if (self->ruse > 0) {
-// 		//cwarn("move buf on %zu",self->ruse);
-// 		memmove(self->rbuf,rbuf,self->ruse);
-// 	}
-
-// 	FREETMPS;
-// 	LEAVE;
-// }
-
 void free_reqs (TntCnn *self, const char * message) {
 
 	ENTER;SAVETMPS;
@@ -512,3 +393,6 @@ void select( SV *this, SV *space, SV * keys, ... )
 		}
 
 		XSRETURN_UNDEF;
+
+
+
