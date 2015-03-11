@@ -46,7 +46,7 @@ my $realspaces = {
 	1 => {
 		name => 'test1',
 		fields => [qw( id a b c d e f )],
-		types  => [qw(STR STR NUM )],
+		types  => [qw(STR STR NUM64 )],
 		indexes => {
 			0 => { name => 'id', fields => ['id', 'a', 'b'] },
 			# 1 => { name => 'ax', fields => ['a'] },
@@ -68,7 +68,7 @@ my $realspaces = {
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
-	spaces => $realspaces,
+	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
 		warn "connected: @_";
@@ -101,17 +101,19 @@ my $t; $t = EV::timer 0.5, 0, sub {
 	# 	EV::unloop;
 	# });
 
-	$c->select(1, ["t1", "t2"], sub {
+	say Dumper $c->spaces;
+
+	$c->select(280, [], sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";
 
-		$c->insert(1, ["t1", "t2", 4, "hellozzz"], {replace => 1}, sub {
-			my $a = \@_;
-			say Dumper $a;
-			say "done;";
-			EV::unloop;
-		});
+		# $c->insert(1, ["t1", "t2", 4, "hellozzz"], {replace => 0}, sub {
+		# 	my $a = \@_;
+		# 	say Dumper $a;
+		# 	say "done;";
+		# 	EV::unloop;
+		# });
 	});
 	undef $t;
 };

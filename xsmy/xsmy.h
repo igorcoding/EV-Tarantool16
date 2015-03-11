@@ -52,17 +52,21 @@ void * safecpy(const void *src,register size_t len) {
 
 #define croak_cb(cb,...) STMT_START {\
 		warn(__VA_ARGS__);\
-		dSP;\
-		ENTER;\
-		SAVETMPS;\
-		PUSHMARK(SP);\
-		EXTEND(SP, 2);\
-		PUSHs(&PL_sv_undef);\
-		PUSHs( sv_2mortal(newSVpvf(__VA_ARGS__)) );\
-		PUTBACK;\
-		call_sv( cb, G_DISCARD | G_VOID );\
-		FREETMPS;\
-		LEAVE;\
+		if (cb) {\
+			dSP;\
+			ENTER;\
+			SAVETMPS;\
+			PUSHMARK(SP);\
+			EXTEND(SP, 2);\
+			PUSHs(&PL_sv_undef);\
+			PUSHs( sv_2mortal(newSVpvf(__VA_ARGS__)) );\
+			PUTBACK;\
+			call_sv( cb, G_DISCARD | G_VOID );\
+			FREETMPS;\
+			LEAVE;\
+		} else {\
+			croak(__VA_ARGS__);\
+		}\
 		return NULL;\
 } STMT_END
 

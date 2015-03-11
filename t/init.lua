@@ -6,6 +6,14 @@ box.cfg{
 }
 
 s = box.schema.space.create('tester', {id = 1})
+_format = {}
+_format[1] = {type='str', name='_t1'}
+_format[2] = {type='str', name='_t2'}
+_format[3] = {type='num', name='_t3'}
+_format[4] = {type='num', name='_t4'}
+s:format(_format)
+
+
 box.schema.user.grant('guest','read,write,execute','universe')
 i = s:create_index('primary', {type = 'tree', parts = {1, 'STR', 2, 'STR', 3, 'NUM'}})
 

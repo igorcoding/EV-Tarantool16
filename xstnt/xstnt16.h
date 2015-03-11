@@ -296,7 +296,7 @@ static void configure_spaces(HV *dest, SV * src) {
 					format = spc->f.f[fid];
 				}
 				else {
-					format = 'p';
+					format = spc->f.def;
 				}
 				//cwarn("field: %p -> %p",*f, SvPVX(*f));
 				HE *fhe = hv_fetch_ent(spc->field,*f,1,0);
@@ -697,7 +697,9 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	SV *t = keys;
 	AV *fields;
 	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb ); }
-	else { fields  = (AV *) SvRV(t); }
+	else {
+		fields  = (AV *) SvRV(t); }
+
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
@@ -792,8 +794,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	}
 
 	if (opt) {
-		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key)) op_code = TP_REPLACE;
-		if ((key = hv_fetchs(opt, "rep", 0)) && SvOK(*key)) op_code = TP_REPLACE;
+		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key) && SvIV(*key) != 0) op_code = TP_REPLACE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	evt_opt_out( opt, ctx, spc );
@@ -965,7 +966,7 @@ static SV* data_parser(const char **p) {
 
 	case MP_MAP: {
 		uint32_t map_size = mp_decode_map(p);
-		cwarn("map_size = %d", map_size);
+		// cwarn("map_size = %d", map_size);
 
 		const char *map_key_str = NULL;
 		uint32_t map_key_len = 0;
@@ -1092,6 +1093,175 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 	return 0;
 }
 
+static int parse_spaces_body_data(HV *ret, const char const *data_begin, const char const *data_end) {
+	uint32_t VALID_TUPLE_SIZE = 7;
+
+	STRLEN data_size = data_end - data_begin;
+	if (data_size == 0)
+		return 0;
+
+	const char *p = data_begin;
+
+	uint32_t cont_size = 0;
+	switch (mp_typeof(*p)) {
+	case MP_MAP: {
+		cont_size = mp_decode_map(&p);
+		cwarn("map.size=%d", cont_size);
+		// TODO: this is not valid probably
+		break;
+	}
+
+	case MP_ARRAY: {
+		cont_size = mp_decode_array(&p);
+		cwarn("tuples count = %d", cont_size);
+
+		HV *data = newHV();
+
+		(void) hv_stores(ret, "count", newSViv(cont_size));
+		(void) hv_stores(ret, "data", newRV_noinc((SV *) data));
+
+		// AV *tuples = newAV();
+		// av_extend(tuples, cont_size);
+
+
+		uint32_t tuple_size = 0;
+		uint32_t i = 0, k;
+
+		for (i = 0; i < cont_size; ++i) {
+			k = 1;
+			HV *sp = newHV();
+
+			tuple_size = mp_decode_array(&p);
+			cwarn("tuple_size = %d", tuple_size);
+
+			if (tuple_size < 1) {
+				warn("Invalid tuple size. Should be %d. Got %d. Exiting", VALID_TUPLE_SIZE, tuple_size);
+				return 0;
+			}
+
+			if (tuple_size != VALID_TUPLE_SIZE) {
+				warn("Invalid tuple size. Should be %d. Got %d", VALID_TUPLE_SIZE, tuple_size);
+			}
+
+			SV *sv_id = data_parser(&p);
+			int id = (U32) SvUV(sv_id);
+			cwarn("id=%d", id);
+
+			SV *spcf = newSV( sizeof(TntSpace) );
+
+			SvUPGRADE(spcf, SVt_PV);
+			SvCUR_set(spcf, sizeof(TntSpace));
+			SvPOKp_on(spcf);
+			TntSpace *spc = (TntSpace *) SvPVX(spcf);
+			memset(spc, 0, sizeof(TntSpace));
+
+			(void) hv_store( data, (char *) &id, sizeof(U32), spcf, 0);
+
+			spc->id = id;
+			spc->indexes = newHV();
+			spc->field   = newHV();
+
+
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "owner_id", data_parser(&p));
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "name", data_parser(&p));
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "engine", data_parser(&p));
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "field_count", data_parser(&p));
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "flags", data_parser(&p));
+			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "format", data_parser(&p));
+			// (void) hv_stores(sp, "indexes", newRV_noinc((SV *) newHV()));
+
+			++k; if (k <= tuple_size) mp_next(&p);  				// owner_id
+			++k; if (k <= tuple_size) spc->name = data_parser(&p);  // name
+			++k; if (k <= tuple_size) mp_next(&p);  				// engine
+			++k; if (k <= tuple_size) mp_next(&p);  				// field_count
+			++k; if (k <= tuple_size) mp_next(&p);  				// flags
+			++k; if (k <= tuple_size) {                  			// format
+
+			}
+
+			// (void) hv_store(data, (char *) &id, sizeof(U32), newRV_noinc((SV *) sp), 0);
+		}
+
+		break;
+	}
+	default:
+		cwarn("response data type = %d", mp_typeof(*p));
+		break;
+	}
+
+	return 0;
+}
+
+static int parse_index_body_data(HV *spaces_hv, const char const *data_begin, const char const *data_end) {
+	// uint32_t VALID_TUPLE_SIZE = 7;
+
+	// STRLEN data_size = data_end - data_begin;
+	// if (data_size == 0)
+	// 	return 0;
+
+	// const char *p = data_begin;
+
+	// uint32_t cont_size = 0;
+	// switch (mp_typeof(*p)) {
+	// case MP_MAP: {
+	// 	cont_size = mp_decode_map(&p);
+	// 	cwarn("map.size=%d", cont_size);
+	// 	// TODO: this is not valid probably
+	// 	break;
+	// }
+
+	// case MP_ARRAY: {
+	// 	cont_size = mp_decode_array(&p);
+	// 	cwarn("index tuples count = %d", cont_size);
+
+	// 	// HV *data = newHV();
+
+	// 	// (void) hv_stores(ret, "count", newSViv(cont_size));
+	// 	// (void) hv_stores(ret, "data", newRV_noinc((SV *) data));
+
+	// 	// AV *tuples = newAV();
+	// 	// av_extend(tuples, cont_size);
+
+
+	// 	uint32_t tuple_size = 0;
+	// 	uint32_t i = 0, k;
+
+	// 	for (i = 0; i < cont_size; ++i) {
+	// 		k = 1;
+	// 		HV *sp = newHV();
+
+	// 		tuple_size = mp_decode_array(&p);
+	// 		cwarn("tuple_size = %d", tuple_size);
+	// 		if (tuple_size != VALID_TUPLE_SIZE) {
+	// 			warn("Invalid tuple size. Should be %d. Got %d", VALID_TUPLE_SIZE, tuple_size);
+	// 		}
+
+	// 		SV *name = NULL;
+	// 		SV *id = data_parser(&p);
+
+	// 		(void) hv_stores(sp, "id", id);
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "owner_id", data_parser(&p));
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "name", data_parser(&p);
+	// 		// cwarn("name = %.*s", SvLEN(name), SvPV_nolen(name));
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "engine", data_parser(&p));
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "field_count", data_parser(&p));
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "flags", data_parser(&p));
+	// 		++k; if (k <= tuple_size) (void) hv_stores(sp, "format", data_parser(&p));
+	// 		(void) hv_stores(sp, "indexes", newRV_noinc((SV *) newHV()));
+
+	// 		(void) hv_store(data, SvPV_nolen(name), SvLEN(name), newRV_noinc((SV *) sp), 0);
+	// 	}
+
+	// 	break;
+	// }
+	// default:
+	// 	cwarn("response data type = %d", mp_typeof(*p));
+	// 	break;
+	// }
+
+	return 0;
+}
+
 static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
 	const char *ptr, *beg, *end;
 
@@ -1130,6 +1300,107 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_reply_body_data(ret, data_begin, p, format, fields);
+			break;
+		}
+		}
+		// r->bitmap |= (1ULL << key);
+	}
+	return p - data;
+}
+
+
+static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
+	// TODO: COPY AND THE F*CKING PASTE
+
+	const char *ptr, *beg, *end;
+
+	const char *p = data;
+	const char *test = p;
+	// body
+	if (p == data + size) {
+		return size;
+	}
+
+	test = p;
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_MAP)
+		return -1;
+	int n = mp_decode_map(&p);
+	while (n-- > 0) {
+		uint32_t key = mp_decode_uint(&p);
+		switch (key) {
+		case TP_ERROR: {
+			if (mp_typeof(*p) != MP_STR)
+				return -1;
+			uint32_t elen = 0;
+			const char *err_str = mp_decode_str(&p, &elen);
+
+			(void) hv_stores(ret, "status", newSVpvs("error"));
+			(void) hv_stores(ret, "errstr", newSVpvn(err_str, elen));
+			break;
+		}
+
+		case TP_DATA: {
+			if (mp_typeof(*p) != MP_ARRAY)
+				return -1;
+
+			(void) hv_stores(ret, "status", newSVpvs("ok"));
+			const char *data_begin = p;
+			mp_next(&p);
+			parse_spaces_body_data(ret, data_begin, p);
+
+
+			break;
+		}
+		}
+		// r->bitmap |= (1ULL << key);
+	}
+	return p - data;
+}
+
+static int parse_index_body(HV *spaces_hv, const char const *data, STRLEN size) {
+	// TODO: COPY AND THE F*CKING PASTE
+
+	const char *ptr, *beg, *end;
+
+	const char *p = data;
+	const char *test = p;
+	// body
+	if (p == data + size) {
+		return size;
+	}
+
+	test = p;
+	if (mp_check(&test, data + size))
+		return -1;
+	if (mp_typeof(*p) != MP_MAP)
+		return -1;
+	int n = mp_decode_map(&p);
+	while (n-- > 0) {
+		uint32_t key = mp_decode_uint(&p);
+		switch (key) {
+		case TP_ERROR: {
+			if (mp_typeof(*p) != MP_STR)
+				return -1;
+			uint32_t elen = 0;
+			const char *err_str = mp_decode_str(&p, &elen);
+
+			// (void) hv_stores(ret, "status", newSVpvs("error"));
+			// (void) hv_stores(ret, "errstr", newSVpvn(err_str, elen));
+			break;
+		}
+
+		case TP_DATA: {
+			if (mp_typeof(*p) != MP_ARRAY)
+				return -1;
+
+			// (void) hv_stores(ret, "status", newSVpvs("ok"));
+			const char *data_begin = p;
+			mp_next(&p);
+			parse_index_body_data(spaces_hv, data_begin, p);
+
+
 			break;
 		}
 		}

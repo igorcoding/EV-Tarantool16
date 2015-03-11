@@ -35,6 +35,11 @@ typedef struct {
 	SV      *salt;
 } TntCnn;
 
+typedef void (*pre_full_connect_cb_t)(TntCnn *cnn, HV *data);
+
+static const uint32_t _SPACE_SPACEID = 280;
+static const uint32_t _INDEX_SPACEID = 288;
+
 static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TntCtx * ctx = (TntCtx *) t;
 	TntCnn * self = (TntCnn *) ctx->self;
@@ -71,6 +76,26 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	--self->pending;
 
 	FREETMPS;LEAVE;
+}
+
+static void _execute_select(TntCnn * tnt, uint32_t space_id) {
+	dSVX(ctxsv, ctx, TntCtx);
+	sv_2mortal(ctxsv);
+	ctx->call = "select";
+	ctx->use_hash = tnt->use_hash;
+
+	uint32_t iid = ++tnt->seq;
+
+	if ((ctx->wbuf = pkt_select(ctx, iid, NULL, sv_2mortal(newSVuv(space_id)), newRV_noinc((SV *) newAV()), NULL, NULL ))) {
+		cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+
+		SvREFCNT_inc(ctx->cb = NULL);
+		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+
+		++tnt->pending;
+
+		do_write( &tnt->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+	}
 }
 
 static void on_read(ev_cnn * self, size_t len) {
@@ -177,6 +202,157 @@ static void on_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
+static void on_index_info_read(ev_cnn * self, size_t len) {
+	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	cwarn("self->ruse: %zu", self->ruse);
+
+	// ENTER;
+	// SAVETMPS;
+
+	do_disable_rw_timer(self);
+
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
+
+	/* len */
+	ptrdiff_t buf_len = end - rbuf;
+	if (buf_len == 0) {
+		cwarn("buflen==0. weird.");
+		return;
+	}
+
+	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	cwarn("pkt_length = %d", pkt_length);
+
+	if (buf_len - 5 < pkt_length) {
+		cwarn("not enough");
+		return;
+	}
+
+	HV *spaces_hv = newHV();
+
+	/* header */
+	uint32_t id = 0;
+	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
+	cwarn("hdr_length = %d", length);
+	if (unlikely(id == 0)) {
+		// TODO: error
+		cwarn("id == 0");
+		return;
+	}
+
+	TntCtx *ctx;
+	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+	if (!key) {
+		cwarn("key %d not found", id);
+		return;
+	}
+	else {
+		ctx = (TntCtx *) SvPVX(key);
+		ev_timer_stop(self->loop, &ctx->t);
+	}
+	rbuf += length;
+
+	/* body */
+
+	length = parse_index_body(spaces_hv, rbuf, buf_len);
+	cwarn("body length = %d", length);
+	rbuf += length;
+
+	--tnt->pending;
+
+	self->ruse = end - rbuf;
+	if (self->ruse > 0) {
+		//cwarn("move buf on %zu",self->ruse);
+		memmove(self->rbuf,rbuf,self->ruse);
+	}
+
+	// tnt->spaces = newRV_noinc(spaces_hv);
+	self->on_read = (c_cb_read_t) on_read;
+
+	// FREETMPS;
+	// LEAVE;
+}
+
+static void on_spaces_info_read(ev_cnn * self, size_t len) {
+	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	cwarn("self->ruse: %zu", self->ruse);
+
+	// ENTER;
+	// SAVETMPS;
+
+	do_disable_rw_timer(self);
+
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
+
+	/* len */
+	ptrdiff_t buf_len = end - rbuf;
+	if (buf_len == 0) {
+		cwarn("buflen==0. weird.");
+		return;
+	}
+
+	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	cwarn("pkt_length = %d", pkt_length);
+
+	if (buf_len - 5 < pkt_length) {
+		cwarn("not enough");
+		return;
+	}
+
+	HV *spaces_hv = newHV();
+
+	/* header */
+	uint32_t id = 0;
+	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
+	cwarn("hdr_length = %d", length);
+	if (unlikely(id == 0)) {
+		// TODO: error
+		cwarn("id == 0");
+		return;
+	}
+
+	TntCtx *ctx;
+	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+	if (!key) {
+		cwarn("key %d not found", id);
+		return;
+	}
+	else {
+		ctx = (TntCtx *) SvPVX(key);
+		ev_timer_stop(self->loop, &ctx->t);
+	}
+	rbuf += length;
+
+	/* body */
+
+	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
+	cwarn("body length = %d", length);
+	rbuf += length;
+
+	--tnt->pending;
+
+	self->ruse = end - rbuf;
+	if (self->ruse > 0) {
+		//cwarn("move buf on %zu",self->ruse);
+		memmove(self->rbuf,rbuf,self->ruse);
+	}
+
+	tnt->spaces = newRV_noinc((SV *) spaces_hv);
+	// self->on_read = (c_cb_read_t) on_index_info_read;
+	// _execute_select(tnt, _INDEX_SPACEID);
+	self->on_read = (c_cb_read_t) on_read;
+
+	// FREETMPS;
+	// LEAVE;
+}
+
+
 static void on_greet_read(ev_cnn * self, size_t len) {
 	cwarn("greet_read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
 
@@ -196,12 +372,17 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 
 	cwarn("greeting success!");
 
-	// perform authentication here
+	//TODO: perform authentication here and save salt and server version
 
 	self->ruse -= buf_len;
 	cwarn("on_greet_read:: self->ruse: %d", (int)self->ruse);
 
-	self->on_read = (c_cb_read_t) on_read;
+	self->on_read = (c_cb_read_t) on_spaces_info_read;
+	// tnt->pre_full_connect_cb = (pre_full_connect_cb_t) &pre_connect_on_spaces_read;
+	//TODO: perform _spaces select
+	_execute_select(tnt, _SPACE_SPACEID);
+
+
 
 	FREETMPS;
 	LEAVE;
@@ -316,7 +497,7 @@ void new(SV *pk, HV *conf)
 		self->spaces = newHV();
 
 		if ((key = hv_fetchs(conf, "spaces", 0)) && SvROK(*key)) {
-			configure_spaces( self->spaces, *key );
+			// configure_spaces( self->spaces, *key );
 		}
 		XSRETURN(1);
 
