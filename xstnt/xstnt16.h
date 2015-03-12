@@ -1062,14 +1062,15 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 				for (k = 0; k < tuple_size; ++k) {
 					if (k < known_tuple_size) {
 						name = av_fetch(fields, k, 0);
-						cwarn("name = %.*s", sv_len(*name), SvPV_nolen(*name));
 						if (name && *name) {
 							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), data_parser(&p), 0);
 						}
 						else {
 							cwarn("Field name for field %d is not defined",k);
+							mp_next(&p);
 						}
 					} else {
+						cwarn("Field name for field %d is not defined",k);
 						mp_next(&p);
 					}
 				}
@@ -1365,7 +1366,6 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
-			cwarn("Fields = %p", fields);
 			parse_reply_body_data(ret, data_begin, p, format, fields);
 			break;
 		}

@@ -103,7 +103,7 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	say Dumper $c->spaces;
 
-	$c->select(1, [], { hash => 1 }, sub {
+	$c->select('tester', [], { hash => 1 }, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";
