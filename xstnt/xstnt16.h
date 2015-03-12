@@ -151,11 +151,12 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 
 }
 
-static TntSpace * evt_find_space(SV *space, HV*spaces) {
+static TntSpace * evt_find_space(SV *space, HV *spaces) {
 	U32 ns;
 	SV **key;
 	if (SvIOK( space )) {
 		ns = SvUV(space);
+		key = hv_fetch(spaces, (char *)&ns, sizeof(U32), 0);
 		if ((key = hv_fetch( spaces,(char *)&ns,sizeof(U32),0 )) && *key) {
 			return (TntSpace*) SvPVX(*key);
 		}
@@ -1047,10 +1048,10 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 		(void) hv_stores(ret, "count", newSViv(cont_size));
 		(void) hv_stores(ret, "tuples", newRV_noinc((SV *) tuples ));
 
-
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k = 0;
 		if (fields) { // using space definition
+			uint32_t known_tuple_size = av_len(fields) + 1;
 			SV **name;
 			for (i = 0; i < cont_size; ++i) {
 				HV* tuple = newHV();
@@ -1059,12 +1060,17 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 				tuple_size = mp_decode_array(&p);
 
 				for (k = 0; k < tuple_size; ++k) {
-					name = av_fetch(fields, k, 0);
-					if (name && *name) {
-						(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), data_parser(&p), 0);
-					}
-					else {
-						cwarn("Field name for field %d is not defined",k);
+					if (k < known_tuple_size) {
+						name = av_fetch(fields, k, 0);
+						cwarn("name = %.*s", sv_len(*name), SvPV_nolen(*name));
+						if (name && *name) {
+							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), data_parser(&p), 0);
+						}
+						else {
+							cwarn("Field name for field %d is not defined",k);
+						}
+					} else {
+						mp_next(&p);
 					}
 				}
 			}
@@ -1132,7 +1138,7 @@ static int parse_spaces_body_data(HV *ret, const char const *data_begin, const c
 			HV *sp = newHV();
 
 			tuple_size = mp_decode_array(&p);
-			cwarn("tuple_size = %d", tuple_size);
+			// cwarn("tuple_size = %d", tuple_size);
 
 			if (tuple_size < 1) {
 				warn("Invalid tuple size. Should be %d. Got %d. Exiting", VALID_TUPLE_SIZE, tuple_size);
@@ -1145,7 +1151,7 @@ static int parse_spaces_body_data(HV *ret, const char const *data_begin, const c
 
 			SV *sv_id = data_parser(&p);
 			int id = (U32) SvUV(sv_id);
-			cwarn("id=%d", id);
+			cwarn("space_id=%d", id);
 
 			SV *spcf = newSV( sizeof(TntSpace) );
 
@@ -1160,6 +1166,11 @@ static int parse_spaces_body_data(HV *ret, const char const *data_begin, const c
 			spc->id = id;
 			spc->indexes = newHV();
 			spc->field   = newHV();
+			spc->fields  = newAV();
+
+			spc->f.nofree = 1;
+			spc->f.def = '*';
+
 
 
 			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "owner_id", data_parser(&p));
@@ -1177,9 +1188,64 @@ static int parse_spaces_body_data(HV *ret, const char const *data_begin, const c
 			++k; if (k <= tuple_size) mp_next(&p);  				// flags
 			++k; if (k <= tuple_size) {                  			// format
 
+				uint32_t str_len = 0;
+				uint32_t format_arr_size = mp_decode_array(&p);
+
+				spc->f.size = format_arr_size + 1;
+				spc->f.f = safemalloc(spc->f.size + 1);
+				spc->f.f[spc->f.size] = 0;
+
+				uint32_t ix;
+				for (ix = 0; ix < format_arr_size; ++ix) {
+					uint32_t field_format_map_size = mp_decode_map(&p);
+					if (field_format_map_size != 2) {
+						// TODO: error!
+						cwarn("Bad things happened! field_format_map_size != 2");
+					}
+
+					SV *field_name;
+					uint32_t field_name_len = 0;
+					while (field_format_map_size-- > 0) {
+
+						const char *str = mp_decode_str(&p, &str_len);
+
+						if (str_len == 4 && strncasecmp(str, "name", 4) == 0) {
+							// cwarn("NAME");
+							str = mp_decode_str(&p, &str_len); // getting the name itself
+							field_name = newSVpvn(str, str_len);
+							field_name_len = str_len;
+						}
+						else
+						if (str_len == 4 && strncasecmp(str, "type", 4) == 0) {
+							// cwarn("TYPE");
+							str = mp_decode_str(&p, &str_len); // getting the type itself
+
+							if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
+								// cwarn("STR");
+								spc->f.f[ix] = 'p';
+							}
+							else
+							if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
+								// cwarn("NUM");
+								spc->f.f[ix] = 'l';
+							}
+							else
+							if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
+								// cwarn("STAR");
+								spc->f.f[ix] = '*';
+							}
+						}
+					}
+
+					dSVX(fldsv, fld, TntField);
+					fld->id = ix;
+					fld->format = spc->f.f[ix];
+					(void) hv_store(spc->field, SvPV_nolen(field_name), field_name_len, fldsv, 0);
+					av_push(spc->fields, SvREFCNT_inc(field_name));
+				}
 			}
 
-			// (void) hv_store(data, (char *) &id, sizeof(U32), newRV_noinc((SV *) sp), 0);
+			(void) hv_store(data, SvPV_nolen(spc->name), SvCUR(spc->name), SvREFCNT_inc(spcf),0);
 		}
 
 		break;
@@ -1299,6 +1365,7 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
+			cwarn("Fields = %p", fields);
 			parse_reply_body_data(ret, data_begin, p, format, fields);
 			break;
 		}

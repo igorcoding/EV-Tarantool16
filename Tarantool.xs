@@ -153,6 +153,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* body */
 	rbuf += length;
 
+	cwarn("use_hash: %d", ctx->use_hash);
 	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
 	cwarn("body length = %d", length);
 	rbuf += length;
@@ -343,7 +344,11 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
-	tnt->spaces = newRV_noinc((SV *) spaces_hv);
+
+	SV **spaces_hv_key;
+	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key)) {
+		tnt->spaces = SvRV(*spaces_hv_key);
+	}
 	// self->on_read = (c_cb_read_t) on_index_info_read;
 	// _execute_select(tnt, _INDEX_SPACEID);
 	self->on_read = (c_cb_read_t) on_read;

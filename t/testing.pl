@@ -93,7 +93,7 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-my $t; $t = EV::timer 0.5, 0, sub {
+my $t; $t = EV::timer 1.0, 0, sub {
 	# $c->ping(sub {
 	# 	my $a = @_[0];
 	# 	say Dumper $a;
@@ -103,7 +103,7 @@ my $t; $t = EV::timer 0.5, 0, sub {
 
 	say Dumper $c->spaces;
 
-	$c->select(280, [], sub {
+	$c->select(1, [], { hash => 1 }, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";
