@@ -258,7 +258,9 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 	/* body */
 
-	length = parse_index_body(spaces_hv, rbuf, buf_len);
+	// check that status is ok
+
+	length = parse_index_body(tnt->spaces, rbuf, buf_len);
 	cwarn("body length = %d", length);
 	rbuf += length;
 
@@ -349,9 +351,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key)) {
 		tnt->spaces = SvRV(*spaces_hv_key);
 	}
-	// self->on_read = (c_cb_read_t) on_index_info_read;
-	// _execute_select(tnt, _INDEX_SPACEID);
-	self->on_read = (c_cb_read_t) on_read;
+	self->on_read = (c_cb_read_t) on_index_info_read;
+	_execute_select(tnt, _INDEX_SPACEID);
+	// self->on_read = (c_cb_read_t) on_read;
 
 	// FREETMPS;
 	// LEAVE;

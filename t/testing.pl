@@ -107,6 +107,7 @@ my $t; $t = EV::timer 1.0, 0, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done;";
+		EV::unloop;
 
 		# $c->insert(1, ["t1", "t2", 4, "hellozzz"], {replace => 0}, sub {
 		# 	my $a = \@_;
