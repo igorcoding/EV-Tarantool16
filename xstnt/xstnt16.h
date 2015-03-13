@@ -65,6 +65,7 @@ typedef struct {
 	U32   id;
 	SV   *name;
 	SV   *type;
+	SV   *unique;
 	AV   *fields;
 	unpack_format f;
 } TntIndex;
@@ -1310,7 +1311,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 				idx->id = index_id;
 				idx->name = data_parser(&p);
 				idx->type = data_parser(&p);
-				mp_next(&p); // I have no idea what does this field contain.
+				idx->unique = mp_decode_uint(&p);
 
 				if (mp_typeof(*p) != MP_UINT) {
 					croak("parts count has to be uint");
