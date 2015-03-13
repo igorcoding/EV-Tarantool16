@@ -1,2 +1,3 @@
 .tarantool
+.vagrant
 Makefile.old
