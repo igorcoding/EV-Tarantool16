@@ -527,6 +527,7 @@ void DESTROY(SV *this)
 		}
 		xs_ev_cnn_destroy(self);
 
+
 void reqs(SV *this)
 	PPCODE:
 		if (0) this = this;
@@ -534,12 +535,14 @@ void reqs(SV *this)
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->reqs));
 		XSRETURN(1);
 
+
 void spaces(SV *this)
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->spaces));
 		XSRETURN(1);
+
 
 void ping(SV *this, SV * cb)
 	PPCODE:
@@ -561,6 +564,7 @@ void ping(SV *this, SV * cb)
 		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf) );
 
 		XSRETURN_UNDEF;
+
 
 void select( SV *this, SV *space, SV * keys, ... )
 	PPCODE:
@@ -590,6 +594,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 
 		XSRETURN_UNDEF;
 
+
 void insert( SV *this, SV *space, SV * t, ... )
 	PPCODE:
 		if (0) this = this;
@@ -605,6 +610,31 @@ void insert( SV *this, SV *space, SV * t, ... )
 		uint32_t iid = ++self->seq;
 
 		if(( ctx->wbuf = pkt_insert(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ) )) {
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+			++self->pending;
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
+
+		XSRETURN_UNDEF;
+
+
+void delete( SV *this, SV *space, SV * t, ... )
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "delete";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if(( ctx->wbuf = pkt_delete(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ) )) {
 
 			SvREFCNT_inc(ctx->cb = cb);
 			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );

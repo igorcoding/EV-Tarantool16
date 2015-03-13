@@ -103,19 +103,26 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	say Dumper $c->spaces;
 
-	$c->select('tester', [], { hash => 1 }, sub {
+	$c->insert('tester', ["t1", "t2", 5, 47653], {replace => 0}, sub {
 		my $a = \@_;
 		say Dumper $a;
-		say "done;";
-		EV::unloop;
+		say "done insert;";
 
-		# $c->insert(1, ["t1", "t2", 4, "hellozzz"], {replace => 0}, sub {
-		# 	my $a = \@_;
-		# 	say Dumper $a;
-		# 	say "done;";
-		# 	EV::unloop;
-		# });
+		$c->select('tester', ["t1", "t2"], { hash => 1 }, sub {
+			my $a = \@_;
+			say Dumper $a;
+			say "done select;";
+
+			$c->delete('tester', ["t1", "t2", 5], sub {
+				my $a = \@_;
+				say Dumper $a;
+				say "done delete;";
+				EV::unloop;
+			});
+		});
 	});
+
+
 	undef $t;
 };
 
