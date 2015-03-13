@@ -71,6 +71,10 @@ typedef struct {
 typedef struct {
 	U32   id;
 	SV   *name;
+	SV   *owner;
+	SV   *engine;
+	SV   *field_count;
+	SV   *flags;
 
 	AV   *fields;
 	HV   *indexes;
@@ -1054,29 +1058,32 @@ static int parse_reply_body_data(HV *ret, const char const *data_begin, const ch
 			uint32_t known_tuple_size = av_len(fields) + 1;
 			SV **name;
 			for (i = 0; i < cont_size; ++i) {
-				HV* tuple = newHV();
+				HV *tuple = newHV();
+				AV *unknown_fields = NULL;
 				av_push(tuples, newRV_noinc((SV *)tuple));
 
 				tuple_size = mp_decode_array(&p);
 
 				for (k = 0; k < tuple_size; ++k) {
-					if (k < known_tuple_size) {
-						name = av_fetch(fields, k, 0);
-						if (name && *name) {
-							(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), data_parser(&p), 0);
-						}
-						else {
-							cwarn("Field name for field %d is not defined",k);
-							mp_next(&p);
-						}
+					SV *field_value = data_parser(&p);
+
+					if (k < known_tuple_size && (name = av_fetch(fields, k, 0)) && *name) {
+						(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), field_value, 0);
 					} else {
-						cwarn("Field name for field %d is not defined",k);
-						mp_next(&p);
+						cwarn("Field name for field %d is not defined", k);
+						if (unknown_fields == NULL) {
+							unknown_fields = newAV();
+						}
+						av_push(unknown_fields, field_value);
 					}
+				}
+
+				if (unknown_fields != NULL) {
+					(void) hv_stores(tuple, "", newRV_noinc((SV *) unknown_fields));
 				}
 			}
 
-		} else {  //without space definition
+		} else {  // without space definition
 			for (i = 0; i < cont_size; ++i) {
 				AV* tuple = newAV();
 				av_push(tuples, newRV_noinc((SV *)tuple));
@@ -1172,21 +1179,11 @@ static int parse_spaces_body_data(HV *ret, const char const *data_begin, const c
 			spc->f.nofree = 1;
 			spc->f.def = '*';
 
-
-
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "owner_id", data_parser(&p));
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "name", data_parser(&p));
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "engine", data_parser(&p));
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "field_count", data_parser(&p));
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "flags", data_parser(&p));
-			// ++k; if (k <= tuple_size) (void) hv_stores(sp, "format", data_parser(&p));
-			// (void) hv_stores(sp, "indexes", newRV_noinc((SV *) newHV()));
-
-			++k; if (k <= tuple_size) mp_next(&p);  				// owner_id
-			++k; if (k <= tuple_size) spc->name = data_parser(&p);  // name
-			++k; if (k <= tuple_size) mp_next(&p);  				// engine
-			++k; if (k <= tuple_size) mp_next(&p);  				// field_count
-			++k; if (k <= tuple_size) mp_next(&p);  				// flags
+			++k; if (k <= tuple_size) spc->owner = data_parser(&p);
+			++k; if (k <= tuple_size) spc->name = data_parser(&p);
+			++k; if (k <= tuple_size) spc->engine = data_parser(&p);
+			++k; if (k <= tuple_size) spc->field_count = data_parser(&p);
+			++k; if (k <= tuple_size) spc->flags = data_parser(&p);
 			++k; if (k <= tuple_size) {                  			// format
 
 				uint32_t str_len = 0;
