@@ -103,19 +103,23 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	say Dumper $c->spaces;
 
-	# $c->eval("return {...}", ['test'], sub {
+	# $c->eval("return box.space.tester:select{}", [], sub {
 	# 	my $a = \@_;
 	# 	say Dumper $a;
 	# 	say "done eval;";
 	# 	EV::unloop;
 	# });
 
-	$c->call('string_function', [], sub {
-		my $a = \@_;
-		say Dumper $a;
-		say "done call;";
-		EV::unloop;
-	});
+	# return;
+
+	# $c->call('string_function', [], sub {
+	# 	my $a = \@_;
+	# 	say Dumper $a;
+	# 	say "done call;";
+	# 	EV::unloop;
+	# });
+
+	# EV::loop;
 
 	# $c->insert('tester', ["t1", "t2", 5, 47653], {replace => 0}, sub {
 	# 	my $a = \@_;
@@ -135,6 +139,13 @@ my $t; $t = EV::timer 1.0, 0, sub {
 	# 		});
 	# 	});
 	# });
+
+	$c->select('tester', ["t1", "t2"], { hash => 1, iterator => 'REQ' }, sub {
+		my $a = \@_;
+		say Dumper $a;
+		say "done select;";
+		EV::unloop;
+	});
 
 
 	undef $t;

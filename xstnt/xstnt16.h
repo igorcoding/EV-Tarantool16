@@ -629,6 +629,59 @@ static inline SV * pkt_ping( uint32_t iid ) {
 	return rv;
 }
 
+static inline U32 get_iterator(SV *iterator_str) {
+	const char *str = SvPVX(iterator_str);
+	U32 str_len = SvCUR(iterator_str);
+	if (str_len == 2 && strncasecmp(str, "EQ", 2) == 0) {
+		return 0;
+	}
+	else
+	if (str_len == 3 && strncasecmp(str, "REQ", 3) == 0) {
+		return 1;
+	}
+	else
+	if (str_len == 3 && strncasecmp(str, "ALL", 3) == 0) {
+		return 2;
+	}
+	else
+	if (str_len == 2 && strncasecmp(str, "LT", 2) == 0) {
+		return 3;
+	}
+	else
+	if (str_len == 2 && strncasecmp(str, "LE", 2) == 0) {
+		return 4;
+	}
+	else
+	if (str_len == 2 && strncasecmp(str, "GE", 2) == 0) {
+		return 5;
+	}
+	else
+	if (str_len == 2 && strncasecmp(str, "GT", 2) == 0) {
+		return 6;
+	}
+	else
+	if (str_len == 12 && strncasecmp(str, "BITS_ALL_SET", 12) == 0) {
+		return 7;
+	}
+	else
+	if (str_len == 12 && strncasecmp(str, "BITS_ANY_SET", 12) == 0) {
+		return 8;
+	}
+	else
+	if (str_len == 16 && strncasecmp(str, "BITS_ALL_NOT_SET", 16) == 0) {
+		return 9;
+	}
+	else
+	if (str_len == 8 && strncasecmp(str, "OVERLAPS", 8) == 0) {
+		return 10;
+	}
+	else
+	if (str_len == 8 && strncasecmp(str, "NEIGHBOR", 8) == 0) {
+		return 11;
+	}
+	return -1;
+}
+
 static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
 	cwarn("req.sync = %d", iid);
 	// register uniptr p;
@@ -637,6 +690,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	U32 offset = -1;
 	U32 index  = 0;
 	U32 flags  = 0;
+	U32 iterator = -1;
 
 	unpack_format *fmt;
 	dUnpackFormat( format );
@@ -661,6 +715,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
+		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key) && SvPOK(*key)) iterator = get_iterator(*key);
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	else {
@@ -680,7 +735,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	// TODO: add ITERATOR
 
-	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1);
+	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1) + (iterator != -1);
 	uint32_t keys_size = 0;
 
 
@@ -700,6 +755,12 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		sz += mp_sizeof_uint(TP_OFFSET) +
 			  mp_sizeof_uint(offset);
 	}
+
+	if (iterator != -1) {
+		sz += mp_sizeof_uint(TP_ITERATOR) +
+			  mp_sizeof_uint(iterator);
+	}
+
 	sz += mp_sizeof_uint(TP_KEY);
 
 	// counting fields in keys
@@ -742,10 +803,15 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		h = mp_encode_uint(h, TP_INDEX);
 		h = mp_encode_uint(h, index);
 	}
-	// cwarn("%d", index);
+
 	if (offset != -1) {
 		h = mp_encode_uint(h, TP_OFFSET);
 		h = mp_encode_uint(h, offset);
+	}
+
+	if (iterator != -1) {
+		h = mp_encode_uint(h, TP_ITERATOR);
+		h = mp_encode_uint(h, iterator);
 	}
 
 	h = mp_encode_uint(h, TP_KEY);
