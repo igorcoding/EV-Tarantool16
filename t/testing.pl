@@ -103,12 +103,12 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	say Dumper $c->spaces;
 
-	# $c->eval("return box.space.tester:select{}", [], sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done eval;";
-	# 	EV::unloop;
-	# });
+	$c->eval("return box.space._space:select{}", [], sub {
+		my $a = \@_;
+		say Dumper $a;
+		say "done eval;";
+		EV::unloop;
+	});
 
 	# return;
 
@@ -140,7 +140,9 @@ my $t; $t = EV::timer 1.0, 0, sub {
 	# 	});
 	# });
 
-	$c->select('tester', ["t1", "t2"], { hash => 1, iterator => 'REQ' }, sub {
+EV::loop;
+
+	$c->select('tester', ["t1", "t2"], { hash => 1, iterator => 'GE' }, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done select;";

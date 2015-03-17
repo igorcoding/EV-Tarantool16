@@ -34,5 +34,3 @@ box.space[1]:insert{"tt1", "tt2", 456};
 function string_function()
   return "hello world"
   end
-
-print (string_function)
