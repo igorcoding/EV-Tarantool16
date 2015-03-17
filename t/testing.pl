@@ -103,24 +103,38 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	say Dumper $c->spaces;
 
-	$c->insert('tester', ["t1", "t2", 5, 47653], {replace => 0}, sub {
+	# $c->eval("return {...}", ['test'], sub {
+	# 	my $a = \@_;
+	# 	say Dumper $a;
+	# 	say "done eval;";
+	# 	EV::unloop;
+	# });
+
+	$c->call('string_function', [], sub {
 		my $a = \@_;
 		say Dumper $a;
-		say "done insert;";
-
-		$c->select('tester', ["t1", "t2"], { hash => 1 }, sub {
-			my $a = \@_;
-			say Dumper $a;
-			say "done select;";
-
-			$c->delete('tester', ["t1", "t2", 5], sub {
-				my $a = \@_;
-				say Dumper $a;
-				say "done delete;";
-				EV::unloop;
-			});
-		});
+		say "done call;";
+		EV::unloop;
 	});
+
+	# $c->insert('tester', ["t1", "t2", 5, 47653], {replace => 0}, sub {
+	# 	my $a = \@_;
+	# 	say Dumper $a;
+	# 	say "done insert;";
+
+	# 	$c->select('tester', ["t1", "t2"], { hash => 1 }, sub {
+	# 		my $a = \@_;
+	# 		say Dumper $a;
+	# 		say "done select;";
+
+	# 		$c->delete('tester', ["t1", "t2", 5], { index => 2 }, sub {
+	# 			my $a = \@_;
+	# 			say Dumper $a;
+	# 			say "done delete;";
+	# 			EV::unloop;
+	# 		});
+	# 	});
+	# });
 
 
 	undef $t;

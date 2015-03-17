@@ -21,7 +21,8 @@ enum tp_body_key_t {
 	TP_KEY = 0x20,
 	TP_TUPLE = 0x21,
 	TP_FUNCTION = 0x22,
-	TP_USERNAME = 0x23
+	TP_USERNAME = 0x23,
+	TP_EXPRESSION = 0x27
 };
 
 /* response body */
@@ -32,14 +33,15 @@ enum tp_response_key_t {
 
 /* request types */
 enum tp_request_type {
-	TP_SELECT = 1,
-	TP_INSERT = 2,
-	TP_REPLACE = 3,
-	TP_UPDATE = 4,
-	TP_DELETE = 5,
-	TP_CALL = 6,
-	TP_AUTH = 7,
-	TP_PING = 64
+	TP_SELECT = 0x01,
+	TP_INSERT = 0x02,
+	TP_REPLACE = 0x03,
+	TP_UPDATE = 0x04,
+	TP_DELETE = 0x05,
+	TP_CALL = 0x06,
+	TP_AUTH = 0x07,
+	TP_EVAL = 0x08,
+	TP_PING = 0x40
 };
 
 static const uint32_t SCRAMBLE_SIZE = 20;
@@ -979,9 +981,259 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 			if ( !SvOK(*key) || !sv_len(*key) ) {
 				cwarn("something is going on wrong1");
 			} else {
-				cwarn("fmt->size=%d", fmt->size);
 				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				cwarn("fmt=%c", _fmt);
+				field_size_sv_fmt(field_max_size, _fmt);
+				sz += field_max_size - EST_FIELD_SIZE;
+				sv_size_check(rv, h, sz);
+				field_sv_fmt( h, *key, _fmt);
+			}
+		}
+		else {
+			cwarn("something is going on wrong2");
+			// var_len -= TUPLE_FIELD_DEFAULT;
+			// *(p.c++) = 0;
+		}
+	}
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+
+	return SvREFCNT_inc(rv);
+}
+
+static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expression, SV *tuple, HV * opt, SV *cb) {
+	cwarn("req.sync = %d", iid);
+	// register uniptr p;
+
+	U32 index  = 0;
+
+	unpack_format *fmt;
+	dUnpackFormat( format );
+
+	int k,i;
+	SV **key;
+
+	TntSpace *spc = 0;
+	TntIndex *idx = 0;
+
+	// if(( spc = evt_find_space( space, spaces ) )) {
+	// 	ctx->space = spc;
+	// }
+	// else {
+	// 	ctx->use_hash = 0;
+	// }
+
+	if (opt) {
+		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
+			if(( idx = evt_find_index( spc, key ) ))
+				index = idx->id;
+		}
+		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+	}
+	else {
+		ctx->f.size = 0;
+	}
+	if (!idx) {
+		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+			idx = (TntIndex*) SvPVX(*key);
+		}
+		else {
+			//warn("No index %d config. Using without formats",index);
+		}
+	}
+	evt_opt_out( opt, ctx, spc );
+	evt_opt_in( opt, ctx, idx );
+
+
+	// TODO: add ITERATOR
+
+	uint32_t body_map_sz = 2;
+	uint32_t keys_size = 0;
+
+	uint32_t expression_size = SvCUR(expression);
+
+	int sz = HEADER_CONST_LEN +
+		mp_sizeof_map(body_map_sz) +
+		mp_sizeof_uint(TP_EXPRESSION) +
+		mp_sizeof_str(expression_size) +
+		mp_sizeof_uint(TP_TUPLE)
+		;
+
+	// counting fields in keys
+	SV *t = tuple;
+	AV *fields;
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else {
+		fields  = (AV *) SvRV(t);
+	}
+
+
+	// TODO: check_tuple(keys, spc);
+	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb,"tuple must be ARRAYREF or HASHREF");
+	}
+
+	keys_size = av_len(fields) + 1;
+	sz += mp_sizeof_array(keys_size);
+	sz += keys_size * EST_FIELD_SIZE;
+
+	SV *rv = sv_2mortal(newSV( sz ));
+	SvUPGRADE( rv, SVt_PV );
+	SvPOK_on(rv);
+
+	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
+
+	char *h = (char *) SvPVX(rv);
+	h = mp_encode_map(h + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, TP_EVAL);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = write_iid(h, iid);
+	h = mp_encode_map(h, body_map_sz);
+	h = mp_encode_uint(h, TP_EXPRESSION);
+	h = mp_encode_str(h, (const char *) SvPVX(expression), expression_size);
+
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, keys_size);
+
+	uint8_t field_max_size = 0;
+
+	for (k = 0; k < keys_size; k++) {
+		key = av_fetch( fields, k, 0 );
+		if (key && *key) {
+			if ( !SvOK(*key) || !sv_len(*key) ) {
+				cwarn("something is going on wrong1");
+			} else {
+				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+				field_size_sv_fmt(field_max_size, _fmt);
+				sz += field_max_size - EST_FIELD_SIZE;
+				sv_size_check(rv, h, sz);
+				field_sv_fmt( h, *key, _fmt);
+			}
+		}
+		else {
+			cwarn("something is going on wrong2");
+			// var_len -= TUPLE_FIELD_DEFAULT;
+			// *(p.c++) = 0;
+		}
+	}
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+
+	return SvREFCNT_inc(rv);
+}
+
+static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function_name, SV *tuple, HV * opt, SV *cb) {
+	cwarn("req.sync = %d", iid);
+	// register uniptr p;
+
+	U32 index  = 0;
+
+	unpack_format *fmt;
+	dUnpackFormat( format );
+
+	int k,i;
+	SV **key;
+
+	TntSpace *spc = 0;
+	TntIndex *idx = 0;
+
+	// if(( spc = evt_find_space( space, spaces ) )) {
+	// 	ctx->space = spc;
+	// }
+	// else {
+	// 	ctx->use_hash = 0;
+	// }
+
+	if (opt) {
+		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
+			if(( idx = evt_find_index( spc, key ) ))
+				index = idx->id;
+		}
+		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+	}
+	else {
+		ctx->f.size = 0;
+	}
+	if (!idx) {
+		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+			idx = (TntIndex*) SvPVX(*key);
+		}
+		else {
+			//warn("No index %d config. Using without formats",index);
+		}
+	}
+	evt_opt_out( opt, ctx, spc );
+	evt_opt_in( opt, ctx, idx );
+
+
+	// TODO: add ITERATOR
+
+	uint32_t body_map_sz = 2;
+	uint32_t keys_size = 0;
+
+	uint32_t function_name_size = SvCUR(function_name);
+
+	int sz = HEADER_CONST_LEN +
+		mp_sizeof_map(body_map_sz) +
+		mp_sizeof_uint(TP_FUNCTION) +
+		mp_sizeof_str(function_name_size) +
+		mp_sizeof_uint(TP_TUPLE)
+		;
+
+	// counting fields in keys
+	SV *t = tuple;
+	AV *fields;
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else {
+		fields  = (AV *) SvRV(t);
+	}
+
+
+	// TODO: check_tuple(keys, spc);
+	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb,"tuple must be ARRAYREF or HASHREF");
+	}
+
+	keys_size = av_len(fields) + 1;
+	sz += mp_sizeof_array(keys_size);
+	sz += keys_size * EST_FIELD_SIZE;
+
+	SV *rv = sv_2mortal(newSV( sz ));
+	SvUPGRADE( rv, SVt_PV );
+	SvPOK_on(rv);
+
+	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
+
+	char *h = (char *) SvPVX(rv);
+	h = mp_encode_map(h + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, TP_CALL);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = write_iid(h, iid);
+	h = mp_encode_map(h, body_map_sz);
+	h = mp_encode_uint(h, TP_FUNCTION);
+	h = mp_encode_str(h, (const char *) SvPVX(function_name), function_name_size);
+
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, keys_size);
+
+	uint8_t field_max_size = 0;
+
+	for (k = 0; k < keys_size; k++) {
+		key = av_fetch( fields, k, 0 );
+		if (key && *key) {
+			if ( !SvOK(*key) || !sv_len(*key) ) {
+				cwarn("something is going on wrong1");
+			} else {
+				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
 				field_size_sv_fmt(field_max_size, _fmt);
 				sz += field_max_size - EST_FIELD_SIZE;
 				sv_size_check(rv, h, sz);
@@ -1050,9 +1302,6 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 				break;
 		}
 	}
-
-	// cwarn("code = %d", code);
-	// cwarn("sync = %d", sync);
 
 	(void) hv_stores(ret, "code", newSVuv(code));
 	(void) hv_stores(ret, "sync", newSVuv(*id));

@@ -154,7 +154,8 @@ static void on_read(ev_cnn * self, size_t len) {
 	rbuf += length;
 
 	cwarn("use_hash: %d", ctx->use_hash);
-	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, ctx->use_hash ? ctx->space->fields : 0);
+	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
+	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
 	cwarn("body length = %d", length);
 	rbuf += length;
 
@@ -644,3 +645,60 @@ void delete( SV *this, SV *space, SV * t, ... )
 
 		XSRETURN_UNDEF;
 
+
+void eval( SV *this, SV *expression, SV * t, ... )
+	PPCODE:
+		if (0) this = this;
+		// TODO: croak cleanup may be solved with refcnt+mortal
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "eval";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if ((ctx->wbuf = pkt_eval(ctx, iid, self->spaces, expression, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
+			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+
+			++self->pending;
+
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
+
+		XSRETURN_UNDEF;
+
+
+void call( SV *this, SV *function_name, SV * t, ... )
+	PPCODE:
+		if (0) this = this;
+		// TODO: croak cleanup may be solved with refcnt+mortal
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "eval";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if ((ctx->wbuf = pkt_call(ctx, iid, self->spaces, function_name, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
+			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+
+			++self->pending;
+
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
+
+		XSRETURN_UNDEF;

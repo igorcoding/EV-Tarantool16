@@ -30,3 +30,9 @@ box.space[1]:insert{"t1", "t2", 1, -745, 8887};
 box.space[1]:insert{"t1", "t2", 2, arr};
 box.space[1]:insert{"t1", "t2", 3, obj};
 box.space[1]:insert{"tt1", "tt2", 456};
+
+function string_function()
+  return "hello world"
+  end
+
+print (string_function)
