@@ -151,9 +151,11 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 	$c->update('tester', ["t1", "t2", 1], [
 			{
-				op => '+',
-				field_no => 3,
-				argument => 5
+				op => ':',
+				field_no => 4,
+				position => 1,
+				offset => 0,
+				argument => 'hello'
 			}
 		], sub {
 		my $a = \@_;

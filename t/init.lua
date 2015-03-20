@@ -25,7 +25,7 @@ obj['key2'] = 42
 obj[33] = true
 obj[35] = false
 
-box.space[1]:insert{"t1", "t2", 1, -745, 8887};
+box.space[1]:insert{"t1", "t2", 1, -745, "heyo"};
 box.space[1]:insert{"t1", "t2", 2, arr};
 box.space[1]:insert{"t1", "t2", 3, obj};
 box.space[1]:insert{"tt1", "tt2", 456};

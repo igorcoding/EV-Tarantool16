@@ -818,16 +818,12 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
 			cwarn("something is going on wrong2");
@@ -910,16 +906,12 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	uint32_t field_max_size = 0;
 	for (k = 0; k < cardinality; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
 			cwarn("something is going on wrong2");
@@ -943,31 +935,29 @@ typedef enum {
 } update_op_type_t;
 
 
-static inline update_op_type_t get_update_op_type(const char *op, uint32_t len) {
+static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t len) {
 	if (unlikely(len != 1)) {
 		return OP_UPD_UNKNOWN;
 	}
 
-	if (strncmp(op, "+", 1) == 0
-	   || strncmp(op, "-", 1) == 0
-	   || strncmp(op, "&", 1) == 0
-	   || strncmp(op, "^", 1) == 0
-	   || strncmp(op, "|", 1) == 0) {
+	char op = op_str[0];
+
+	if (op == '+' || op == '-' || op == '&' || op == '^' || op == '|') {
 		return OP_UPD_ARITHMETIC;
 	}
 
-	if (strncmp(op, "#", 1) == 0) {
+	if (op == '#') {
 		return OP_UPD_DELETE;
 	}
 
-	if (strncmp(op, "!", 1) == 0
-	   || strncmp(op, "=", 1) == 0) {
+	if (op == '!' || op == '=') {
 		return OP_UPD_INSERT_ASSIGN;
 	}
 
-	if (strncmp(op, ":", 1) == 0) {
+	if (op == ':') {
 		return OP_UPD_SPLICE;
 	}
+
 	return OP_UPD_UNKNOWN;
 }
 
@@ -990,9 +980,6 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, tuple_size);
-
-
-	// TODO: size checks
 
 	SV **operation_sv;
 	HV *operation;
@@ -1095,7 +1082,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 					croak_cb(cb, "Argument is required for splice operation");
 				}
 
-				sz += mp_sizeof_array(4) +
+				sz += mp_sizeof_array(5) +
 					  mp_sizeof_str(1) +
 					  mp_sizeof_uint(field_no) +
 					  mp_sizeof_uint(position) +
@@ -1104,7 +1091,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 
 				sv_size_check(rv, h, sz);
 
-				h = mp_encode_array(h, 4);
+				h = mp_encode_array(h, 5);
 				h = mp_encode_str(h, op_str, 1);
 				h = mp_encode_uint(h, field_no);
 				h = mp_encode_uint(h, position);
@@ -1233,16 +1220,12 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
 			cwarn("something is going on wrong2");
@@ -1367,19 +1350,15 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
-			cwarn("something is going on wrong2");
+			cwarn("something is going on wrong");
 			// var_len -= TUPLE_FIELD_DEFAULT;
 			// *(p.c++) = 0;
 		}
@@ -1490,16 +1469,12 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
 			cwarn("something is going on wrong2");
@@ -1613,16 +1588,12 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	for (k = 0; k < keys_size; k++) {
 		key = av_fetch( fields, k, 0 );
-		if (key && *key) {
-			if ( !SvOK(*key) || !sv_len(*key) ) {
-				cwarn("something is going on wrong1");
-			} else {
-				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-				field_size_sv_fmt(field_max_size, _fmt);
-				sz += field_max_size - EST_FIELD_SIZE;
-				sv_size_check(rv, h, sz);
-				field_sv_fmt( h, *key, _fmt);
-			}
+		if (key && *key && SvOK(*key) && sv_len(*key)) {
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+			field_size_sv_fmt(field_max_size, _fmt);
+			sz += field_max_size - EST_FIELD_SIZE;
+			sv_size_check(rv, h, sz);
+			field_sv_fmt( h, *key, _fmt);
 		}
 		else {
 			cwarn("something is going on wrong2");
