@@ -934,18 +934,201 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 
-static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *op, SV *tuple, HV * opt, U32 field_no, char *h, SV *cb) {
+typedef enum {
+	OP_UPD_ARITHMETIC,
+	OP_UPD_DELETE,
+	OP_UPD_INSERT_ASSIGN,
+	OP_UPD_SPLICE,
+	OP_UPD_UNKNOWN
+} update_op_type_t;
 
 
+static inline update_op_type_t get_update_op_type(const char *op, uint32_t len) {
+	if (unlikely(len != 1)) {
+		return OP_UPD_UNKNOWN;
+	}
+
+	if (strncmp(op, "+", 1) == 0
+	   || strncmp(op, "-", 1) == 0
+	   || strncmp(op, "&", 1) == 0
+	   || strncmp(op, "^", 1) == 0
+	   || strncmp(op, "|", 1) == 0) {
+		return OP_UPD_ARITHMETIC;
+	}
+
+	if (strncmp(op, "#", 1) == 0) {
+		return OP_UPD_DELETE;
+	}
+
+	if (strncmp(op, "!", 1) == 0
+	   || strncmp(op, "=", 1) == 0) {
+		return OP_UPD_INSERT_ASSIGN;
+	}
+
+	if (strncmp(op, ":", 1) == 0) {
+		return OP_UPD_SPLICE;
+	}
+	return OP_UPD_UNKNOWN;
 }
 
 
-static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *op, SV *keys, SV *tuple, HV * opt, SV *cb) {
+static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, uint32_t sz, SV *rv, char *h, SV *cb) {
+	SV **key;
+
+	if (unlikely( !tuple || !SvROK(tuple) || (SvTYPE(SvRV(tuple)) != SVt_PVAV))) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb,"tuple must be ARRAYREF");
+	}
+
+	AV *t = (AV *) SvRV(tuple);
+	uint32_t tuple_size = av_len(t) + 1;
+
+	sz += mp_sizeof_uint(TP_TUPLE)
+		+ mp_sizeof_array(tuple_size);
+
+	sv_size_check(rv, h, sz);
+
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, tuple_size);
+
+
+	// TODO: size checks
+
+	SV **operation_sv;
+	HV *operation;
+
+
+	uint32_t i = 0;
+	for (i = 0; i < tuple_size; ++i) {
+		operation_sv = av_fetch(t, i, 0);
+
+		if (unlikely(!operation_sv || !(*operation_sv) || !SvROK(*operation_sv) || SvTYPE(SvRV(*operation_sv)) != SVt_PVHV)) {
+			croak_cb(cb, "tuple\'s element must be a HASHREF");
+		}
+
+		operation = (HV *) SvRV(*operation_sv);
+
+
+		SV *op;
+		uint32_t field_no;
+
+		if ((key = hv_fetchs(operation, "op", 0)) && SvOK(*key)) {
+			op = *key;
+		} else {
+			croak_cb(cb, "op is required for any update operation");
+		}
+
+		if ((key = hv_fetchs(operation, "field_no", 0)) && SvOK(*key)) {
+			field_no = SvIV(*key);
+		} else {
+			croak_cb(cb, "field_no is required for any update operation");
+		}
+
+
+		const char *op_str = SvPVX(op);
+		U32 op_len = SvCUR(op);
+
+		switch (get_update_op_type(op_str, op_len)) {
+
+			case OP_UPD_ARITHMETIC:
+			case OP_UPD_DELETE: {
+				int32_t argument;
+				if ((key = hv_fetchs(operation, "argument", 0)) && SvOK(*key)) {
+					argument = SvIV(*key);
+				} else {
+					croak_cb(cb, "Integer argument is required for arithmetic operation");
+				}
+
+				sz += mp_sizeof_array(3) +
+					  mp_sizeof_str(1) +
+					  mp_sizeof_uint(field_no) +
+					  mp_sizeof_uint(argument);
+
+				sv_size_check(rv, h, sz);
+
+				h = mp_encode_array(h, 3);
+				h = mp_encode_str(h, op_str, 1);
+				h = mp_encode_uint(h, field_no);
+				h = mp_encode_uint(h, argument);
+
+				break;
+			}
+
+			case OP_UPD_INSERT_ASSIGN: {
+				SV *argument;
+
+				if ((key = hv_fetchs(operation, "argument", 0)) && SvOK(*key)) {
+					argument = *key;
+				} else {
+					croak_cb(cb, "Integer argument is required for arithmetic operation");
+				}
+
+				h = mp_encode_array(h, 3);
+				h = mp_encode_str(h, op_str, 1);
+				h = mp_encode_uint(h, field_no);
+				// h = mp_encode_uint(h, argument); // TODO
+
+				break;
+			}
+
+			case OP_UPD_SPLICE: {
+
+				uint32_t position;
+				uint32_t offset;
+				SV *argument;
+
+				if ((key = hv_fetchs(operation, "position", 0)) && SvOK(*key)) {
+					position = SvIV(*key);
+				} else {
+					croak_cb(cb, "Position is required for splice operation");
+				}
+
+				if ((key = hv_fetchs(operation, "offset", 0)) && SvOK(*key)) {
+					offset = SvUV(*key);
+				} else {
+					croak_cb(cb, "Offset is required for splice operation");
+				}
+
+				if ((key = hv_fetchs(operation, "argument", 0)) && SvOK(*key)) {
+					argument = *key;
+				} else {
+					croak_cb(cb, "Argument is required for splice operation");
+				}
+
+				sz += mp_sizeof_array(4) +
+					  mp_sizeof_str(1) +
+					  mp_sizeof_uint(field_no) +
+					  mp_sizeof_uint(position) +
+					  mp_sizeof_uint(offset) +
+					  mp_sizeof_str(SvCUR(argument));
+
+				sv_size_check(rv, h, sz);
+
+				h = mp_encode_array(h, 4);
+				h = mp_encode_str(h, op_str, 1);
+				h = mp_encode_uint(h, field_no);
+				h = mp_encode_uint(h, position);
+				h = mp_encode_uint(h, offset);
+				h = mp_encode_str(h, SvPVX(argument), SvCUR(argument));
+
+				break;
+			}
+
+			case OP_UPD_UNKNOWN: {
+				croak_cb(cb, "Update operation is unknown");
+			}
+		}
+	}
+
+	return h;
+}
+
+
+static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, SV *tuple, HV * opt, SV *cb) {
 	cwarn("req.sync = %d", iid);
 	// register uniptr p;
 
 	U32 index  = 0;
-	U32 field_no = -1;
 
 	unpack_format *fmt;
 	dUnpackFormat( format );
@@ -968,14 +1151,10 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			if(( idx = evt_find_index( spc, key ) ))
 				index = idx->id;
 		}
-		if ((key = hv_fetchs(opt, "field_no", 0)) && SvOK(*key)) field_no = SvUV(*key);
 	}
 	else {
 		ctx->f.size = 0;
-	}
-
-	if (field_no == -1) {
-	 	croak_cb(cb, "field_no must be provided");
+		// croak_cb(cb, "No extra params provided");
 	}
 
 	if (!idx) {
@@ -1004,6 +1183,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	}
 
 	sz += mp_sizeof_uint(TP_KEY);
+
 
 	// counting fields in keys
 	SV *t = keys;
@@ -1071,7 +1251,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 	}
 
-	h = pkt_update_write_tuple(ctx, spc, idx, op, tuple, opt, field_no, h, cb);
+	h = pkt_update_write_tuple(ctx, spc, idx, tuple, sz, rv, h, cb);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);

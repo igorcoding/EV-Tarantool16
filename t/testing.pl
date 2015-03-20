@@ -149,10 +149,13 @@ my $t; $t = EV::timer 1.0, 0, sub {
 	# 	EV::unloop;
 	# });
 
-	$c->update('tester', '+', ["t1", "t2"], [], {
-											hash => 1,
-											field_no => 1
-									   }, sub {
+	$c->update('tester', ["t1", "t2", 1], [
+			{
+				op => '+',
+				field_no => 3,
+				argument => 5
+			}
+		], sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done update;";
