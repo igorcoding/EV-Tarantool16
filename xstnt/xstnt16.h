@@ -732,9 +732,6 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
-
-	// TODO: add ITERATOR
-
 	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1) + (iterator != -1);
 	uint32_t keys_size = 0;
 
@@ -937,6 +934,153 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 
+static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *op, SV *tuple, HV * opt, U32 field_no, char *h, SV *cb) {
+
+
+}
+
+
+static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *op, SV *keys, SV *tuple, HV * opt, SV *cb) {
+	cwarn("req.sync = %d", iid);
+	// register uniptr p;
+
+	U32 index  = 0;
+	U32 field_no = -1;
+
+	unpack_format *fmt;
+	dUnpackFormat( format );
+
+	int k,i;
+	SV **key;
+
+	TntSpace *spc = 0;
+	TntIndex *idx = 0;
+
+	if(( spc = evt_find_space( space, spaces ) )) {
+		ctx->space = spc;
+	}
+	else {
+		ctx->use_hash = 0;
+	}
+
+	if (opt) {
+		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
+			if(( idx = evt_find_index( spc, key ) ))
+				index = idx->id;
+		}
+		if ((key = hv_fetchs(opt, "field_no", 0)) && SvOK(*key)) field_no = SvUV(*key);
+	}
+	else {
+		ctx->f.size = 0;
+	}
+
+	if (field_no == -1) {
+	 	croak_cb(cb, "field_no must be provided");
+	}
+
+	if (!idx) {
+		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+			idx = (TntIndex*) SvPVX(*key);
+		}
+		else {
+			//warn("No index %d config. Using without formats",index);
+		}
+	}
+	evt_opt_out( opt, ctx, spc );
+	evt_opt_in( opt, ctx, idx );
+
+	uint32_t body_map_sz = 3 + (index != -1);
+	uint32_t keys_size = 0;
+
+
+	int sz = HEADER_CONST_LEN +
+		mp_sizeof_map(body_map_sz) +
+		mp_sizeof_uint(TP_SPACE) +
+		mp_sizeof_uint(spc->id);
+
+	if (index != -1) {
+		sz += mp_sizeof_uint(TP_INDEX) +
+			  mp_sizeof_uint(index);
+	}
+
+	sz += mp_sizeof_uint(TP_KEY);
+
+	// counting fields in keys
+	SV *t = keys;
+	AV *fields;
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else {
+		fields  = (AV *) SvRV(t);
+	}
+
+
+	// TODO: check_tuple(keys, spc);
+	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
+	}
+
+	keys_size = av_len(fields) + 1;
+	sz += mp_sizeof_array(keys_size);
+	sz += keys_size * EST_FIELD_SIZE;
+
+	SV *rv = sv_2mortal(newSV( sz ));
+	SvUPGRADE( rv, SVt_PV );
+	SvPOK_on(rv);
+
+	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
+
+	char *h = (char *) SvPVX(rv);
+	h = mp_encode_map(h + 5, 2);
+	h = mp_encode_uint(h, TP_CODE);
+	h = mp_encode_uint(h, TP_UPDATE);
+	h = mp_encode_uint(h, TP_SYNC);
+	h = write_iid(h, iid);
+	h = mp_encode_map(h, body_map_sz);
+	h = mp_encode_uint(h, TP_SPACE);
+	h = mp_encode_uint(h, spc->id);
+
+	if (index != -1) {
+		h = mp_encode_uint(h, TP_INDEX);
+		h = mp_encode_uint(h, index);
+	}
+
+	h = mp_encode_uint(h, TP_KEY);
+	h = mp_encode_array(h, keys_size);
+
+	uint8_t field_max_size = 0;
+
+	for (k = 0; k < keys_size; k++) {
+		key = av_fetch( fields, k, 0 );
+		if (key && *key) {
+			if ( !SvOK(*key) || !sv_len(*key) ) {
+				cwarn("something is going on wrong1");
+			} else {
+				int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
+				field_size_sv_fmt(field_max_size, _fmt);
+				sz += field_max_size - EST_FIELD_SIZE;
+				sv_size_check(rv, h, sz);
+				field_sv_fmt( h, *key, _fmt);
+			}
+		}
+		else {
+			cwarn("something is going on wrong2");
+			// var_len -= TUPLE_FIELD_DEFAULT;
+			// *(p.c++) = 0;
+		}
+	}
+
+	h = pkt_update_write_tuple(ctx, spc, idx, op, tuple, opt, field_no, h, cb);
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+
+	return SvREFCNT_inc(rv);
+}
+
+
 static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, HV * opt, SV * cb) {
 	uint32_t index = 0;
 	unpack_format *fmt;
@@ -1111,9 +1255,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
-
-	// TODO: add ITERATOR
-
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
 
@@ -1236,9 +1377,6 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	}
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
-
-
-	// TODO: add ITERATOR
 
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;

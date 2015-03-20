@@ -621,6 +621,31 @@ void insert( SV *this, SV *space, SV * t, ... )
 		XSRETURN_UNDEF;
 
 
+void update( SV *this, SV *space, SV * op, SV * key, SV * tuple, ... )
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "insert";
+		ctx->use_hash = self->use_hash;
+
+		uint32_t iid = ++self->seq;
+
+		if(( ctx->wbuf = pkt_update(ctx, iid, self->spaces, space, op, key, tuple, items == 7? (HV *) SvRV(ST( 5 )) : 0, cb ) )) {
+
+			SvREFCNT_inc(ctx->cb = cb);
+			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+			++self->pending;
+			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+		}
+
+		XSRETURN_UNDEF;
+
+
 void delete( SV *this, SV *space, SV * t, ... )
 	PPCODE:
 		if (0) this = this;
