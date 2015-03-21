@@ -142,27 +142,39 @@ my $t; $t = EV::timer 1.0, 0, sub {
 
 # EV::loop;
 
-	# $c->select('tester', ["t1", "t2"], { hash => 1, iterator => 'GE' }, sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done select;";
-	# 	EV::unloop;
-	# });
-
-	$c->update('tester', ["t1", "t2", 1], [
-			{
-				op => ':',
-				field_no => 4,
-				position => 1,
-				offset => 0,
-				argument => 'hello'
-			}
-		], sub {
+	$c->select('tester', {
+			_t1 => "t1",
+			_t2 => "t2"
+		}, { hash => 1, iterator => 'GE' }, sub {
 		my $a = \@_;
 		say Dumper $a;
-		say "done update;";
+		say "done select;";
 		EV::unloop;
 	});
+
+	# $c->update('tester', {
+	# 		_t1 => 't1',
+	# 		_t2 => 't2',
+	# 		_t3 => 1
+	# 	}, [
+	# 		{
+	# 			op => ':',
+	# 			field_no => 4,
+	# 			position => 1,
+	# 			offset => 0,
+	# 			argument => 'hello'
+	# 		},
+	# 		{
+	# 			op => '+',
+	# 			field_no => 3,
+	# 			argument => '50'
+	# 		}
+	# 	],  { hash => 1 }, sub {
+	# 	my $a = \@_;
+	# 	say Dumper $a;
+	# 	say "done update;";
+	# 	EV::unloop;
+	# });
 
 
 	undef $t;

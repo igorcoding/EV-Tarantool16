@@ -53,7 +53,6 @@ static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
 										 5;  // sync len
 static const uint32_t EST_FIELD_SIZE = 5;
 
-/* Tnt legacy structures */
 
 typedef struct {
 	size_t  size;
@@ -195,210 +194,6 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 			croak("Unknown space %s",SvPV_nolen(space));
 			return 0;
 		}
-	}
-}
-
-static void configure_spaces(HV *dest, SV * src) {
-	SV **key;
-	if (SvTYPE( SvRV( src ) ) != SVt_PVHV) {
-		croak("Space config must be hash");
-	}
-	HV *sph = (HV *) SvRV(src);
-	HE *ent;
-	STRLEN nlen;
-	(void) hv_iterinit( sph );
-	while ((ent = hv_iternext( sph ))) {
-		char *name = HePV(ent, nlen);
-		U32 id = atoi( name );
-		//cwarn("hash id = %d; key = %s; val = %s",id,name, SvPV_nolen(HeVAL(ent)));
-		if (SvTYPE( SvRV( HeVAL(ent) ) ) != SVt_PVHV) {
-			croak("Space '%s' config must be hash", name);
-		}
-		if ((key = hv_fetch( dest,(char *)&id,sizeof(U32),0 )) && *key) {
-			TntSpace *old  = (TntSpace *) SvPVX(*key);
-			croak("Duplicate id '%f' for space %d. Already set by space %s", id, SvPV_nolen(old->name));
-		}
-
-		HV *space = (HV *) SvRV(HeVAL(ent));
-
-		SV *spcf = newSV( sizeof(TntSpace) );
-
-		SvUPGRADE( spcf, SVt_PV );
-		SvCUR_set(spcf,sizeof(TntSpace));
-		SvPOKp_on(spcf);
-		TntSpace * spc = (TntSpace *) SvPVX(spcf);
-		memset(spc,0,sizeof(TntSpace));
-
-		(void)hv_store( dest,(char *)&id,sizeof(U32),spcf,0 );
-
-		spc->id = id;
-		spc->indexes = newHV();
-		spc->field   = newHV();
-
-		if ((key = hv_fetch(space, "name", 4, 0)) && SvOK(*key)) {
-			//cwarn("space %d have name '%s'",id,SvPV_nolen(*key));
-			spc->name = newSVsv( *key );
-			if ((key = hv_fetch( dest,SvPV_nolen(spc->name),SvCUR(spc->name),0 )) && *key) {
-				TntSpace *old  = (TntSpace *) SvPVX(*key);
-				croak("Duplicate name '%s' for space %d. Already set by space %d", SvPV_nolen(spc->name), id, old->id);
-			} else {
-				(void)hv_store( dest,SvPV_nolen(spc->name),SvCUR(spc->name),SvREFCNT_inc(spcf),0 );
-			}
-		} else {
-			spc->name = newSVpvf("unnamed:%d",id);
-		}
-		if ((key = hv_fetch(space, "types", 5, 0)) && SvROK(*key)) {
-			if (SvTYPE( SvRV( *key ) ) != SVt_PVAV) croak("Types must be arrayref");
-			AV *types = (AV *) SvRV(*key);
-			int ix;
-			spc->f.nofree = 1;
-			spc->f.size = av_len(types)+1;
-			spc->f.f = safemalloc( spc->f.size + 1 );
-			//cwarn("alloc: %p",spc->f.f);
-			spc->f.f[ spc->f.size ] = 0;
-			spc->f.def = 'p';
-			for(ix = 0; ix <= av_len(types); ix++){
-				key = av_fetch( types,ix,0 );
-				STRLEN tlen;
-				char *type = SvPV(*key,tlen);
-				if (tlen == 3 && strncasecmp( type,"STR",3 ) == 0) {
-					spc->f.f[ix] = 'p';
-				}
-				else
-				if (tlen == 3 && strncasecmp( type,"INT",3 ) == 0) {
-					spc->f.f[ix] = 'i';
-				}
-				else
-				if (tlen == 3 && strncasecmp( type,"NUM",3 ) == 0) {
-					spc->f.f[ix] = 'I';
-				}
-				else
-				if (tlen == 5 && strncasecmp( type,"NUM64",5 ) == 0) {
-					spc->f.f[ix] = 'L';
-				}
-				else
-				if (tlen == 5 && strncasecmp( type,"INT64",5 ) == 0) {
-					spc->f.f[ix] = 'l';
-				}
-				else
-				if (strncasecmp( type,"UTF",3 ) == 0) {
-					spc->f.f[ix] = 'u';
-				}
-				else {
-					warn("Unknown type: '%s' for field %d. Using STR",type, ix);
-					spc->f.f[ix] = 'p';
-				}
-			}
-			//cwarn("format: %-.*s",(int)spc->f.size,spc->f.f);
-		}
-		if ((key = hv_fetch(space, "fields", 6, 0)) && SvROK(*key)) {
-			if (SvTYPE( SvRV( *key ) ) != SVt_PVAV) croak("Fields must be arrayref");
-			SvREFCNT_inc(spc->fields = (AV *)SvRV(*key));
-			int fid;
-			AV *fields = (AV *)SvRV(*key);
-			for(fid = 0; fid <= av_len(fields); fid++) {
-				SV **f = av_fetch( fields,fid,0 );
-				if (!f) croak("Bad field entry for space %d at offset %d", id, fid);
-
-				char format;
-				if ( fid < spc->f.size ) {
-					format = spc->f.f[fid];
-				}
-				else {
-					format = spc->f.def;
-				}
-				//cwarn("field: %p -> %p",*f, SvPVX(*f));
-				HE *fhe = hv_fetch_ent(spc->field,*f,1,0);
-				if (SvOK( HeVAL(fhe) )) {
-					croak("Duplicate field name: '%s',",SvPV_nolen(HeVAL(fhe)));
-				}
-				else {
-					dSVX( fldsv,fld,TntField );
-					fld->id = fid;
-					fld->format = format;
-					(void) hv_store(spc->field,SvPV_nolen(*f),sv_len(*f),fldsv, HeHASH(fhe));
-				}
-			}
-		}
-		if (
-			( (key = hv_fetchs(space, "indexes",0)) && SvROK(*key) )
-			||
-			( (key = hv_fetchs(space, "index", 0)) && SvROK(*key) )
-			||
-			( (key = hv_fetchs(space, "indices", 0)) && SvROK(*key) )
-		) {
-			if (SvTYPE( SvRV( *key ) ) != SVt_PVHV) croak("Indexes must be hashref");
-			HV *idxs = (HV*) SvRV(*key);
-			(void) hv_iterinit( idxs );
-			while ((ent = hv_iternext( idxs ))) {
-				char *iname = HePV(ent, nlen);
-				U32 iid = atoi( iname );
-				if (SvTYPE( SvRV( HeVAL(ent) ) ) != SVt_PVHV) croak("Index '%s' config must be hash", iname);
-				HV *index = (HV *) SvRV(HeVAL(ent));
-
-				SV *idxcf = newSV( sizeof(TntIndex) );
-				SvUPGRADE(idxcf, SVt_PV);
-				SvCUR_set(idxcf,sizeof(TntIndex));
-				SvPOKp_on(idxcf);
-				TntIndex *idx  = (TntIndex *) SvPVX(idxcf);
-				memset(idx,0,sizeof(TntIndex));
-
-				idx->id = iid;
-				if ((key = hv_fetch( spc->indexes,(char *)&iid,sizeof(U32),0 )) && *key) {
-					TntIndex *old  = (TntIndex *) SvPVX(*key);
-					croak("Duplicate id '%d' for index in space %d. Already set by index %s", iid, id, SvPV_nolen(old->name));
-				}
-				(void)hv_store( spc->indexes,(char *)&iid,sizeof(U32),idxcf,0 );
-
-				if ((key = hv_fetch(index, "name", 4, 0)) && SvOK(*key)) {
-					//cwarn("index %d have name '%s'",iid,SvPV_nolen(*key));
-					idx->name = newSVsv( *key );
-					if ((key = hv_fetch( spc->indexes,SvPV_nolen(idx->name),SvCUR(idx->name),0 )) && *key) {
-						TntIndex *old  = (TntIndex *) SvPVX(*key);
-						croak("Duplicate name '%s' for index %d in space %d. Already set by index %d", SvPV_nolen(idx->name), iid, id, old->id);
-					} else {
-						//warn("key %s not exists in %p", SvPV_nolen(ixname), spc->indexes);
-						(void)hv_store( spc->indexes,SvPV_nolen(idx->name),SvCUR(idx->name),SvREFCNT_inc(idxcf),0 );
-					}
-				}
-				if ((key = hv_fetch(index, "fields", 6, 0))) {
-					SV* newkey = 0;
-					if (! SvROK(*key) ) {
-						AV *av = newAV();
-						av_store( av, 0, *key);
-						newkey = sv_2mortal(newRV_noinc( (SV*) av));
-					}
-					if (! newkey || ! SvROK(newkey)) newkey = (SV*) *key;
-					if ((SvROK(newkey) && SvTYPE( SvRV( newkey ) ) == SVt_PVAV)) {
-						SvREFCNT_inc(idx->fields = (AV *)SvRV(newkey));
-						AV *fields = (AV *) SvRV(newkey);
-						int ix;
-						idx->f.nofree = 1;
-						idx->f.size = av_len(fields)+1;
-						idx->f.f = safemalloc(idx->f.size+1);
-						idx->f.f[idx->f.size] = 0;
-						idx->f.def = 'p';
-						for (ix=0;ix <= av_len(fields); ix++) {
-							SV **f = av_fetch( fields,ix,0 );
-							if (!f) croak("XXX");
-							HE *fhe = hv_fetch_ent(spc->field,*f,1,0);
-							if (SvOK( HeVAL(fhe) )) {
-								idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
-							}
-							else {
-								croak("Unknown field name: '%s' in index %d of space %d",SvPV_nolen( *f ), iid, id);
-							}
-						}
-						//cwarn("index %d format (%zu): %-.*s",iid,idx->f.size,(int)idx->f.size,idx->f.f);
-					} else {
-						croak("Index fields mast be array");
-					}
-				}
-			}
-		} else {
-			croak("Space %d requires at least one index", id);
-		}
-
 	}
 }
 
@@ -559,6 +354,8 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	SV **f;
 	HE *fl;
 
+	// cwarn("still ok. fields = %p", fields);
+
 	for (k=0; k <= av_len( fields );k++) {
 		f = av_fetch( fields,k,0 );
 		if (unlikely(!f)) {
@@ -570,7 +367,8 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 			av_push( rv, SvREFCNT_inc(HeVAL(fl)) );
 		}
 		else {
-			av_push( rv, &PL_sv_undef );
+			// TODO: not sure that we should ignore it
+			// av_push( rv, &PL_sv_undef );
 		}
 	}
 	if (unlikely(fcnt != 0)) {
@@ -609,22 +407,30 @@ static inline char * write_iid(char *h, uint32_t iid) {
 	return h;
 }
 
-static inline SV * pkt_ping( uint32_t iid ) {
+#define write_iid_(h, iid) STMT_START {  \
+	*h = 0xce;							\
+	*(uint32_t*)(h + 1) = htobe32(iid); \
+	h += 5;								\
+} STMT_END
+
+
+#define create_buffer(NAME, P_NAME, sz, tp_operation, iid) 				\
+	SV *NAME = sv_2mortal(newSV((sz)));									\
+	SvUPGRADE(NAME, SVt_PV);											\
+	SvPOK_on(NAME);														\
+																		\
+	char *P_NAME = (char *) SvPVX(NAME);								\
+	write_length(P_NAME, (sz)-5);										\
+	P_NAME = mp_encode_map(P_NAME + 5, 2);								\
+	P_NAME = mp_encode_uint(P_NAME, TP_CODE);							\
+	P_NAME = mp_encode_uint(P_NAME, (tp_operation));					\
+	P_NAME = mp_encode_uint(P_NAME, TP_SYNC);							\
+	write_iid_(P_NAME, (iid));											\
+
+static inline SV * pkt_ping(uint32_t iid) {
 	int sz = HEADER_CONST_LEN;
 
-	SV * rv = newSV(sz);
-	SvUPGRADE(rv, SVt_PV);
-	SvPOK_on(rv);
-
-	char *h = (char *) SvPVX(rv);
-
-	write_length(h, sz-5);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_PING);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
-
+	create_buffer(rv, h, sz, TP_PING, iid);
 	SvCUR_set(rv, sz);
 	return rv;
 }
@@ -763,9 +569,11 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	// counting fields in keys
 	SV *t = keys;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb ); }
-	else {
-		fields  = (AV *) SvRV(t); }
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else {
+		fields  = (AV *) SvRV(t);
+	}
 
 
 	// TODO: check_tuple(keys, spc);
@@ -778,18 +586,8 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	sz += mp_sizeof_array(keys_size);
 	sz += keys_size * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE( rv, SVt_PV );
-	SvPOK_on(rv);
+	create_buffer(rv, h, sz, TP_SELECT, iid);
 
-	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_SELECT);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -827,6 +625,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 		else {
 			cwarn("something is going on wrong2");
+			// TODO: not sure that we should ignore it
 			// var_len -= TUPLE_FIELD_DEFAULT;
 			// *(p.c++) = 0;
 		}
@@ -879,24 +678,18 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	// counting fields in keys
 	SV *t = tuple;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) { fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb ); }
-	else { fields  = (AV *) SvRV(t); }
+	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else {
+		fields  = (AV *) SvRV(t);
+	}
+
 	uint32_t cardinality = av_len(fields) + 1;
 
 	sz += mp_sizeof_array(cardinality);
 	sz += cardinality * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE( rv, SVt_PV );
-	SvPOK_on(rv);
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, op_code);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
-
+	create_buffer(rv, h, sz, op_code, iid);
 	h = mp_encode_map(h, 2);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -1138,6 +931,8 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			if(( idx = evt_find_index( spc, key ) ))
 				index = idx->id;
 		}
+
+		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	else {
 		ctx->f.size = 0;
@@ -1192,18 +987,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	sz += mp_sizeof_array(keys_size);
 	sz += keys_size * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE( rv, SVt_PV );
-	SvPOK_on(rv);
-
-	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_UPDATE);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
+	create_buffer(rv, h, sz, TP_UPDATE, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -1322,18 +1106,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	sz += mp_sizeof_array(keys_size);
 	sz += keys_size * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE(rv, SVt_PV);
-	SvPOK_on(rv);
-
-	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_DELETE);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
+	create_buffer(rv, h, sz, TP_DELETE, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -1446,18 +1219,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	sz += mp_sizeof_array(keys_size);
 	sz += keys_size * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE( rv, SVt_PV );
-	SvPOK_on(rv);
-
-	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_EVAL);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
+	create_buffer(rv, h, sz, TP_EVAL, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_EXPRESSION);
 	h = mp_encode_str(h, (const char *) SvPVX(expression), expression_size);
@@ -1565,18 +1327,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	sz += mp_sizeof_array(keys_size);
 	sz += keys_size * EST_FIELD_SIZE;
 
-	SV *rv = sv_2mortal(newSV( sz ));
-	SvUPGRADE( rv, SVt_PV );
-	SvPOK_on(rv);
-
-	//warn("before: sv_len:%d, sv_pvx:%p, sv_cur:%d",SvLEN(rv), SvPVX(rv), SvCUR(rv));
-
-	char *h = (char *) SvPVX(rv);
-	h = mp_encode_map(h + 5, 2);
-	h = mp_encode_uint(h, TP_CODE);
-	h = mp_encode_uint(h, TP_CALL);
-	h = mp_encode_uint(h, TP_SYNC);
-	h = write_iid(h, iid);
+	create_buffer(rv, h, sz, TP_CALL, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_FUNCTION);
 	h = mp_encode_str(h, (const char *) SvPVX(function_name), function_name_size);
@@ -2061,6 +1812,8 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 				idx->f.f = safemalloc(idx->f.size+1);
 				idx->f.f[idx->f.size] = 0;
 				idx->f.def = '*';
+				idx->fields = newAV();
+				av_extend(idx->fields, parts_count);
 
 				uint32_t part_i;
 				uint32_t ix = 0;
@@ -2083,15 +1836,16 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 						idx->f.f[part_i] = '*';
 					}
 
-					// SV **f = av_fetch(spc->fields, ix, 0);
-					// if (!f) {
-					// 	// if this field is not in space format information
-					// 	croak("this field is not in space format information");
-					// }
-					// HE *fhe = hv_fetch_ent(spc->field, *f, 1, 0);
-					// if (SvOK( HeVAL(fhe) )) {
-					// 	idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
-					// }
+					SV **f = av_fetch(spc->fields, ix, 0);
+					if (!f) {
+						// if this field is not in space format information
+						croak("this field is not in space format information");
+					}
+					HE *fhe = hv_fetch_ent(spc->field, *f, 1, 0);
+					if (SvOK( HeVAL(fhe) )) {
+						av_push(idx->fields, SvREFCNT_inc(((TntField *)SvPVX( HeVAL(fhe) ))->name));
+						// idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
+					}
 				}
 
 
