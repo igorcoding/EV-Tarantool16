@@ -1,19 +1,3 @@
-#!/usr/bin/env perl
-
-package ttt;
-use 5.010;
-use strict;
-
-$ttt::true  = do { bless \(my $dummy = 1) };
-
-use overload (
-   "0+"     => sub { ${$_[0]} },
-   "++"     => sub { $_[0] = ${$_[0]} + 1 },
-   "--"     => sub { $_[0] = ${$_[0]} - 1 },
-   fallback => 1,
-);
-
-
 package main;
 
 use 5.010;
@@ -37,32 +21,6 @@ my $disconnected;
 my $tnt = {
 	port => 3301,
 	host => '127.0.0.1'
-};
-
-my $s = $ttt::true + 1;
-say Dumper($s);
-
-my $realspaces = {
-	1 => {
-		name => 'test1',
-		fields => [qw( id a b c d e f )],
-		types  => [qw(STR STR NUM64 )],
-		indexes => {
-			0 => { name => 'id', fields => ['id', 'a', 'b'] },
-			# 1 => { name => 'ax', fields => ['a'] },
-			# 2 => { name => 'bx', fields => ['b'] },
-		}
-	},
-	2 => {
-		name => 'test2',
-		fields => [qw( id a b c d e f )],
-		types  => [qw(STR STR NUM )],
-		indexes => {
-			0 => { name => 'id', fields => ['id','a'] },
-			1 => { name => 'ax', fields => ['e'] },
-			2 => { name => 'bx', fields => ['b'] },
-		}
-	},
 };
 
 my $c; $c = EV::Tarantool->new({
@@ -145,12 +103,19 @@ my $t; $t = EV::timer 1.0, 0, sub {
 	$c->select('tester', {
 			_t1 => "t1",
 			_t2 => "t2"
-		}, { hash => 1, iterator => 'GE' }, sub {
+		}, { hash => 1, iterator => 'LE' }, sub {
 		my $a = \@_;
 		say Dumper $a;
 		say "done select;";
 		EV::unloop;
 	});
+
+	# $c->select('tester', [], { hash => 1, iterator => 'LE' }, sub {
+	# 	my $a = \@_;
+	# 	say Dumper $a;
+	# 	say "done select;";
+	# 	EV::unloop;
+	# });
 
 	# $c->update('tester', {
 	# 		_t1 => 't1',

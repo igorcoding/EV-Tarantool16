@@ -105,6 +105,14 @@ typedef struct {
 	SV   *name;
 } TntField;
 
+typedef enum {
+	OP_UPD_ARITHMETIC,
+	OP_UPD_DELETE,
+	OP_UPD_INSERT_ASSIGN,
+	OP_UPD_SPLICE,
+	OP_UPD_UNKNOWN
+} update_op_type_t;
+
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
 
@@ -400,14 +408,7 @@ static inline void write_length(char *h, uint32_t size) {
 	*((uint32_t *)(h+1)) = htobe32(size);
 }
 
-static inline char * write_iid(char *h, uint32_t iid) {
-	*h = 0xce;
-	*(uint32_t*)(h + 1) = htobe32(iid);
-	h += 5;
-	return h;
-}
-
-#define write_iid_(h, iid) STMT_START {  \
+#define write_iid(h, iid) STMT_START {  \
 	*h = 0xce;							\
 	*(uint32_t*)(h + 1) = htobe32(iid); \
 	h += 5;								\
@@ -425,7 +426,109 @@ static inline char * write_iid(char *h, uint32_t iid) {
 	P_NAME = mp_encode_uint(P_NAME, TP_CODE);							\
 	P_NAME = mp_encode_uint(P_NAME, (tp_operation));					\
 	P_NAME = mp_encode_uint(P_NAME, TP_SYNC);							\
-	write_iid_(P_NAME, (iid));											\
+	write_iid(P_NAME, (iid));											\
+
+#define encode_keys(h, sz, fields, keys_size, fmt, key) STMT_START {	\
+	uint8_t field_max_size = 0;											\
+	for (k = 0; k < keys_size; k++) {									\
+		key = av_fetch( fields, k, 0 );									\
+		if (key && *key && SvOK(*key) && sv_len(*key)) {				\
+			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;			\
+			field_size_sv_fmt(field_max_size, _fmt);					\
+			sz += field_max_size - EST_FIELD_SIZE;						\
+			sv_size_check(rv, h, sz);									\
+			field_sv_fmt( h, *key, _fmt);								\
+		} else {														\
+			cwarn("something is going wrong");							\
+		}																\
+	}																	\
+} STMT_END
+
+#define COMP_STR(lhs, rhs, lhs_len, rhs_len, res) STMT_START { 				  \
+	if ((lhs_len) == (rhs_len) && strncasecmp((lhs), (rhs), rhs_len) == 0) {  \
+		return (res);														  \
+	} 																		  \
+} STMT_END
+
+
+static inline U32 get_iterator(SV *iterator_str) {
+	const char *str = SvPVX(iterator_str);
+	U32 str_len = SvCUR(iterator_str);
+	COMP_STR(str, "EQ", str_len, 2, 0);
+	COMP_STR(str, "REQ", str_len, 3, 1);
+	COMP_STR(str, "ALL", str_len, 3, 2);
+	COMP_STR(str, "LT", str_len, 2, 3);
+	COMP_STR(str, "LE", str_len, 2, 4);
+	COMP_STR(str, "GE", str_len, 2, 5);
+	COMP_STR(str, "GT", str_len, 2, 6);
+	COMP_STR(str, "BITS_ALL_SET", str_len, 12, 7);
+	COMP_STR(str, "BITS_ANY_SET", str_len, 12, 8);
+	COMP_STR(str, "BITS_ALL_NOT_SET", str_len, 16, 9);
+	COMP_STR(str, "OVERLAPS", str_len, 8, 10);
+	COMP_STR(str, "NEIGHBOR", str_len, 8, 11);
+	return -1;
+}
+
+
+static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t len) {
+	if (unlikely(len != 1)) {
+		return OP_UPD_UNKNOWN;
+	}
+
+	char op = op_str[0];
+
+	if (op == '+' || op == '-' || op == '&' || op == '^' || op == '|') {
+		return OP_UPD_ARITHMETIC;
+	}
+
+	if (op == '#') {
+		return OP_UPD_DELETE;
+	}
+
+	if (op == '!' || op == '=') {
+		return OP_UPD_INSERT_ASSIGN;
+	}
+
+	if (op == ':') {
+		return OP_UPD_SPLICE;
+	}
+
+	return OP_UPD_UNKNOWN;
+}
+
+
+// static inline encode_obj(char *dest, SV *src, format, cb) {
+// 	switch( format ) {
+// 			case 'l': dest = mp_encode_int  ( dest, (U64) SvIV( src ) );  break;
+// 			case 'L': dest = mp_encode_uint ( dest, (U64) SvUV( src ) );  break;
+// 			case 'i': dest = mp_encode_int  ( dest, (U32) SvIV( src ) );  break;
+// 			case 'I': dest = mp_encode_uint ( dest, (U32) SvUV( src ) );  break;
+// 			case 's': dest = mp_encode_int  ( dest, (U16) SvIV( src ) );  break;
+// 			case 'S': dest = mp_encode_uint ( dest, (U16) SvUV( src ) );  break;
+// 			case 'c': dest = mp_encode_int  ( dest, (U8)  SvIV( src ) );  break;
+// 			case 'C': dest = mp_encode_uint ( dest, (U8)  SvUV( src ) );  break;
+// 			case 'p': case 'u':
+// 				dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src)); break;
+// 			case 'a': {
+// 				if (SvTYPE(SvRV(src)) != SVt_PVAV) {
+// 					croak_cb(cb, "Incosistent type. Expected ARRAYREF");
+// 				}
+// 				AV *arr = (AV *) src;
+// 				uint32_t arr_size = av_len(arr) + 1;
+// 				uint32_t i = 0;
+
+// 				for (i = 0; i < arr_size; ++i) {
+// 					encode_obj(dest, av_fetch(i), )
+// 				}
+
+
+// 				break;
+// 			}
+// 			default:
+// 				croak_cb(cb,"Unsupported format: %c", format);
+// 		}
+// }
+
 
 static inline SV * pkt_ping(uint32_t iid) {
 	int sz = HEADER_CONST_LEN;
@@ -433,59 +536,6 @@ static inline SV * pkt_ping(uint32_t iid) {
 	create_buffer(rv, h, sz, TP_PING, iid);
 	SvCUR_set(rv, sz);
 	return rv;
-}
-
-static inline U32 get_iterator(SV *iterator_str) {
-	const char *str = SvPVX(iterator_str);
-	U32 str_len = SvCUR(iterator_str);
-	if (str_len == 2 && strncasecmp(str, "EQ", 2) == 0) {
-		return 0;
-	}
-	else
-	if (str_len == 3 && strncasecmp(str, "REQ", 3) == 0) {
-		return 1;
-	}
-	else
-	if (str_len == 3 && strncasecmp(str, "ALL", 3) == 0) {
-		return 2;
-	}
-	else
-	if (str_len == 2 && strncasecmp(str, "LT", 2) == 0) {
-		return 3;
-	}
-	else
-	if (str_len == 2 && strncasecmp(str, "LE", 2) == 0) {
-		return 4;
-	}
-	else
-	if (str_len == 2 && strncasecmp(str, "GE", 2) == 0) {
-		return 5;
-	}
-	else
-	if (str_len == 2 && strncasecmp(str, "GT", 2) == 0) {
-		return 6;
-	}
-	else
-	if (str_len == 12 && strncasecmp(str, "BITS_ALL_SET", 12) == 0) {
-		return 7;
-	}
-	else
-	if (str_len == 12 && strncasecmp(str, "BITS_ANY_SET", 12) == 0) {
-		return 8;
-	}
-	else
-	if (str_len == 16 && strncasecmp(str, "BITS_ALL_NOT_SET", 16) == 0) {
-		return 9;
-	}
-	else
-	if (str_len == 8 && strncasecmp(str, "OVERLAPS", 8) == 0) {
-		return 10;
-	}
-	else
-	if (str_len == 8 && strncasecmp(str, "NEIGHBOR", 8) == 0) {
-		return 11;
-	}
-	return -1;
 }
 
 static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
@@ -566,13 +616,16 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	sz += mp_sizeof_uint(TP_KEY);
 
+
 	// counting fields in keys
 	SV *t = keys;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else {
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
+	} else {
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 
@@ -611,25 +664,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	h = mp_encode_uint(h, TP_KEY);
 	h = mp_encode_array(h, keys_size);
-
-	uint8_t field_max_size = 0;
-
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong2");
-			// TODO: not sure that we should ignore it
-			// var_len -= TUPLE_FIELD_DEFAULT;
-			// *(p.c++) = 0;
-		}
-	}
+	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
@@ -678,10 +713,12 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	// counting fields in keys
 	SV *t = tuple;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else {
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
+	} else {
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	uint32_t cardinality = av_len(fields) + 1;
@@ -695,63 +732,13 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	h = mp_encode_uint(h, spc->id);
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, cardinality);
-
-	uint32_t field_max_size = 0;
-	for (k = 0; k < cardinality; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong2");
-		}
-	}
+	encode_keys(h, sz, fields, cardinality, fmt, key);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
 	SvCUR_set(rv, h-p);
 
 	return SvREFCNT_inc(rv);
-}
-
-
-typedef enum {
-	OP_UPD_ARITHMETIC,
-	OP_UPD_DELETE,
-	OP_UPD_INSERT_ASSIGN,
-	OP_UPD_SPLICE,
-	OP_UPD_UNKNOWN
-} update_op_type_t;
-
-
-static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t len) {
-	if (unlikely(len != 1)) {
-		return OP_UPD_UNKNOWN;
-	}
-
-	char op = op_str[0];
-
-	if (op == '+' || op == '-' || op == '&' || op == '^' || op == '|') {
-		return OP_UPD_ARITHMETIC;
-	}
-
-	if (op == '#') {
-		return OP_UPD_DELETE;
-	}
-
-	if (op == '!' || op == '=') {
-		return OP_UPD_INSERT_ASSIGN;
-	}
-
-	if (op == ':') {
-		return OP_UPD_SPLICE;
-	}
-
-	return OP_UPD_UNKNOWN;
 }
 
 
@@ -970,10 +957,12 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	// counting fields in keys
 	SV *t = keys;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else {
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
+	} else {
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 
@@ -999,24 +988,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	h = mp_encode_uint(h, TP_KEY);
 	h = mp_encode_array(h, keys_size);
-
-	uint8_t field_max_size = 0;
-
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong2");
-			// var_len -= TUPLE_FIELD_DEFAULT;
-			// *(p.c++) = 0;
-		}
-	}
+	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	h = pkt_update_write_tuple(ctx, spc, idx, tuple, sz, rv, h, cb);
 
@@ -1090,10 +1062,12 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	// counting fields in keys
 	SV *t = keys;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
+		fields  = (AV *) SvRV(t);
 	} else {
-		fields = (AV *) SvRV(t);
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	// TODO: check_tuple(keys, spc);
@@ -1118,24 +1092,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 	h = mp_encode_uint(h, TP_KEY);
 	h = mp_encode_array(h, keys_size);
-
-	uint8_t field_max_size = 0;
-
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong");
-			// var_len -= TUPLE_FIELD_DEFAULT;
-			// *(p.c++) = 0;
-		}
-	}
+	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
@@ -1202,10 +1159,12 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	// counting fields in keys
 	SV *t = tuple;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else {
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
+	} else {
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 
@@ -1226,24 +1185,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, keys_size);
-
-	uint8_t field_max_size = 0;
-
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong2");
-			// var_len -= TUPLE_FIELD_DEFAULT;
-			// *(p.c++) = 0;
-		}
-	}
+	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
@@ -1310,10 +1252,12 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	// counting fields in keys
 	SV *t = tuple;
 	AV *fields;
-	if ((SvTYPE(SvRV(t)) == SVt_PVHV)) {
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
 		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else {
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
+	} else {
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 
@@ -1334,24 +1278,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, keys_size);
-
-	uint8_t field_max_size = 0;
-
-	for (k = 0; k < keys_size; k++) {
-		key = av_fetch( fields, k, 0 );
-		if (key && *key && SvOK(*key) && sv_len(*key)) {
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;
-			field_size_sv_fmt(field_max_size, _fmt);
-			sz += field_max_size - EST_FIELD_SIZE;
-			sv_size_check(rv, h, sz);
-			field_sv_fmt( h, *key, _fmt);
-		}
-		else {
-			cwarn("something is going on wrong2");
-			// var_len -= TUPLE_FIELD_DEFAULT;
-			// *(p.c++) = 0;
-		}
-	}
+	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
