@@ -25,6 +25,7 @@ curl -L https://cpanmin.us | sudo perl - App::cpanminus
 sudo cpanm Types::Serialiser
 sudo cpanm EV
 sudo cpanm AnyEvent
+sudo cpanm Test::Deep
 
 if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"

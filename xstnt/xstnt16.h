@@ -335,22 +335,43 @@ static void destroy_spaces(HV *spaces) {
 		}                                                                  \
 	} STMT_END
 
-#define field_sv_fmt( dest, src, format )                                        \
-	STMT_START {                                                                 \
-		switch( format ) {                                                       \
-			case 'l': dest = mp_encode_int  ( dest, (U64) SvIV( src ) );  break; \
-			case 'L': dest = mp_encode_uint ( dest, (U64) SvUV( src ) );  break; \
-			case 'i': dest = mp_encode_int  ( dest, (U32) SvIV( src ) );  break; \
-			case 'I': dest = mp_encode_uint ( dest, (U32) SvUV( src ) );  break; \
-			case 's': dest = mp_encode_int  ( dest, (U16) SvIV( src ) );  break; \
-			case 'S': dest = mp_encode_uint ( dest, (U16) SvUV( src ) );  break; \
-			case 'c': dest = mp_encode_int  ( dest, (U8)  SvIV( src ) );  break; \
-			case 'C': dest = mp_encode_uint ( dest, (U8)  SvUV( src ) );  break; \
-			case 'p': case 'u':                                                  \
-				dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src)); break; \
-			default:                                                             \
-				croak_cb(cb,"Unsupported format: %c", format);                   \
-		}                                                                        \
+#define field_sv_fmt( dest, src, format )									\
+	STMT_START {															\
+		char fmt_is_num = -1;												\
+		switch( format ) {													\
+			case 'l':														\
+			case 'i':														\
+			case 's':														\
+			case 'c':														\
+			case 'L':														\
+			case 'I':														\
+			case 'S':														\
+			case 'C':														\
+				fmt_is_num = 1;												\
+				break;														\
+			case 'p': case 'u':												\
+				fmt_is_num = 0;												\
+				break;	 													\
+			default:														\
+				croak_cb(cb,"Unsupported format: %c", format);				\
+		}																	\
+		if (fmt_is_num == 0 && SvPOK(src)) {								\
+			dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src));		\
+		}																	\
+		else if (fmt_is_num == 1 && (SvIOK(src) || SvPOK(src))) {			\
+			if (SvUOK(src)) {												\
+				dest = mp_encode_uint(dest, SvUV(src));						\
+			} else {														\
+				IV num = SvIV(src);											\
+				if (num >= 0) {												\
+					dest = mp_encode_uint(dest, num);						\
+				} else {													\
+					dest = mp_encode_int(dest, num);						\
+				}															\
+			}																\
+		} else {															\
+			croak_cb(cb,"Unsupported type: %d", SvTYPE(src));				\
+		}																	\
 	} STMT_END
 
 
@@ -539,9 +560,6 @@ static inline SV * pkt_ping(uint32_t iid) {
 }
 
 static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
-	cwarn("req.sync = %d", iid);
-	// register uniptr p;
-
 	U32 limit  = 0xffffffff;
 	U32 offset = -1;
 	U32 index  = 0;
@@ -799,24 +817,27 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 
 			case OP_UPD_ARITHMETIC:
 			case OP_UPD_DELETE: {
-				int32_t argument;
+				SV *argument;
 				if ((key = hv_fetchs(operation, "argument", 0)) && SvOK(*key)) {
-					argument = SvIV(*key);
+					argument = *key;
 				} else {
 					croak_cb(cb, "Integer argument is required for arithmetic operation");
 				}
 
 				sz += mp_sizeof_array(3) +
 					  mp_sizeof_str(1) +
-					  mp_sizeof_uint(field_no) +
-					  mp_sizeof_uint(argument);
+					  mp_sizeof_uint(field_no)
+					  ;
+			  	uint32_t arg_size = 0;
+			  	field_size_sv_fmt(arg_size, 'l');
+			  	sz += arg_size;
 
 				sv_size_check(rv, h, sz);
 
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op_str, 1);
 				h = mp_encode_uint(h, field_no);
-				h = mp_encode_uint(h, argument);
+				field_sv_fmt(h, argument, 'l');
 
 				break;
 			}
@@ -876,7 +897,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_uint(h, field_no);
 				h = mp_encode_uint(h, position);
 				h = mp_encode_uint(h, offset);
-				h = mp_encode_str(h, SvPVX(argument), SvCUR(argument));
+				h = mp_encode_str(h, SvPV_nolen(argument), SvCUR(argument));
 
 				break;
 			}
@@ -892,9 +913,6 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 
 
 static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, SV *tuple, HV * opt, SV *cb) {
-	cwarn("req.sync = %d", iid);
-	// register uniptr p;
-
 	U32 index  = 0;
 
 	unpack_format *fmt;
@@ -1030,12 +1048,10 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	}
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			cwarn("found idx");
 			idx = (TntIndex*) SvPVX(*key);
 		}
 		else {
-			cwarn("no idx");
-			//warn("No index %d config. Using without formats",index);
+			warn("No index %d config. Using without formats", index);
 		}
 	}
 
@@ -1102,9 +1118,6 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expression, SV *tuple, HV * opt, SV *cb) {
-	cwarn("req.sync = %d", iid);
-	// register uniptr p;
-
 	U32 index  = 0;
 
 	unpack_format *fmt;
@@ -1181,7 +1194,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	create_buffer(rv, h, sz, TP_EVAL, iid);
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_EXPRESSION);
-	h = mp_encode_str(h, (const char *) SvPVX(expression), expression_size);
+	h = mp_encode_str(h, (const char *) SvPV_nolen(expression), expression_size);
 
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, keys_size);
@@ -1195,9 +1208,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 }
 
 static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function_name, SV *tuple, HV * opt, SV *cb) {
-	cwarn("req.sync = %d", iid);
-	// register uniptr p;
-
 	U32 index  = 0;
 
 	unpack_format *fmt;
@@ -1315,14 +1325,13 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 			return -1;
 
 		uint32_t key = mp_decode_uint(&p);
-		cwarn("key = %d", key);
+		// cwarn("key = %d", key);
 		switch (key) {
 			case TP_CODE:
 				if (mp_typeof(*p) != MP_UINT)
 					return -1;
 
 				code = mp_decode_uint(&p);
-				cwarn("code: %d", code);
 				break;
 
 			case TP_SYNC:
@@ -1331,13 +1340,15 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 
 
 				*id = mp_decode_uint(&p);
-				cwarn("sync: %d", *id);
 				break;
 		}
 	}
+	SV *id_sv = newSVuv(*id);
+
+	cwarn("code: %d; sync: %d", code, (uint32_t) SvUV(id_sv));
 
 	(void) hv_stores(ret, "code", newSVuv(code));
-	(void) hv_stores(ret, "sync", newSVuv(*id));
+	(void) hv_stores(ret, "sync", id_sv);
 
 	return p - data;
 }
@@ -1578,7 +1589,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 			SV *sv_id = data_parser(&p);
 			int id = (U32) SvUV(sv_id);
-			cwarn("space_id=%d", id);
+			// cwarn("space_id=%d", id);
 
 			SV *spcf = newSV( sizeof(TntSpace) );
 

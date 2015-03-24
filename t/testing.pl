@@ -3,6 +3,7 @@ package main;
 use 5.010;
 use strict;
 use Test::More;
+use Test::Deep;
 use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
@@ -52,97 +53,261 @@ $c->connect;
 EV::loop;
 
 my $t; $t = EV::timer 1.0, 0, sub {
-	# $c->ping(sub {
-	# 	my $a = @_[0];
-	# 	say Dumper $a;
-	# 	say "Pong";
-	# 	EV::unloop;
-	# });
+	# diag Dumper $c->spaces;
+	EV::unloop;
+	undef $t;
+};
+EV::loop;
 
-	say Dumper $c->spaces;
+ok $connected > 0, "Connection is ok";
 
-	# $c->eval("return {'hey'}", [], sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done eval;";
-	# 	EV::unloop;
-	# });
+# subtest 'Ping tests', sub {
+# 	$c->ping(sub {
+# 		my $a = @_[0];
+# 		is $a->{code}, 0;
+# 		EV::unloop;
+# 	});
+# 	EV::loop;
+# };
 
-	# return;
+# subtest 'Eval tests', sub {
+# 	$c->eval("return {'hey'}", [], sub {
+# 		my $a = @_[0];
+# 		cmp_deeply $a, {
+# 			count => 1,
+# 			tuples => [ ['hey'] ],
+# 			status => 'ok',
+# 			code => 0,
+# 			sync => ignore()
+# 		};
+# 		EV::unloop;
+# 	});
+# 	EV::loop;
+# };
 
-	# $c->call('string_function', [], sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done call;";
-	# 	EV::unloop;
-	# });
+# subtest 'Call tests', sub {
+# 	$c->call('string_function', [], sub {
+# 		my $a = @_[0];
+# 		cmp_deeply $a, {
+# 			count => 1,
+# 			tuples => [ ['hello world'] ],
+# 			status => 'ok',
+# 			code => 0,
+# 			sync => ignore()
+# 		};
+# 		EV::unloop;
+# 	});
+# 	EV::loop;
+# };
 
-	# EV::loop;
+subtest 'Select tests', sub {
+	is 1,1;
+	$c->select('tester', [], { hash => 0 }, sub {
+		my $a = @_[0];
+		# diag Dumper $a;
+		cmp_deeply $a, {
+			count => 4,
+			tuples => [
+			              [
+			                't1',
+			                't2',
+			                1,
+			                -745,
+			                'heyo'
+			              ],
+			              [
+			                't1',
+			                't2',
+			                2,
+			                [ 1, 2, 3, 'str1', 4 ]
+			              ],
+			              [
+			                't1',
+			                't2',
+			                3,
+			                {
+			                  35 => Types::Serialiser::false,
+			                  33 => Types::Serialiser::true,
+			                  key2 => 42,
+			                  key1 => 'value1'
+			                }
+			              ],
+			              [
+			                'tt1',
+			                'tt2',
+			                456
+			              ]
+			            ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		};
+		EV::unloop;
+	});
+	EV::loop;
 
-	# $c->insert('tester', ["t1", "t2", 5, 47653], {replace => 0}, sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done insert;";
-
-	# 	$c->select('tester', ["t1", "t2"], { hash => 1 }, sub {
-	# 		my $a = \@_;
-	# 		say Dumper $a;
-	# 		say "done select;";
-
-	# 		$c->delete('tester', ["t1", "t2", 5], { index => 2 }, sub {
-	# 			my $a = \@_;
-	# 			say Dumper $a;
-	# 			say "done delete;";
-	# 			EV::unloop;
-	# 		});
-	# 	});
-	# });
-
-# EV::loop;
 
 	$c->select('tester', {
 			_t1 => "t1",
 			_t2 => "t2"
 		}, { hash => 1, iterator => 'LE' }, sub {
-		my $a = \@_;
-		say Dumper $a;
-		say "done select;";
+			my $a = @_[0];
+			cmp_deeply $a, {
+				count => 3,
+				tuples => [
+				            {
+				              _t4 => {
+				                         35 => Types::Serialiser::false,
+				                         33 => Types::Serialiser::true,
+				                         key2 => 42,
+				                         key1 => 'value1'
+				                       },
+				              _t1 => 't1',
+				              _t2 => 't2',
+				              _t3 => 3
+				            },
+				            {
+				              _t4 => [
+				                         1,
+				                         2,
+				                         3,
+				                         'str1',
+				                         4
+				                       ],
+				              _t1 => 't1',
+				              _t2 => 't2',
+				              _t3 => 2
+				            },
+				            {
+				              '' => [
+				                      'heyo'
+				                    ],
+				              _t4 => -745,
+				              _t1 => 't1',
+				              _t2 => 't2',
+				              _t3 => 1
+				            }
+				          ],
+				status => 'ok',
+				code => 0,
+				sync => ignore()
+			};
 		EV::unloop;
 	});
-
-	# $c->select('tester', [], { hash => 1, iterator => 'LE' }, sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done select;";
-	# 	EV::unloop;
-	# });
-
-	# $c->update('tester', {
-	# 		_t1 => 't1',
-	# 		_t2 => 't2',
-	# 		_t3 => 1
-	# 	}, [
-	# 		{
-	# 			op => ':',
-	# 			field_no => 4,
-	# 			position => 1,
-	# 			offset => 0,
-	# 			argument => 'hello'
-	# 		},
-	# 		{
-	# 			op => '+',
-	# 			field_no => 3,
-	# 			argument => '50'
-	# 		}
-	# 	],  { hash => 1 }, sub {
-	# 	my $a = \@_;
-	# 	say Dumper $a;
-	# 	say "done update;";
-	# 	EV::unloop;
-	# });
-
-
-	undef $t;
+	EV::loop;
 };
 
-EV::loop;
+
+subtest 'Insert tests', sub {
+	my $expected = {
+		count => 1,
+		tuples => [
+		            {
+		              _t4 => -42,
+		              _t1 => 't1',
+		              _t2 => 't2',
+		              _t3 => 5
+		            }
+		          ],
+		status => 'ok',
+		code => 0,
+		sync => ignore()
+	};
+	$c->insert('tester', ["t1", "t2", 5, -42], { replace => 0 }, sub {
+		my $a = @_[0];
+		cmp_deeply $a, $expected;
+
+		$c->delete('tester', ["t1", "t2", 5], { index => 2 }, sub {
+			my $a = @_[0];
+			cmp_deeply $a, $expected;
+			EV::unloop;
+		});
+	});
+
+	EV::loop;
+};
+
+
+subtest 'Delete tests', sub {
+	my $expected = {
+		count => 1,
+		tuples => [
+		            {
+		              _t1 => 'tt1',
+		              _t2 => 'tt2',
+		              _t3 => 456
+		            }
+		          ],
+		status => 'ok',
+		code => 0,
+		sync => ignore()
+	};
+
+	$c->delete('tester', ['tt1', 'tt2', 456], sub {
+		my $a = @_[0];
+		cmp_deeply $a, $expected;
+
+		$c->insert('tester', ['tt1', 'tt2', 456], sub {
+			my $a = @_[0];
+			cmp_deeply $a, $expected;
+			EV::unloop;
+		});
+	});
+
+
+	EV::loop;
+};
+
+subtest 'Update tests', sub {
+
+	my $expected = {
+		count => 1,
+		tuples => [
+		            {
+						'' => [
+						              'heyo'
+						            ],
+						_t1 => 't1',
+						_t2 => 't2',
+						_t3 => 1,
+						_t4 => -695,
+		            }
+		          ],
+		status => 'ok',
+		code => 0,
+		sync => ignore()
+	};
+
+	$c->update('tester', {
+			_t1 => 't1',
+			_t2 => 't2',
+			_t3 => 1
+		}, [
+			{
+				op => '+',
+				field_no => 3,
+				argument => 50
+			}
+		],  { hash => 1 }, sub {
+		my $a = @_[0];
+		cmp_deeply($a, $expected);
+
+		$c->update('tester', {
+				_t1 => 't1',
+				_t2 => 't2',
+				_t3 => 1
+			}, [
+				{
+					op => '+',
+					field_no => 3,
+					argument => -50
+				}
+			],  { hash => 1 }, sub {
+			my $a = \@_;
+			EV::unloop;
+		});
+	});
+	EV::loop;
+};
+
+done_testing()

@@ -87,7 +87,7 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 	uint32_t iid = ++tnt->seq;
 
 	if ((ctx->wbuf = pkt_select(ctx, iid, NULL, sv_2mortal(newSVuv(space_id)), newRV_noinc((SV *) newAV()), NULL, NULL ))) {
-		cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		SvREFCNT_inc(ctx->cb = NULL);
 		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
@@ -99,8 +99,8 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 }
 
 static void on_read(ev_cnn * self, size_t len) {
-	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	cwarn("self->ruse: %zu", self->ruse);
+	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	// cwarn("self->ruse: %zu", self->ruse);
 
 	ENTER;
 	SAVETMPS;
@@ -119,7 +119,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	}
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
-	cwarn("pkt_length = %d", pkt_length);
+	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
 		cwarn("not enough");
@@ -131,7 +131,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-	cwarn("hdr_length = %d", length);
+	// cwarn("hdr_length = %d", length);
 	if (unlikely(id == 0)) {
 		// TODO: error
 		cwarn("id == 0");
@@ -153,10 +153,9 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* body */
 	rbuf += length;
 
-	cwarn("use_hash: %d", ctx->use_hash);
 	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
 	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
-	cwarn("body length = %d", length);
+	// cwarn("body length = %d", length);
 	rbuf += length;
 
 	dSP;
@@ -205,8 +204,8 @@ static void on_read(ev_cnn * self, size_t len) {
 }
 
 static void on_index_info_read(ev_cnn * self, size_t len) {
-	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	cwarn("self->ruse: %zu", self->ruse);
+	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	// cwarn("self->ruse: %zu", self->ruse);
 
 	// ENTER;
 	// SAVETMPS;
@@ -225,7 +224,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	}
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
-	cwarn("pkt_length = %d", pkt_length);
+	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
 		cwarn("not enough");
@@ -237,7 +236,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	cwarn("hdr_length = %d", length);
+	// cwarn("hdr_length = %d", length);
 	if (unlikely(id == 0)) {
 		// TODO: error
 		cwarn("id == 0");
@@ -262,7 +261,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	// check that status is ok
 
 	length = parse_index_body(tnt->spaces, rbuf, buf_len);
-	cwarn("body length = %d", length);
+	// cwarn("body length = %d", length);
 	rbuf += length;
 
 	--tnt->pending;
@@ -281,8 +280,8 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 }
 
 static void on_spaces_info_read(ev_cnn * self, size_t len) {
-	cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	cwarn("self->ruse: %zu", self->ruse);
+	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	// cwarn("self->ruse: %zu", self->ruse);
 
 	// ENTER;
 	// SAVETMPS;
@@ -301,7 +300,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	}
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
-	cwarn("pkt_length = %d", pkt_length);
+	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
 		cwarn("not enough");
@@ -313,7 +312,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	cwarn("hdr_length = %d", length);
+	// cwarn("hdr_length = %d", length);
 	if (unlikely(id == 0)) {
 		// TODO: error
 		cwarn("id == 0");
@@ -336,7 +335,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* body */
 
 	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
-	cwarn("body length = %d", length);
+	// cwarn("body length = %d", length);
 	rbuf += length;
 
 	--tnt->pending;
@@ -377,8 +376,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	if (buf_len < 128) {
 		return;
 	}
-
-	cwarn("greeting success!");
 
 	//TODO: perform authentication here and save salt and server version
 
@@ -559,7 +556,7 @@ void ping(SV *this, SV * cb)
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), ctxsv, 0 );
 
 		ctx->wbuf = pkt_ping(iid);
-		cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		++self->pending;
 		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf) );
@@ -583,7 +580,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 		uint32_t iid = ++self->seq;
 
 		if ((ctx->wbuf = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 			SvREFCNT_inc(ctx->cb = cb);
 			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
@@ -687,7 +684,7 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		uint32_t iid = ++self->seq;
 
 		if ((ctx->wbuf = pkt_eval(ctx, iid, self->spaces, expression, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 			SvREFCNT_inc(ctx->cb = cb);
 			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
@@ -716,7 +713,7 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		uint32_t iid = ++self->seq;
 
 		if ((ctx->wbuf = pkt_call(ctx, iid, self->spaces, function_name, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 			SvREFCNT_inc(ctx->cb = cb);
 			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
