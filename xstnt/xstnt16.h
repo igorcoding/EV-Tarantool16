@@ -113,6 +113,15 @@ typedef enum {
 	OP_UPD_UNKNOWN
 } update_op_type_t;
 
+typedef enum {
+	FMT_UNKNOWN = 0,
+	FMT_NUM,
+	FMT_STR,
+	FMT_NUMBER,
+	FMT_INT,
+	_FMT_SIZE
+} TNT_FORMAT_TYPE;
+
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
 
@@ -261,61 +270,62 @@ static void destroy_spaces(HV *spaces) {
 				} \
 	} STMT_END
 
-#define dExtractFormat2(fvar,src) STMT_START {                  \
-			if ( SvOK(src) && SvPOK(src) ) {                 \
-				fvar.f = SvPVbyte(src, fvar.size);               \
-				CHECK_PACK_FORMAT( fvar.f );                         \
-			}                                                        \
-			else if (!SvOK( src )) {}                            \
-			else {                                                   \
-				croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
-			}                                                        \
-	} STMT_END
+#define dExtractFormat2(fvar,src) STMT_START {										\
+		if ( SvOK(src) && SvPOK(src) ) {											\
+			fvar.f = SvPVbyte(src, fvar.size);										\
+			CHECK_PACK_FORMAT( fvar.f );											\
+		}																			\
+		else if (!SvOK( src )) {}													\
+		else {																		\
+			croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
+		}																			\
+} STMT_END
 
 
 
-#define dExtractFormatCopy(fvar,src) STMT_START {                  \
-			if ( SvOK(src) && SvPOK(src) ) {                 \
-				(fvar)->f = SvPVbyte(src, (fvar)->size);               \
-				CHECK_PACK_FORMAT( (fvar)->f );                         \
-				(fvar)->f = safecpy((fvar)->f,(fvar)->size); \
-				(fvar)->nofree = 0; \
-			}                                                        \
-			else if (!SvOK( src )) {}                            \
-			else {                                                   \
-				croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
-			}                                                        \
-	} STMT_END
+#define dExtractFormatCopy(fvar,src) STMT_START {									\
+		if ( SvOK(src) && SvPOK(src) ) {											\
+			(fvar)->f = SvPVbyte(src, (fvar)->size);								\
+			CHECK_PACK_FORMAT( (fvar)->f );											\
+			(fvar)->f = safecpy((fvar)->f,(fvar)->size); 							\
+			(fvar)->nofree = 0;														\
+		}																			\
+		else if (!SvOK( src )) {}													\
+		else {																		\
+			croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
+		}																			\
+} STMT_END
 
-#define evt_opt_out(opt,ctx,spc) STMT_START { \
-	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) { \
-		dExtractFormatCopy( &ctx->f, *key ); \
-	}\
-	else\
-	if (spc) {\
-		memcpy(&ctx->f,&spc->f,sizeof(unpack_format));\
-	}\
-	else\
-	{\
-		ctx->f.size = 0;\
-	}\
+#define evt_opt_out(opt,ctx,spc) STMT_START { 				\
+	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) { 	\
+		dExtractFormatCopy( &ctx->f, *key ); 				\
+	}														\
+	else													\
+	if (spc) {												\
+		memcpy(&ctx->f,&spc->f,sizeof(unpack_format));		\
+	}														\
+	else													\
+	{														\
+		ctx->f.size = 0;									\
+	}														\
 } STMT_END
 
 #define evt_opt_in(opt,ctx,idx) STMT_START { \
-	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) { \
-		dExtractFormat2( format, *key ); \
-		fmt = &format; \
-	} \
-	else \
-	if (idx) { \
-		fmt = &idx->f; \
-	} \
-	else \
-	{ \
-		fmt = &format; \
-	} \
+	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) { 	\
+		dExtractFormat2( format, *key ); 					\
+		fmt = &format; 										\
+	} 														\
+	else 													\
+	if (idx) { 												\
+		fmt = &idx->f; 										\
+	} 														\
+	else 													\
+	{ 														\
+		fmt = &format; 										\
+	} 														\
 } STMT_END
 
+// TOOD: add type deduction to here as well
 #define field_size_sv_fmt( s, format )                                     \
 	STMT_START {                                                           \
 		switch( format ) {                                                 \
@@ -331,7 +341,7 @@ static void destroy_spaces(HV *spaces) {
 			case 'p': case 'u':                                            \
 				s = 5; break;                                              \
 			default:                                                       \
-				croak_cb(cb,"Unsupported format: %c", format);             \
+				s = 5; break;											\
 		}                                                                  \
 	} STMT_END
 
@@ -353,12 +363,12 @@ static void destroy_spaces(HV *spaces) {
 				fmt_is_num = 0;												\
 				break;	 													\
 			default:														\
-				croak_cb(cb,"Unsupported format: %c", format);				\
+				break;\
 		}																	\
 		if (fmt_is_num == 0 && SvPOK(src)) {								\
 			dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src));		\
 		}																	\
-		else if (fmt_is_num == 1 && (SvIOK(src) || SvPOK(src))) {			\
+		else if ((SvIOK(src) || SvPOK(src))) {								\
 			if (SvUOK(src)) {												\
 				dest = mp_encode_uint(dest, SvUV(src));						\
 			} else {														\
@@ -369,7 +379,7 @@ static void destroy_spaces(HV *spaces) {
 					dest = mp_encode_int(dest, num);						\
 				}															\
 			}																\
-		} else {															\
+		} else if (fmt_is_num == -1) {										\
 			croak_cb(cb,"Unsupported type: %d", SvTYPE(src));				\
 		}																	\
 	} STMT_END

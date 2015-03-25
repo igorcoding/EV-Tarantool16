@@ -61,47 +61,46 @@ EV::loop;
 
 ok $connected > 0, "Connection is ok";
 
-# subtest 'Ping tests', sub {
-# 	$c->ping(sub {
-# 		my $a = @_[0];
-# 		is $a->{code}, 0;
-# 		EV::unloop;
-# 	});
-# 	EV::loop;
-# };
+subtest 'Ping tests', sub {
+	$c->ping(sub {
+		my $a = @_[0];
+		is $a->{code}, 0;
+		EV::unloop;
+	});
+	EV::loop;
+};
 
-# subtest 'Eval tests', sub {
-# 	$c->eval("return {'hey'}", [], sub {
-# 		my $a = @_[0];
-# 		cmp_deeply $a, {
-# 			count => 1,
-# 			tuples => [ ['hey'] ],
-# 			status => 'ok',
-# 			code => 0,
-# 			sync => ignore()
-# 		};
-# 		EV::unloop;
-# 	});
-# 	EV::loop;
-# };
+subtest 'Eval tests', sub {
+	$c->eval("return {'hey'}", [], sub {
+		my $a = @_[0];
+		cmp_deeply $a, {
+			count => 1,
+			tuples => [ ['hey'] ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		};
+		EV::unloop;
+	});
+	EV::loop;
+};
 
-# subtest 'Call tests', sub {
-# 	$c->call('string_function', [], sub {
-# 		my $a = @_[0];
-# 		cmp_deeply $a, {
-# 			count => 1,
-# 			tuples => [ ['hello world'] ],
-# 			status => 'ok',
-# 			code => 0,
-# 			sync => ignore()
-# 		};
-# 		EV::unloop;
-# 	});
-# 	EV::loop;
-# };
+subtest 'Call tests', sub {
+	$c->call('string_function', [], sub {
+		my $a = @_[0];
+		cmp_deeply $a, {
+			count => 1,
+			tuples => [ ['hello world'] ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		};
+		EV::unloop;
+	});
+	EV::loop;
+};
 
 subtest 'Select tests', sub {
-	is 1,1;
 	$c->select('tester', [], { hash => 0 }, sub {
 		my $a = @_[0];
 		# diag Dumper $a;
@@ -264,9 +263,7 @@ subtest 'Update tests', sub {
 		count => 1,
 		tuples => [
 		            {
-						'' => [
-						              'heyo'
-						            ],
+						'' => [ 'heyo' ],
 						_t1 => 't1',
 						_t2 => 't2',
 						_t3 => 1,
