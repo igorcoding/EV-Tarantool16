@@ -282,30 +282,25 @@ subtest 'Update tests', sub {
 			_t1 => 't1',
 			_t2 => 't2',
 			_t3 => 1
-		}, [
-			{
-				op => '+',
-				field_no => 3,
-				argument => 50
-			}
-		],  { hash => 1 }, sub {
+		}, [ [3 => '+', 50] ],  { hash => 1 }, sub {
 		my $a = @_[0];
-		cmp_deeply($a, $expected);
 
-		$c->update('tester', {
-				_t1 => 't1',
-				_t2 => 't2',
-				_t3 => 1
-			}, [
-				{
-					op => '+',
-					field_no => 3,
-					argument => -50
-				}
-			],  { hash => 1 }, sub {
-			my $a = \@_;
+		if ($a) {
+			cmp_deeply($a, $expected);
+
+			$c->update('tester', {
+					_t1 => 't1',
+					_t2 => 't2',
+					_t3 => 1
+				}, [ [3 => '+', -50] ],  { hash => 1 }, sub {
+				my $a = @_[0];
+				is $a->{tuples}[0]->{_t4}, $expected->{tuples}[0]->{_t4} - 50;
+				EV::unloop;
+			});
+		} else {
+			diag Dumper \@_;
 			EV::unloop;
-		});
+		}
 	});
 	EV::loop;
 };
