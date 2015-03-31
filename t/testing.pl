@@ -14,6 +14,16 @@ use Errno;
 use Scalar::Util 'weaken';
 # use AE;
 
+my %test_exec = (
+	ping => 1,
+	eval => 1,
+	call => 1,
+	select => 1,
+	insert => 1,
+	delete => 1,
+	update => 1
+);
+
 # my $tnt = tnt_run();
 my $cfs = 0;
 my $connected;
@@ -62,8 +72,10 @@ EV::loop;
 ok $connected > 0, "Connection is ok";
 
 subtest 'Ping tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{ping};
 	$c->ping(sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 		is $a->{code}, 0;
 		EV::unloop;
 	});
@@ -71,8 +83,10 @@ subtest 'Ping tests', sub {
 };
 
 subtest 'Eval tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{eval};
 	$c->eval("return {'hey'}", [], sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 		cmp_deeply $a, {
 			count => 1,
 			tuples => [ ['hey'] ],
@@ -86,8 +100,10 @@ subtest 'Eval tests', sub {
 };
 
 subtest 'Call tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{call};
 	$c->call('string_function', [], sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 		cmp_deeply $a, {
 			count => 1,
 			tuples => [ ['hello world'] ],
@@ -101,9 +117,10 @@ subtest 'Call tests', sub {
 };
 
 subtest 'Select tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{select};
 	$c->select('tester', [], { hash => 0 }, sub {
 		my $a = @_[0];
-		# diag Dumper $a;
+		diag Dumper @_ if !$a;
 		cmp_deeply $a, {
 			count => 4,
 			tuples => [
@@ -151,6 +168,7 @@ subtest 'Select tests', sub {
 			_t2 => "t2"
 		}, { hash => 1, iterator => 'LE' }, sub {
 			my $a = @_[0];
+			diag Dumper @_ if !$a;
 			cmp_deeply $a, {
 				count => 3,
 				tuples => [
@@ -198,26 +216,24 @@ subtest 'Select tests', sub {
 
 
 subtest 'Insert tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{insert};
 	my $expected = {
 		count => 1,
 		tuples => [
-		            {
-		              _t4 => -42,
-		              _t1 => 't1',
-		              _t2 => 't2',
-		              _t3 => 5
-		            }
+					['t1', 't2', '18446744073709551615', -100]
 		          ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
 	};
-	$c->insert('tester', ["t1", "t2", 5, -42], { replace => 0 }, sub {
+	$c->insert('tester', ["t1", "t2", '18446744073709551615', '-100'], { replace => 0, hash => 0 }, sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 		cmp_deeply $a, $expected;
 
-		$c->delete('tester', ["t1", "t2", 5], { index => 2 }, sub {
+		$c->delete('tester', ["t1", "t2", 18446744073709551615], { index => 2, hash => 0 }, sub {
 			my $a = @_[0];
+			diag Dumper @_ if !$a;
 			cmp_deeply $a, $expected;
 			EV::unloop;
 		});
@@ -228,6 +244,7 @@ subtest 'Insert tests', sub {
 
 
 subtest 'Delete tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{delete};
 	my $expected = {
 		count => 1,
 		tuples => [
@@ -244,10 +261,12 @@ subtest 'Delete tests', sub {
 
 	$c->delete('tester', ['tt1', 'tt2', 456], sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 		cmp_deeply $a, $expected;
 
 		$c->insert('tester', ['tt1', 'tt2', 456], sub {
 			my $a = @_[0];
+			diag Dumper @_ if !$a;
 			cmp_deeply $a, $expected;
 			EV::unloop;
 		});
@@ -258,6 +277,7 @@ subtest 'Delete tests', sub {
 };
 
 subtest 'Update tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{update};
 
 	my $expected = {
 		count => 1,
@@ -281,6 +301,7 @@ subtest 'Update tests', sub {
 			_t3 => 1
 		}, [ [3 => '+', 50] ],  { hash => 1 }, sub {
 		my $a = @_[0];
+		diag Dumper @_ if !$a;
 
 		if ($a) {
 			cmp_deeply($a, $expected);
@@ -291,6 +312,7 @@ subtest 'Update tests', sub {
 					_t3 => 1
 				}, [ [3 => '+', -50] ],  { hash => 1 }, sub {
 				my $a = @_[0];
+				diag Dumper @_ if !$a;
 				is $a->{tuples}[0]->{_t4}, $expected->{tuples}[0]->{_t4} - 50;
 				EV::unloop;
 			});

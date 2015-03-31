@@ -118,8 +118,7 @@ typedef enum {
 	FMT_NUM,
 	FMT_STR,
 	FMT_NUMBER,
-	FMT_INT,
-	_FMT_SIZE
+	FMT_INT
 } TNT_FORMAT_TYPE;
 
 static HV *types_boolean_stash;
@@ -151,7 +150,7 @@ static SV *types_true, *types_false;
 		}\
 	} STMT_END
 
-#define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def  = 'p'
+#define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def = FMT_UNKNOWN
 
 static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 	if (SvIOK( *key )) {
@@ -194,8 +193,8 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 			memset(spc,0,sizeof(TntSpace));
 
 			spc->id = ns;
-			spc->name = newSVpvf( "%u",ns );
-			spc->f.def = 'p';
+			spc->name = newSVpvf("%u", ns);
+			spc->f.def = FMT_UNKNOWN;
 
 			(void)hv_store( spaces, (char *)&ns,sizeof(U32),spcf,0 );
 			(void)hv_store( spaces, SvPV_nolen(spc->name),SvLEN(spc->name),SvREFCNT_inc(spcf),0 );
@@ -329,19 +328,14 @@ static void destroy_spaces(HV *spaces) {
 #define field_size_sv_fmt( s, format )                                     \
 	STMT_START {                                                           \
 		switch( format ) {                                                 \
-			case 'l':                                                      \
-			case 'L':                                                      \
-			case 'i':                                                      \
-			case 'I':                                                      \
-			case 's':                                                      \
-			case 'S':                                                      \
-			case 'c':                                                      \
-			case 'C':                                                      \
+			case FMT_NUM:                                                      \
+			case FMT_NUMBER:                                                      \
+			case FMT_INT:                                                      \
 				s = 9; break;                                              \
-			case 'p': case 'u':                                            \
+			case FMT_STR:                                            \
 				s = 5; break;                                              \
 			default:                                                       \
-				s = 5; break;											\
+				s = 0; break;											\
 		}                                                                  \
 	} STMT_END
 
@@ -367,7 +361,9 @@ static void destroy_spaces(HV *spaces) {
 		}																	\
 		if (fmt_is_num == 0 && SvPOK(src)) {								\
 			dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src));		\
-		}																	\
+		} else if (SvNOK(src)) {\
+			dest = mp_encode_double(dest, SvNVX(src));\
+		}\
 		else if ((SvIOK(src) || SvPOK(src))) {								\
 			if (SvUOK(src)) {												\
 				dest = mp_encode_uint(dest, SvUV(src));						\
@@ -383,6 +379,138 @@ static void destroy_spaces(HV *spaces) {
 			croak_cb(cb,"Unsupported type: %d", SvTYPE(src));				\
 		}																	\
 	} STMT_END
+
+
+static char *encode_obj(SV *src, char *dest, char fmt) {
+	// cwarn("%d", fmt);
+	if (fmt == FMT_STR) {
+
+		if (SvPOK(src)) {
+			return mp_encode_str(dest, SvPV_nolen(src), SvCUR(src));
+		} else {
+			STRLEN str_len = 0;
+			char *str = SvPV(src, str_len);
+			return mp_encode_str(dest, str, str_len);
+		}
+
+	} else if (fmt == FMT_NUMBER || fmt == FMT_NUM || fmt == FMT_INT)  {
+
+		if (fmt == FMT_NUMBER) {
+			if (SvNOK(src)) {
+				dest = mp_encode_double(dest, SvNVX(src));
+				return dest;
+			}
+		}
+
+		if (SvIOK(src)) {
+			if (SvUOK(src)) {
+				dest = mp_encode_uint(dest, SvUVX(src));
+				return dest;
+			} else {
+				IV num = SvIVX(src);
+				if (num >= 0) {
+					dest = mp_encode_uint(dest, num);
+					return dest;
+				} else {
+					dest = mp_encode_int(dest, num);
+					return dest;
+				}
+			}
+		} else if (SvPOK(src)) {
+			if (fmt == FMT_NUMBER) {
+				dest = mp_encode_double(dest, SvNV(src));
+				return dest;
+			} else {
+				NV num = SvNV(src);
+				if (SvUOK(src)) {
+					dest = mp_encode_uint(dest, SvUV(src));
+					return dest;
+				} else {
+					if (num >= 0) {
+						dest = mp_encode_uint(dest, SvIV(src));
+						return dest;
+					} else {
+						dest = mp_encode_int(dest, SvIV(src));
+						return dest;
+					}
+				}
+			}
+		}
+
+	} else if (fmt == FMT_UNKNOWN) {
+
+		SV *actual_src = NULL;
+		if (SvROK(src)) {
+			actual_src = SvRV(src);
+		} else {
+			actual_src = src;
+		}
+
+		/*if (SvTYPE(actual_src) == SVt_NULL) {
+
+			return mp_encode_nil(dest);
+
+		} else*/ if (SvTYPE(actual_src) == SVt_PVAV) {  // array
+
+			AV *arr = (AV *) actual_src;
+			uint32_t arr_size = av_len(arr) + 1;
+			uint32_t i = 0;
+
+			dest = mp_encode_array(dest, arr_size);
+
+			SV **elem;
+			for (i = 0; i < arr_size; ++i) {
+				elem = av_fetch(arr, i, 0);
+				if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {
+					dest = encode_obj(*elem, dest, FMT_UNKNOWN);
+				} else {
+					// TODO: should we encode MP_NIL or not?
+				}
+			}
+			return dest;
+
+		} else if (SvTYPE(actual_src) == SVt_PVHV) {  // hash
+
+			HV *hv = (HV *) actual_src;
+			HE *he;
+
+			uint32_t keys_size = hv_iterinit(hv);
+			dest = mp_encode_map(dest, keys_size);
+			STRLEN nlen;
+			while ((he = hv_iternext(hv))) {
+				char *name = HePV(he, nlen);
+
+				dest = mp_encode_str(dest, name, nlen);
+				dest = encode_obj(HeVAL(he), dest, FMT_UNKNOWN);
+			}
+			return dest;
+
+		} else if (SvPOK(actual_src)) {  // string
+			return mp_encode_str(dest, SvPV_nolen(actual_src), SvCUR(actual_src));
+
+		} else if (SvNOK(actual_src)) {  // double
+			return mp_encode_double(dest, SvNVX(actual_src));
+
+		} else if (SvUOK(actual_src)) {  // uint
+			return mp_encode_uint(dest, SvUVX(actual_src));
+
+		} else if (SvIOK(actual_src)) {  // int or uint
+			IV num = SvIVX(src);
+			if (num >= 0) {
+				return mp_encode_uint(dest, num);
+			} else {
+				return mp_encode_int(dest, num);
+			}
+		} else {
+			croak("What the heck is that?");
+		}
+
+	} else {
+		croak("Not implemented");
+	}
+
+	return dest;
+}
 
 
 static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
@@ -464,11 +592,11 @@ static inline void write_length(char *h, uint32_t size) {
 	for (k = 0; k < keys_size; k++) {									\
 		key = av_fetch( fields, k, 0 );									\
 		if (key && *key && SvOK(*key) && sv_len(*key)) {				\
-			int _fmt = k < fmt->size ? fmt->f[k] : fmt->def;			\
+			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def;			\
 			field_size_sv_fmt(field_max_size, _fmt);					\
 			sz += field_max_size - EST_FIELD_SIZE;						\
 			sv_size_check(rv, h, sz);									\
-			field_sv_fmt( h, *key, _fmt);								\
+			h = encode_obj(*key, h, _fmt);									\
 		} else {														\
 			cwarn("something is going wrong");							\
 		}																\
@@ -1386,11 +1514,11 @@ static SV* data_parser(const char **p) {
 
 	switch (mp_typeof(**p)) {
 	case MP_UINT: {
-		uint32_t value = mp_decode_uint(p);
+		uint64_t value = mp_decode_uint(p);
 		return (SV *) newSVuv(value);
 	}
 	case MP_INT: {
-		int32_t value = mp_decode_int(p);
+		int64_t value = mp_decode_int(p);
 		return (SV *) newSViv(value);
 	}
 	case MP_STR: {
@@ -1441,7 +1569,7 @@ static SV* data_parser(const char **p) {
 				break;
 			}
 			case MP_UINT: {
-				uint32_t value = mp_decode_uint(p);
+				uint64_t value = mp_decode_uint(p);
 				SV *s = newSVuv(value);
 				STRLEN l;
 
@@ -1450,7 +1578,7 @@ static SV* data_parser(const char **p) {
 				break;
 			}
 			case MP_INT: {
-				int32_t value = mp_decode_int(p);
+				int64_t value = mp_decode_int(p);
 				SV *s = newSViv(value);
 				STRLEN l;
 
@@ -1632,7 +1760,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 			spc->fields  = newAV();
 
 			spc->f.nofree = 1;
-			spc->f.def = '*';
+			spc->f.def = FMT_UNKNOWN;
 
 			++k; if (k <= tuple_size) spc->owner = data_parser(&p);
 			++k; if (k <= tuple_size) spc->name = data_parser(&p);
@@ -1671,16 +1799,23 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 						if (str_len == 4 && strncasecmp(str, "type", 4) == 0) {
 							str = mp_decode_str(&p, &str_len); // getting the type itself
 
-							if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
-								spc->f.f[ix] = 'p';
+							if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
+								spc->f.f[ix] = FMT_NUM;
 							}
 							else
-							if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
-								spc->f.f[ix] = 'L';
+							if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
+								spc->f.f[ix] = FMT_STR;
+							}
+							else
+							if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
+								spc->f.f[ix] = FMT_NUMBER;
+							}
+							if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
+								spc->f.f[ix] = FMT_INT;
 							}
 							else
 							if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
-								spc->f.f[ix] = '*';
+								spc->f.f[ix] = FMT_UNKNOWN;
 							}
 						}
 					}
@@ -1774,7 +1909,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 				idx->f.size = parts_count;
 				idx->f.f = safemalloc(idx->f.size+1);
 				idx->f.f[idx->f.size] = 0;
-				idx->f.def = '*';
+				idx->f.def = FMT_UNKNOWN;
 				idx->fields = newAV();
 				av_extend(idx->fields, parts_count);
 
@@ -1787,16 +1922,23 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 					ix = mp_decode_uint(&p);
 					str = mp_decode_str(&p, &str_len);
 
-					if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
-						idx->f.f[part_i] = 'p';
+					if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
+						idx->f.f[part_i] = FMT_NUM;
 					}
 					else
-					if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
-						idx->f.f[part_i] = 'L';
+					if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
+						idx->f.f[part_i] = FMT_STR;
+					}
+					else
+					if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
+						idx->f.f[part_i] = FMT_NUMBER;
+					}
+					if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
+						idx->f.f[part_i] = FMT_INT;
 					}
 					else
 					if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
-						idx->f.f[part_i] = '*';
+						idx->f.f[part_i] = FMT_UNKNOWN;
 					}
 
 					SV **f = av_fetch(spc->fields, ix, 0);
