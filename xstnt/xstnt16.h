@@ -114,11 +114,11 @@ typedef enum {
 } update_op_type_t;
 
 typedef enum {
-	FMT_UNKNOWN = 0,
-	FMT_NUM,
-	FMT_STR,
-	FMT_NUMBER,
-	FMT_INT
+	FMT_UNKNOWN = '*',
+	FMT_NUM = 'n',
+	FMT_STR = 's',
+	FMT_NUMBER = 'b',
+	FMT_INT = 'i'
 } TNT_FORMAT_TYPE;
 
 static HV *types_boolean_stash;
@@ -338,48 +338,6 @@ static void destroy_spaces(HV *spaces) {
 				s = 0; break;											\
 		}                                                                  \
 	} STMT_END
-
-#define field_sv_fmt( dest, src, format )									\
-	STMT_START {															\
-		char fmt_is_num = -1;												\
-		switch( format ) {													\
-			case 'l':														\
-			case 'i':														\
-			case 's':														\
-			case 'c':														\
-			case 'L':														\
-			case 'I':														\
-			case 'S':														\
-			case 'C':														\
-				fmt_is_num = 1;												\
-				break;														\
-			case 'p': case 'u':												\
-				fmt_is_num = 0;												\
-				break;	 													\
-			default:														\
-				break;\
-		}																	\
-		if (fmt_is_num == 0 && SvPOK(src)) {								\
-			dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src));		\
-		} else if (SvNOK(src)) {\
-			dest = mp_encode_double(dest, SvNVX(src));\
-		}\
-		else if ((SvIOK(src) || SvPOK(src))) {								\
-			if (SvUOK(src)) {												\
-				dest = mp_encode_uint(dest, SvUV(src));						\
-			} else {														\
-				IV num = SvIV(src);											\
-				if (num >= 0) {												\
-					dest = mp_encode_uint(dest, num);						\
-				} else {													\
-					dest = mp_encode_int(dest, num);						\
-				}															\
-			}																\
-		} else if (fmt_is_num == -1) {										\
-			croak_cb(cb,"Unsupported type: %d", SvTYPE(src));				\
-		}																	\
-	} STMT_END
-
 
 static char *encode_obj(SV *src, char *dest, char fmt) {
 	// cwarn("%d", fmt);
@@ -656,39 +614,6 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 }
 
 
-// static inline encode_obj(char *dest, SV *src, format, cb) {
-// 	switch( format ) {
-// 			case 'l': dest = mp_encode_int  ( dest, (U64) SvIV( src ) );  break;
-// 			case 'L': dest = mp_encode_uint ( dest, (U64) SvUV( src ) );  break;
-// 			case 'i': dest = mp_encode_int  ( dest, (U32) SvIV( src ) );  break;
-// 			case 'I': dest = mp_encode_uint ( dest, (U32) SvUV( src ) );  break;
-// 			case 's': dest = mp_encode_int  ( dest, (U16) SvIV( src ) );  break;
-// 			case 'S': dest = mp_encode_uint ( dest, (U16) SvUV( src ) );  break;
-// 			case 'c': dest = mp_encode_int  ( dest, (U8)  SvIV( src ) );  break;
-// 			case 'C': dest = mp_encode_uint ( dest, (U8)  SvUV( src ) );  break;
-// 			case 'p': case 'u':
-// 				dest = mp_encode_str(dest, SvPV_nolen(src), sv_len(src)); break;
-// 			case 'a': {
-// 				if (SvTYPE(SvRV(src)) != SVt_PVAV) {
-// 					croak_cb(cb, "Incosistent type. Expected ARRAYREF");
-// 				}
-// 				AV *arr = (AV *) src;
-// 				uint32_t arr_size = av_len(arr) + 1;
-// 				uint32_t i = 0;
-
-// 				for (i = 0; i < arr_size; ++i) {
-// 					encode_obj(dest, av_fetch(i), )
-// 				}
-
-
-// 				break;
-// 			}
-// 			default:
-// 				croak_cb(cb,"Unsupported format: %c", format);
-// 		}
-// }
-
-
 static inline SV * pkt_ping(uint32_t iid) {
 	int sz = HEADER_CONST_LEN;
 
@@ -936,7 +861,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 		uint32_t field_no;
 
 		key = av_fetch(operation, 0, 0);
-		char field_format = 'l';
+		char field_format = FMT_UNKNOWN;
 		if (SvIOK(*key) && SvIVX(*key) >= 0) {
 			field_no = SvUV(*key);
 			if (spc && field_no < spc->f.size) {
@@ -961,9 +886,9 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 
 			case OP_UPD_ARITHMETIC:
 			case OP_UPD_DELETE: {
-				int32_t argument = 0;
-				if ((key = av_fetch(operation, 2, 0)) && *key && SvIOK(*key)) {
-					argument = SvIV(*key);
+				SV *argument = 0;
+				if ((key = av_fetch(operation, 2, 0)) && *key && SvOK(*key)) {
+					argument = *key;
 				} else {
 					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
 				}
@@ -981,7 +906,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
-				field_sv_fmt(h, *key, field_format);
+				h = encode_obj(argument, h, field_format);
 
 				break;
 			}
@@ -1007,6 +932,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
+				h = encode_obj(argument, h, field_format);
 				// h = mp_encode_uint(h, argument); // TODO
 
 				break;
@@ -1772,7 +1698,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 				uint32_t str_len = 0;
 				uint32_t format_arr_size = mp_decode_array(&p);
 
-				spc->f.size = format_arr_size + 1;
+				spc->f.size = format_arr_size;
 				spc->f.f = safemalloc(spc->f.size + 1);
 				spc->f.f[spc->f.size] = 0;
 
@@ -1907,7 +1833,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 
 				idx->f.nofree = 1;
 				idx->f.size = parts_count;
-				idx->f.f = safemalloc(idx->f.size+1);
+				idx->f.f = safemalloc(idx->f.size + 1);
 				idx->f.f[idx->f.size] = 0;
 				idx->f.def = FMT_UNKNOWN;
 				idx->fields = newAV();

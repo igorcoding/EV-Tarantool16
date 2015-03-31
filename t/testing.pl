@@ -220,13 +220,13 @@ subtest 'Insert tests', sub {
 	my $expected = {
 		count => 1,
 		tuples => [
-					['t1', 't2', '18446744073709551615', -100]
+					['t1', 't2', '18446744073709551615', -100, 'hello there']
 		          ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
 	};
-	$c->insert('tester', ["t1", "t2", '18446744073709551615', '-100'], { replace => 0, hash => 0 }, sub {
+	$c->insert('tester', ["t1", "t2", '18446744073709551615', '-100', 'hello there'], { replace => 0, hash => 0 }, sub {
 		my $a = @_[0];
 		diag Dumper @_ if !$a;
 		cmp_deeply $a, $expected;
