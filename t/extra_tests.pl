@@ -90,7 +90,7 @@ ok $connected > 0, "Connection is ok";
 
 # });
 
-$c->eval("return {arg}", [120, 1, 22], sub {
+$c->eval("return box.space.tester:insert{...}", ["t1", "t2", 17, -745, "heyo"], sub {
 	my $a = @_[0];
 	say Dumper \@_;
 
