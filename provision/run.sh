@@ -30,7 +30,7 @@ if [ ${TRAVIS} == true ]; then
 	cpanm AnyEvent
 	cpanm Test::Deep
 
-	cp provision/init.lua /etc/tarantool/instances.enabled/
+	sudo cp provision/init.lua /etc/tarantool/instances.enabled/
 	sudo tarantoolctl start provision/init.lua
 else
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
@@ -40,7 +40,7 @@ else
 	sudo cpanm AnyEvent
 	sudo cpanm Test::Deep
 
-	cp ${HOME}/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
+	sudo cp ${HOME}/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
 	sudo tarantoolctl start ${HOME}/EV-Tarantool1.6/provision/init.lua
 fi
 
