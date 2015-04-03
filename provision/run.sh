@@ -24,6 +24,7 @@ cd -
 curl -L https://cpanmin.us | sudo perl - App::cpanminus
 sudo cpanm Types::Serialiser
 sudo cpanm EV
+sudo cpanm EV::MakeMaker
 sudo cpanm AnyEvent
 sudo cpanm Test::Deep
 
@@ -37,3 +38,4 @@ else
 fi
 
 sudo service tarantool restart
+tarantool --version
