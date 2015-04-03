@@ -1,8 +1,6 @@
 box.cfg{
 	listen = 3301,
-	log_level = 5,
-	work_dir = '/home/vagrant/tnt',
-
+	log_level = 5
 }
 
 s = box.space.tester
