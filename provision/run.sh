@@ -21,20 +21,21 @@ sudo make install
 
 cd -
 
-curl -L https://cpanmin.us | sudo perl - App::cpanminus
-sudo cpanm Types::Serialiser
-sudo cpanm EV
-sudo cpanm EV::MakeMaker
-sudo cpanm AnyEvent
-sudo cpanm Test::Deep
-
 if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"
+	curl -L https://cpanmin.us | sudo perl - App::cpanminus
+	cpanm Types::Serialiser
+	cpanm EV
+	cpanm EV::MakeMaker
+	cpanm AnyEvent
+	cpanm Test::Deep
 else
-    sudo apt-get install -y \
-        build-essential \
-        libcurl4-openssl-dev \
-        tarantool
+    curl -L https://cpanmin.us | sudo perl - App::cpanminus
+	sudo cpanm Types::Serialiser
+	sudo cpanm EV
+	sudo cpanm EV::MakeMaker
+	sudo cpanm AnyEvent
+	sudo cpanm Test::Deep
 fi
 
 sudo service tarantool restart
