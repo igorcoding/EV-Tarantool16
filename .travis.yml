@@ -6,3 +6,4 @@ install:
   - provision/run.sh
 notifications:
   email: false
+sudo: required
