@@ -339,63 +339,99 @@ static void destroy_spaces(HV *spaces) {
 		}                                                                  \
 	} STMT_END
 
-static char *encode_obj(SV *src, char *dest, char fmt) {
-	// cwarn("%d", fmt);
+static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
+	// cwarn("fmt = %d", fmt);
+
+	SvGETMAGIC(src);
+
 	if (fmt == FMT_STR) {
 
+		STRLEN str_len = 0;
+		char *str = NULL;
+
 		if (SvPOK(src)) {
-			return mp_encode_str(dest, SvPV_nolen(src), SvCUR(src));
+			str_len = SvCUR(src);
+			str = SvPV_nolen(src);
 		} else {
-			STRLEN str_len = 0;
-			char *str = SvPV(src, str_len);
-			return mp_encode_str(dest, str, str_len);
+			str_len = 0;
+			str = SvPV(src, str_len);
 		}
+
+		*sz += mp_sizeof_str(SvCUR(src));
+		sv_size_check(rv, dest, *sz);
+		return mp_encode_str(dest, str, str_len);
 
 	} else if (fmt == FMT_NUMBER || fmt == FMT_NUM || fmt == FMT_INT)  {
 
 		if (fmt == FMT_NUMBER) {
 			if (SvNOK(src)) {
-				dest = mp_encode_double(dest, SvNVX(src));
+				double v = SvNVX(src);
+				*sz += mp_sizeof_double(v);
+				sv_size_check(rv, dest, *sz);
+				dest = mp_encode_double(dest, v);
 				return dest;
 			}
 		}
 
 		if (SvIOK(src)) {
 			if (SvUOK(src)) {
-				dest = mp_encode_uint(dest, SvUVX(src));
+				uint64_t v = SvUVX(src);
+				*sz += mp_sizeof_double(v);
+				sv_size_check(rv, dest, *sz);
+				dest = mp_encode_uint(dest, v);
 				return dest;
 			} else {
 				IV num = SvIVX(src);
 				if (num >= 0) {
+					*sz += mp_sizeof_uint(num);
+					sv_size_check(rv, dest, *sz);
 					dest = mp_encode_uint(dest, num);
 					return dest;
 				} else {
+					*sz += mp_sizeof_int(num);
+					sv_size_check(rv, dest, *sz);
 					dest = mp_encode_int(dest, num);
 					return dest;
 				}
 			}
 		} else if (SvPOK(src)) {
 			if (fmt == FMT_NUMBER) {
-				dest = mp_encode_double(dest, SvNV(src));
+				double v = SvNV(src);
+				*sz += mp_sizeof_double(v);
+				sv_size_check(rv, dest, *sz);
+				dest = mp_encode_double(dest, v);
 				return dest;
 			} else {
 				NV num = SvNV(src);
 				if (SvUOK(src)) {
-					dest = mp_encode_uint(dest, SvUV(src));
+					uint64_t v = SvUV(src);
+					*sz += mp_sizeof_uint(v);
+					sv_size_check(rv, dest, *sz);
+					dest = mp_encode_uint(dest, v);
 					return dest;
 				} else {
 					if (num >= 0) {
-						dest = mp_encode_uint(dest, SvIV(src));
+						uint64_t v = SvIV(src);
+						*sz += mp_sizeof_uint(v);
+						sv_size_check(rv, dest, *sz);
+						dest = mp_encode_uint(dest, v);
 						return dest;
 					} else {
-						dest = mp_encode_int(dest, SvIV(src));
+						int64_t v = SvIV(src);
+						*sz += mp_sizeof_uint(v);
+						sv_size_check(rv, dest, *sz);
+						dest = mp_encode_int(dest, v);
 						return dest;
 					}
 				}
 			}
+		} else {
+			croak("Incompatible types. Format expects: %c", fmt);
 		}
 
 	} else if (fmt == FMT_UNKNOWN) {
+
+		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
 
 		SV *actual_src = NULL;
 		if (SvROK(src)) {
@@ -404,63 +440,91 @@ static char *encode_obj(SV *src, char *dest, char fmt) {
 			actual_src = src;
 		}
 
-		/*if (SvTYPE(actual_src) == SVt_NULL) {
+		HV *stash = SvSTASH(actual_src);
 
-			return mp_encode_nil(dest);
-
-		} else*/ if (SvTYPE(actual_src) == SVt_PVAV) {  // array
-
-			AV *arr = (AV *) actual_src;
-			uint32_t arr_size = av_len(arr) + 1;
-			uint32_t i = 0;
-
-			dest = mp_encode_array(dest, arr_size);
-
-			SV **elem;
-			for (i = 0; i < arr_size; ++i) {
-				elem = av_fetch(arr, i, 0);
-				if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {
-					dest = encode_obj(*elem, dest, FMT_UNKNOWN);
-				} else {
-					// TODO: should we encode MP_NIL or not?
-				}
-			}
-			return dest;
-
-		} else if (SvTYPE(actual_src) == SVt_PVHV) {  // hash
-
-			HV *hv = (HV *) actual_src;
-			HE *he;
-
-			uint32_t keys_size = hv_iterinit(hv);
-			dest = mp_encode_map(dest, keys_size);
-			STRLEN nlen;
-			while ((he = hv_iternext(hv))) {
-				char *name = HePV(he, nlen);
-
-				dest = mp_encode_str(dest, name, nlen);
-				dest = encode_obj(HeVAL(he), dest, FMT_UNKNOWN);
-			}
-			return dest;
-
-		} else if (SvPOK(actual_src)) {  // string
-			return mp_encode_str(dest, SvPV_nolen(actual_src), SvCUR(actual_src));
-
-		} else if (SvNOK(actual_src)) {  // double
-			return mp_encode_double(dest, SvNVX(actual_src));
-
-		} else if (SvUOK(actual_src)) {  // uint
-			return mp_encode_uint(dest, SvUVX(actual_src));
-
-		} else if (SvIOK(actual_src)) {  // int or uint
-			IV num = SvIVX(src);
-			if (num >= 0) {
-				return mp_encode_uint(dest, num);
-			} else {
-				return mp_encode_int(dest, num);
-			}
+		if (stash == boolean_stash) {
+			bool v = (bool) SvIV(actual_src);
+			*sz += 1; // mp_sizeof_bool(v);
+			dest = mp_encode_bool(dest, v);
 		} else {
-			croak("What the heck is that?");
+
+			/*if (SvTYPE(actual_src) == SVt_NULL) {
+
+				return mp_encode_nil(dest);
+
+			} else*/ if (SvTYPE(actual_src) == SVt_PVAV) {  // array
+
+				AV *arr = (AV *) actual_src;
+				uint32_t arr_size = av_len(arr) + 1;
+				uint32_t i = 0;
+
+				*sz += mp_sizeof_array(arr_size);
+				sv_size_check(rv, dest, *sz);
+				dest = mp_encode_array(dest, arr_size);
+
+				SV **elem;
+				for (i = 0; i < arr_size; ++i) {
+					elem = av_fetch(arr, i, 0);
+					if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {
+						dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN);
+					} else {
+						// TODO: should we encode MP_NIL or not?
+					}
+				}
+				return dest;
+
+			} else if (SvTYPE(actual_src) == SVt_PVHV) {  // hash
+
+				HV *hv = (HV *) actual_src;
+				HE *he;
+
+				uint32_t keys_size = hv_iterinit(hv);
+
+				*sz += mp_sizeof_map(keys_size);
+				sv_size_check(rv, dest, *sz);
+				dest = mp_encode_map(dest, keys_size);
+				STRLEN nlen;
+				while ((he = hv_iternext(hv))) {
+					char *name = HePV(he, nlen);
+
+					*sz += mp_sizeof_str(nlen);
+					sv_size_check(rv, dest, *sz);
+					dest = mp_encode_str(dest, name, nlen);
+					dest = encode_obj(HeVAL(he), dest, rv, sz, FMT_UNKNOWN);
+				}
+				return dest;
+
+			} else if (SvNOK(actual_src)) {  // double
+				double v = SvNVX(actual_src);
+				*sz += mp_sizeof_double(v);
+				sv_size_check(rv, dest, *sz);
+				return mp_encode_double(dest, v);
+
+			} else if (SvUOK(actual_src)) {  // uint
+				uint64_t v = SvUVX(actual_src);
+				*sz += mp_sizeof_uint(v);
+				sv_size_check(rv, dest, *sz);
+				return mp_encode_uint(dest, v);
+
+			} else if (SvIOK(actual_src)) {  // int or uint
+				IV num = SvIVX(src);
+				if (num >= 0) {
+					*sz += mp_sizeof_uint(num);
+					sv_size_check(rv, dest, *sz);
+					return mp_encode_uint(dest, num);
+				} else {
+					*sz += mp_sizeof_int(num);
+					sv_size_check(rv, dest, *sz);
+					return mp_encode_int(dest, num);
+				}
+			} else if (SvPOK(actual_src)) {  // string
+				*sz += mp_sizeof_str(SvCUR(actual_src));
+				sv_size_check(rv, dest, *sz);
+				return mp_encode_str(dest, SvPV_nolen(actual_src), SvCUR(actual_src));
+
+			} else {
+				croak("What the heck is that?");
+			}
 		}
 
 	} else {
@@ -538,7 +602,6 @@ static inline void write_length(char *h, uint32_t size) {
 	SvPOK_on(NAME);														\
 																		\
 	char *P_NAME = (char *) SvPVX(NAME);								\
-	write_length(P_NAME, (sz)-5);										\
 	P_NAME = mp_encode_map(P_NAME + 5, 2);								\
 	P_NAME = mp_encode_uint(P_NAME, TP_CODE);							\
 	P_NAME = mp_encode_uint(P_NAME, (tp_operation));					\
@@ -551,10 +614,7 @@ static inline void write_length(char *h, uint32_t size) {
 		key = av_fetch( fields, k, 0 );									\
 		if (key && *key && SvOK(*key) && sv_len(*key)) {				\
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def;			\
-			field_size_sv_fmt(field_max_size, _fmt);					\
-			sz += field_max_size - EST_FIELD_SIZE;						\
-			sv_size_check(rv, h, sz);									\
-			h = encode_obj(*key, h, _fmt);									\
+			h = encode_obj(*key, h, rv, &sz, _fmt);						\
 		} else {														\
 			cwarn("something is going wrong");							\
 		}																\
@@ -615,11 +675,14 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 
 
 static inline SV * pkt_ping(uint32_t iid) {
-	int sz = HEADER_CONST_LEN;
+	size_t sz = HEADER_CONST_LEN;
 
 	create_buffer(rv, h, sz, TP_PING, iid);
-	SvCUR_set(rv, sz);
-	return rv;
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+	return SvREFCNT_inc(rv);
 }
 
 static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
@@ -673,7 +736,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	uint32_t keys_size = 0;
 
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_SPACE) +
 		mp_sizeof_uint(spc->id) +
@@ -718,7 +781,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	sz += keys_size * EST_FIELD_SIZE;
+	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_SELECT, iid);
 
@@ -785,7 +848,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	evt_opt_in( opt, ctx, spc );
 
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		1 + // mp_sizeof_map(2) +
 		1 + // mp_sizeof_uint(TP_SPACE) +
 		mp_sizeof_uint(spc->id) +
@@ -805,7 +868,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	uint32_t cardinality = av_len(fields) + 1;
 
 	sz += mp_sizeof_array(cardinality);
-	sz += cardinality * EST_FIELD_SIZE;
+	// sz += cardinality * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, op_code, iid);
 	h = mp_encode_map(h, 2);
@@ -823,7 +886,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 
-static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, uint32_t sz, SV *rv, char *h, SV *cb) {
+static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, size_t sz, SV *rv, char *h, SV *cb) {
 	SV **key;
 
 	if (unlikely( !tuple || !SvROK(tuple) || (SvTYPE(SvRV(tuple)) != SVt_PVAV))) {
@@ -906,7 +969,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
-				h = encode_obj(argument, h, field_format);
+				h = encode_obj(argument, h, rv, &sz, field_format);
 
 				break;
 			}
@@ -932,7 +995,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
-				h = encode_obj(argument, h, field_format);
+				h = encode_obj(argument, h, rv, &sz, field_format);
 				// h = mp_encode_uint(h, argument); // TODO
 
 				break;
@@ -1038,7 +1101,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	uint32_t keys_size = 0;
 
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_SPACE) +
 		mp_sizeof_uint(spc->id);
@@ -1071,7 +1134,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	sz += keys_size * EST_FIELD_SIZE;
+	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_UPDATE, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1142,7 +1205,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	uint32_t keys_size = 0;
 
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_SPACE) +
 		mp_sizeof_uint(spc->id);
@@ -1173,7 +1236,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	sz += keys_size * EST_FIELD_SIZE;
+	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_DELETE, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1241,7 +1304,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	uint32_t expression_size = SvCUR(expression);
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_EXPRESSION) +
 		mp_sizeof_str(expression_size) +
@@ -1268,7 +1331,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	sz += keys_size * EST_FIELD_SIZE;
+	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_EVAL, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1331,7 +1394,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	uint32_t function_name_size = SvCUR(function_name);
 
-	int sz = HEADER_CONST_LEN +
+	size_t sz = HEADER_CONST_LEN +
 		mp_sizeof_map(body_map_sz) +
 		mp_sizeof_uint(TP_FUNCTION) +
 		mp_sizeof_str(function_name_size) +
@@ -1358,7 +1421,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	sz += keys_size * EST_FIELD_SIZE;
+	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_CALL, iid);
 	h = mp_encode_map(h, body_map_sz);

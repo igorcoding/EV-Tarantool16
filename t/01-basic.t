@@ -12,6 +12,7 @@ use Time::HiRes 'sleep','time';
 use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
+use Renewer;
 # use AE;
 
 my %test_exec = (
@@ -69,9 +70,15 @@ my $t; $t = EV::timer 1.0, 0, sub {
 };
 EV::loop;
 
+Renewer::renew_tnt($c, sub {
+	EV::unloop;
+});
+EV::loop;
+
 ok $connected > 0, "Connection is ok";
 
 subtest 'Ping tests', sub {
+	diag '==== Ping tests ===';
 	plan( skip_all => 'skip') if !$test_exec{ping};
 	$c->ping(sub {
 		my $a = @_[0];
@@ -83,6 +90,7 @@ subtest 'Ping tests', sub {
 };
 
 subtest 'Eval tests', sub {
+	diag '==== Eval tests ===';
 	plan( skip_all => 'skip') if !$test_exec{eval};
 	$c->eval("return {'hey'}", [], sub {
 		my $a = @_[0];
@@ -100,6 +108,7 @@ subtest 'Eval tests', sub {
 };
 
 subtest 'Call tests', sub {
+	diag '==== Call tests ===';
 	plan( skip_all => 'skip') if !$test_exec{call};
 	$c->call('string_function', [], sub {
 		my $a = @_[0];
@@ -117,6 +126,7 @@ subtest 'Call tests', sub {
 };
 
 subtest 'Select tests', sub {
+	diag '==== Select tests ===';
 	plan( skip_all => 'skip') if !$test_exec{select};
 	$c->select('tester', [], { hash => 0 }, sub {
 		my $a = @_[0];
@@ -124,14 +134,7 @@ subtest 'Select tests', sub {
 		cmp_deeply $a, {
 			count => 4,
 			tuples => [
-			              [
-			                't1',
-			                't2',
-			                1,
-			                -745,
-			                'heyo'
-			              ],
-			              [
+						  [
 			                't1',
 			                't2',
 			                2,
@@ -147,6 +150,13 @@ subtest 'Select tests', sub {
 			                  key2 => 42,
 			                  key1 => 'value1'
 			                }
+			              ],
+			              [
+			                't1',
+			                't2',
+			                17,
+			                -745,
+			                'heyo'
 			              ],
 			              [
 			                'tt1',
@@ -172,6 +182,15 @@ subtest 'Select tests', sub {
 			cmp_deeply $a, {
 				count => 3,
 				tuples => [
+							{
+				              '' => [
+				                      'heyo'
+				                    ],
+				              _t4 => -745,
+				              _t1 => 't1',
+				              _t2 => 't2',
+				              _t3 => 17
+				            },
 				            {
 				              _t4 => {
 				                         35 => Types::Serialiser::false,
@@ -195,15 +214,7 @@ subtest 'Select tests', sub {
 				              _t2 => 't2',
 				              _t3 => 2
 				            },
-				            {
-				              '' => [
-				                      'heyo'
-				                    ],
-				              _t4 => -745,
-				              _t1 => 't1',
-				              _t2 => 't2',
-				              _t3 => 1
-				            }
+
 				          ],
 				status => 'ok',
 				code => 0,
@@ -216,25 +227,23 @@ subtest 'Select tests', sub {
 
 
 subtest 'Insert tests', sub {
+	diag '==== Insert tests ===';
 	plan( skip_all => 'skip') if !$test_exec{insert};
 	my $expected = {
 		count => 1,
 		tuples => [
-					['t1', 't2', '18446744073709551615', -100, 'hello there']
+					['t1', 't2', 101, -100, { a => 11, b => 12, c => 13 }]
 		          ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
 	};
-	$c->insert('tester', ["t1", "t2", '18446744073709551615', '-100', 'hello there'], { replace => 0, hash => 0 }, sub {
+	$c->insert('tester', ["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { replace => 0, hash => 0 }, sub {
 		my $a = @_[0];
 		diag Dumper @_ if !$a;
 		cmp_deeply $a, $expected;
 
-		$c->delete('tester', ["t1", "t2", 18446744073709551615], { index => 2, hash => 0 }, sub {
-			my $a = @_[0];
-			diag Dumper @_ if !$a;
-			cmp_deeply $a, $expected;
+		Renewer::renew_tnt($c, sub {
 			EV::unloop;
 		});
 	});
@@ -244,6 +253,7 @@ subtest 'Insert tests', sub {
 
 
 subtest 'Delete tests', sub {
+	diag '==== Delete tests ===';
 	plan( skip_all => 'skip') if !$test_exec{delete};
 	my $expected = {
 		count => 1,
@@ -264,10 +274,7 @@ subtest 'Delete tests', sub {
 		diag Dumper @_ if !$a;
 		cmp_deeply $a, $expected;
 
-		$c->insert('tester', ['tt1', 'tt2', 456], sub {
-			my $a = @_[0];
-			diag Dumper @_ if !$a;
-			cmp_deeply $a, $expected;
+		Renewer::renew_tnt($c, sub {
 			EV::unloop;
 		});
 	});
@@ -277,6 +284,7 @@ subtest 'Delete tests', sub {
 };
 
 subtest 'Update tests', sub {
+	diag '==== Update tests ===';
 	plan( skip_all => 'skip') if !$test_exec{update};
 
 	my $expected = {
@@ -286,7 +294,7 @@ subtest 'Update tests', sub {
 						'' => [ 'heyo' ],
 						_t1 => 't1',
 						_t2 => 't2',
-						_t3 => 1,
+						_t3 => 17,
 						_t4 => -695,
 		            }
 		          ],
@@ -298,7 +306,7 @@ subtest 'Update tests', sub {
 	$c->update('tester', {
 			_t1 => 't1',
 			_t2 => 't2',
-			_t3 => 1
+			_t3 => 17
 		}, [ [3 => '+', 50] ],  { hash => 1 }, sub {
 		my $a = @_[0];
 		diag Dumper @_ if !$a;
@@ -306,14 +314,44 @@ subtest 'Update tests', sub {
 		if ($a) {
 			cmp_deeply($a, $expected);
 
-			$c->update('tester', {
-					_t1 => 't1',
-					_t2 => 't2',
-					_t3 => 1
-				}, [ [3 => '+', -50] ],  { hash => 1 }, sub {
-				my $a = @_[0];
-				diag Dumper @_ if !$a;
-				is $a->{tuples}[0]->{_t4}, $expected->{tuples}[0]->{_t4} - 50;
+			Renewer::renew_tnt($c, sub {
+				EV::unloop;
+			});
+		} else {
+			diag Dumper \@_;
+			EV::unloop;
+		}
+	});
+	EV::loop;
+
+	$expected = {
+		count => 1,
+		tuples => [
+		            {
+						'' => [ 'heyo' ],
+						_t1 => 't1',
+						_t2 => 't2',
+						_t3 => 17,
+						_t4 => 12,
+		            }
+		          ],
+		status => 'ok',
+		code => 0,
+		sync => ignore()
+	};
+
+	$c->update('tester', {
+			_t1 => 't1',
+			_t2 => 't2',
+			_t3 => 17
+		}, [ [3 => '=', 12] ],  { hash => 1 }, sub {
+		my $a = @_[0];
+		diag Dumper @_ if !$a;
+
+		if ($a) {
+			cmp_deeply($a, $expected);
+
+			Renewer::renew_tnt($c, sub {
 				EV::unloop;
 			});
 		} else {
