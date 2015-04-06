@@ -255,7 +255,7 @@ static void destroy_spaces(HV *spaces) {
 				char *p = src;                                                  \
 				while(*p) {                                                     \
 					switch(*p) {                                                \
-						case FMT_UNKNOWN                                        \
+						case FMT_UNKNOWN:                                       \
 						case FMT_NUM:                                           \
 						case FMT_STR:                                           \
 						case FMT_NUMBER:                                        \
