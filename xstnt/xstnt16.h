@@ -432,11 +432,12 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 			dest = mp_encode_bool(dest, v);
 		} else {
 
-			/*if (SvTYPE(actual_src) == SVt_NULL) {
-
+			if (SvTYPE(actual_src) == SVt_NULL) {
+				*sz += 1; //mp_sizeof_nil();
+				sv_size_check(rv, dest, *sz);
 				return mp_encode_nil(dest);
 
-			} else*/ if (SvTYPE(actual_src) == SVt_PVAV) {  // array
+			} else if (SvTYPE(actual_src) == SVt_PVAV) {  // array
 
 				AV *arr = (AV *) actual_src;
 				uint32_t arr_size = av_len(arr) + 1;
@@ -452,7 +453,9 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 					if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {
 						dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN);
 					} else {
-						// TODO: should we encode MP_NIL or not?
+						*sz += 1; //mp_sizeof_nil();
+						sv_size_check(rv, dest, *sz);
+						dest = mp_encode_nil(dest);
 					}
 				}
 				return dest;

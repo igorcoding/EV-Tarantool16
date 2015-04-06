@@ -448,6 +448,8 @@ static void on_disconnect (TntCnn * self, int err) {
 		free_reqs(self, SvPVX(msg));
 	}
 
+	self->cnn.on_read = (c_cb_read_t) on_greet_read;
+
 	FREETMPS;LEAVE;
 }
 

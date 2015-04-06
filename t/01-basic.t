@@ -287,21 +287,6 @@ subtest 'Update tests', sub {
 	diag '==== Update tests ===';
 	plan( skip_all => 'skip') if !$test_exec{update};
 
-	my $expected = {
-		count => 1,
-		tuples => [
-					{
-						'' => [ 'heyo' ],
-						_t1 => 't1',
-						_t2 => 't2',
-						_t3 => 17,
-						_t4 => -695,
-					}
-				  ],
-		status => 'ok',
-		code => 0,
-		sync => ignore()
-	};
 
 	$c->update('tester', {
 			_t1 => 't1',
@@ -312,7 +297,21 @@ subtest 'Update tests', sub {
 		diag Dumper @_ if !$a;
 
 		if ($a) {
-			cmp_deeply($a, $expected);
+			cmp_deeply($a, {
+				count => 1,
+				tuples => [
+							{
+								'' => [ 'heyo' ],
+								_t1 => 't1',
+								_t2 => 't2',
+								_t3 => 17,
+								_t4 => -695,
+							}
+						  ],
+				status => 'ok',
+				code => 0,
+				sync => ignore()
+			});
 
 			Renewer::renew_tnt($c, sub {
 				EV::unloop;
@@ -323,22 +322,6 @@ subtest 'Update tests', sub {
 		}
 	});
 	EV::loop;
-
-	$expected = {
-		count => 1,
-		tuples => [
-					{
-						'' => [ 'heyo' ],
-						_t1 => 't1',
-						_t2 => 't2',
-						_t3 => 17,
-						_t4 => 12,
-					}
-				  ],
-		status => 'ok',
-		code => 0,
-		sync => ignore()
-	};
 
 	$c->update('tester', {
 			_t1 => 't1',
@@ -349,7 +332,21 @@ subtest 'Update tests', sub {
 		diag Dumper @_ if !$a;
 
 		if ($a) {
-			cmp_deeply($a, $expected);
+			cmp_deeply($a, {
+				count => 1,
+				tuples => [
+							{
+								'' => [ 'heyo' ],
+								_t1 => 't1',
+								_t2 => 't2',
+								_t3 => 17,
+								_t4 => 12,
+							}
+						  ],
+				status => 'ok',
+				code => 0,
+				sync => ignore()
+			});
 
 			Renewer::renew_tnt($c, sub {
 				EV::unloop;
@@ -360,6 +357,77 @@ subtest 'Update tests', sub {
 		}
 	});
 	EV::loop;
+
+	$c->update('tester', {
+			_t1 => 't1',
+			_t2 => 't2',
+			_t3 => 17
+		}, [ [4 => '!', {a => 1, b => 2, c => 3}] ],  { hash => 1 }, sub {
+		my $a = @_[0];
+		diag Dumper @_ if !$a;
+
+		if ($a) {
+			cmp_deeply($a, {
+				count => 1,
+				tuples => [
+							{
+								'' => [ {a => 1, b => 2, c => 3}, 'heyo' ],
+								_t1 => 't1',
+								_t2 => 't2',
+								_t3 => 17,
+								_t4 => -745,
+							}
+						  ],
+				status => 'ok',
+				code => 0,
+				sync => ignore()
+			});
+
+			Renewer::renew_tnt($c, sub {
+				EV::unloop;
+			});
+		} else {
+			diag Dumper \@_;
+			EV::unloop;
+		}
+	});
+	EV::loop;
+
+	$c->update('tester', {
+			_t1 => 't1',
+			_t2 => 't2',
+			_t3 => 17
+		}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }, sub {
+		my $a = @_[0];
+		diag Dumper @_ if !$a;
+
+		if ($a) {
+			cmp_deeply($a, {
+				count => 1,
+				tuples => [
+							{
+								'' => [ 'romyo' ],
+								_t1 => 't1',
+								_t2 => 't2',
+								_t3 => 17,
+								_t4 => -745,
+							}
+						  ],
+				status => 'ok',
+				code => 0,
+				sync => ignore()
+			});
+
+			Renewer::renew_tnt($c, sub {
+				EV::unloop;
+			});
+		} else {
+			diag Dumper \@_;
+			EV::unloop;
+		}
+	});
+	EV::loop;
+
 };
 
 done_testing()
