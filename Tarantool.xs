@@ -467,7 +467,7 @@ void DESTROY(SV *this)
 	PPCODE:
 		cwarn("DESTROY %p -> %p (%d)",this,SvRV(this),SvREFCNT( SvRV(this) ));
 
-MODULE = EV::Tarantool		PACKAGE = EV::Tarantool
+MODULE = EV::Tarantool      PACKAGE = EV::Tarantool
 PROTOTYPES: DISABLE
 BOOT:
 {
@@ -476,8 +476,8 @@ BOOT:
 
 	types_boolean_stash = gv_stashpv("Types::Serialiser::Boolean", 1);
 
-    types_true  = get_bool("Types::Serialiser::true");
-    types_false = get_bool("Types::Serialiser::false");
+	types_true  = get_bool("Types::Serialiser::true");
+	types_false = get_bool("Types::Serialiser::false");
 }
 
 

@@ -135,35 +135,35 @@ subtest 'Select tests', sub {
 			count => 4,
 			tuples => [
 						  [
-			                't1',
-			                't2',
-			                2,
-			                [ 1, 2, 3, 'str1', 4 ]
-			              ],
-			              [
-			                't1',
-			                't2',
-			                3,
-			                {
-			                  35 => Types::Serialiser::false,
-			                  33 => Types::Serialiser::true,
-			                  key2 => 42,
-			                  key1 => 'value1'
-			                }
-			              ],
-			              [
-			                't1',
-			                't2',
-			                17,
-			                -745,
-			                'heyo'
-			              ],
-			              [
-			                'tt1',
-			                'tt2',
-			                456
-			              ]
-			            ],
+							't1',
+							't2',
+							2,
+							[ 1, 2, 3, 'str1', 4 ]
+						  ],
+						  [
+							't1',
+							't2',
+							3,
+							{
+							  35 => Types::Serialiser::false,
+							  33 => Types::Serialiser::true,
+							  key2 => 42,
+							  key1 => 'value1'
+							}
+						  ],
+						  [
+							't1',
+							't2',
+							17,
+							-745,
+							'heyo'
+						  ],
+						  [
+							'tt1',
+							'tt2',
+							456
+						  ]
+						],
 			status => 'ok',
 			code => 0,
 			sync => ignore()
@@ -183,39 +183,39 @@ subtest 'Select tests', sub {
 				count => 3,
 				tuples => [
 							{
-				              '' => [
-				                      'heyo'
-				                    ],
-				              _t4 => -745,
-				              _t1 => 't1',
-				              _t2 => 't2',
-				              _t3 => 17
-				            },
-				            {
-				              _t4 => {
-				                         35 => Types::Serialiser::false,
-				                         33 => Types::Serialiser::true,
-				                         key2 => 42,
-				                         key1 => 'value1'
-				                       },
-				              _t1 => 't1',
-				              _t2 => 't2',
-				              _t3 => 3
-				            },
-				            {
-				              _t4 => [
-				                         1,
-				                         2,
-				                         3,
-				                         'str1',
-				                         4
-				                       ],
-				              _t1 => 't1',
-				              _t2 => 't2',
-				              _t3 => 2
-				            },
+							  '' => [
+									  'heyo'
+									],
+							  _t4 => -745,
+							  _t1 => 't1',
+							  _t2 => 't2',
+							  _t3 => 17
+							},
+							{
+							  _t4 => {
+										 35 => Types::Serialiser::false,
+										 33 => Types::Serialiser::true,
+										 key2 => 42,
+										 key1 => 'value1'
+									   },
+							  _t1 => 't1',
+							  _t2 => 't2',
+							  _t3 => 3
+							},
+							{
+							  _t4 => [
+										 1,
+										 2,
+										 3,
+										 'str1',
+										 4
+									   ],
+							  _t1 => 't1',
+							  _t2 => 't2',
+							  _t3 => 2
+							},
 
-				          ],
+						  ],
 				status => 'ok',
 				code => 0,
 				sync => ignore()
@@ -233,7 +233,7 @@ subtest 'Insert tests', sub {
 		count => 1,
 		tuples => [
 					['t1', 't2', 101, -100, { a => 11, b => 12, c => 13 }]
-		          ],
+				  ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
@@ -258,12 +258,12 @@ subtest 'Delete tests', sub {
 	my $expected = {
 		count => 1,
 		tuples => [
-		            {
-		              _t1 => 'tt1',
-		              _t2 => 'tt2',
-		              _t3 => 456
-		            }
-		          ],
+					{
+					  _t1 => 'tt1',
+					  _t2 => 'tt2',
+					  _t3 => 456
+					}
+				  ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
@@ -290,14 +290,14 @@ subtest 'Update tests', sub {
 	my $expected = {
 		count => 1,
 		tuples => [
-		            {
+					{
 						'' => [ 'heyo' ],
 						_t1 => 't1',
 						_t2 => 't2',
 						_t3 => 17,
 						_t4 => -695,
-		            }
-		          ],
+					}
+				  ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
@@ -327,14 +327,14 @@ subtest 'Update tests', sub {
 	$expected = {
 		count => 1,
 		tuples => [
-		            {
+					{
 						'' => [ 'heyo' ],
 						_t1 => 't1',
 						_t2 => 't2',
 						_t3 => 17,
 						_t4 => 12,
-		            }
-		          ],
+					}
+				  ],
 		status => 'ok',
 		code => 0,
 		sync => ignore()
