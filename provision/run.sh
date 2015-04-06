@@ -29,9 +29,8 @@ if [ ${TRAVIS} == true ]; then
 	cpanm EV::MakeMaker
 	cpanm AnyEvent
 	cpanm Test::Deep
-	echo ${HOME}
-	ls -la ${HOME}
-	sudo ln -s ${HOME}/provision/init.lua /etc/tarantool/instances.enabled/
+	ls -la ${HOME}/build
+	sudo ln -s ${HOME}/build/igorcoding/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
 else
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
 	sudo cpanm Types::Serialiser
