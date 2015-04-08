@@ -661,7 +661,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 					  + mp_sizeof_uint(field_no)
 					  + mp_sizeof_uint(position)
 					  + mp_sizeof_uint(offset)
-					  + mp_sizeof_str(SvCUR(argument));
+					  ;
 
 				sv_size_check(rv, h, sz);
 
@@ -670,7 +670,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_uint(h, field_no);
 				h = mp_encode_uint(h, position);
 				h = mp_encode_uint(h, offset);
-				h = mp_encode_str(h, SvPV_nolen(argument), SvCUR(argument)); // TODO: change, probably, to encode_obj
+				h = encode_obj(argument, h, rv, &sz, FMT_STR);
 
 				break;
 			}

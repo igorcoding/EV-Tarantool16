@@ -503,9 +503,9 @@ void new(SV *pk, HV *conf)
 
 		self->spaces = newHV();
 
-		if ((key = hv_fetchs(conf, "spaces", 0)) && SvROK(*key)) {
+		// if ((key = hv_fetchs(conf, "spaces", 0)) && SvROK(*key)) {
 			// configure_spaces( self->spaces, *key );
-		}
+		// }
 		XSRETURN(1);
 
 
