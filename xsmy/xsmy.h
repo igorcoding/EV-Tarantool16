@@ -44,7 +44,7 @@ typedef uint64_t U64;
 #endif
 
 void * safecpy(const void *src,register size_t len) {
-	char *new = safemalloc(len);
+	char *new = safemalloc(len+1);
 	memcpy(new,src,len+1);
 	new[len]=0;
 	return new;
