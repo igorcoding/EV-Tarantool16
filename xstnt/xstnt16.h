@@ -1468,7 +1468,7 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 	}
 	SV *id_sv = newSVuv(*id);
 
-	cwarn("code: %d; sync: %d", code, (uint32_t) SvUV(id_sv));
+	// cwarn("code: %d; sync: %d", code, (uint32_t) SvUV(id_sv));
 
 	(void) hv_stores(ret, "code", newSVuv(code));
 	(void) hv_stores(ret, "sync", id_sv);
@@ -1598,7 +1598,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
-		cwarn("tuples count = %d", cont_size);
+		// cwarn("tuples count = %d", cont_size);
 
 		AV *tuples = newAV();
 		av_extend(tuples, cont_size);
@@ -1680,7 +1680,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
-		cwarn("tuples count = %d", cont_size);
+		// cwarn("tuples count = %d", cont_size);
 
 		HV *data = newHV();
 
@@ -1832,7 +1832,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
-		cwarn("tuples count = %d", cont_size);
+		// cwarn("tuples count = %d", cont_size);
 
 		// HV *data = newHV();
 

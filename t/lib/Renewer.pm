@@ -18,7 +18,7 @@ my @data = (
 	["t1", "t2", 17, -745, "heyo"],
 	["t1", "t2", 2, [1, 2, 3, "str1", 4]],
 	["t1", "t2", 3, {key1 => 'value1', key2 => 42, 33 => Types::Serialiser::true, 35 => Types::Serialiser::false}],
-	["tt1", "tt2", 456]
+	["tt1", "tt2", 456, 5]
 );
 
 sub insertion {
