@@ -13,7 +13,7 @@ use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
 use Renewer;
-use Devel::Leak;
+# use Devel::Leak;
 # use AE;
 
 my %test_exec = (
