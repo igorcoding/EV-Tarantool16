@@ -13,6 +13,7 @@ use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
 use Renewer;
+use Devel::Leak;
 # use AE;
 
 my %test_exec = (
@@ -22,8 +23,38 @@ my %test_exec = (
 	select => 1,
 	insert => 1,
 	delete => 1,
-	update => 1
+	update => 1,
+	memtest => 1
 );
+
+sub meminfo () {
+	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
+	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
+	my %s;
+	@s{qw(ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice threads itrealvalue starttime vsize rss rsslim )} = split /\s+/,substr($stat,pos($stat));
+	$s{rss} *= 4096;
+	return (@s{qw(rss vsize)});
+}
+
+sub memcheck ($$$$) {
+	my ($n,$obj,$method,$args) = @_;
+	my ($rss1,$vsz1) = meminfo();
+	my $cnt = 0;
+	my $start = time;
+	my $do;$do = sub {
+		#warn "[$cnt/$n] call $method(@$args): @_";
+		return EV::unloop if ++$cnt >= $n;
+		$obj->$method(@$args,$do);
+	};$do->();
+	EV::loop;
+	my ($rss2,$vsz2) = meminfo();
+	my $run = time - $start;
+	warn sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
+	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
+		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
+	}
+	is 1, 1;
+}
 
 # my $tnt = tnt_run();
 my $cfs = 0;
@@ -78,8 +109,8 @@ EV::loop;
 ok $connected > 0, "Connection is ok";
 
 subtest 'Ping tests', sub {
-	diag '==== Ping tests ===';
 	plan( skip_all => 'skip') if !$test_exec{ping};
+	diag '==== Ping tests ===';
 	$c->ping(sub {
 		my $a = @_[0];
 		diag Dumper \@_ if !$a;
@@ -90,8 +121,8 @@ subtest 'Ping tests', sub {
 };
 
 subtest 'Eval tests', sub {
-	diag '==== Eval tests ===';
 	plan( skip_all => 'skip') if !$test_exec{eval};
+	diag '==== Eval tests ====';
 	$c->eval("return {'hey'}", [], sub {
 		my $a = @_[0];
 		diag Dumper \@_ if !$a;
@@ -108,8 +139,8 @@ subtest 'Eval tests', sub {
 };
 
 subtest 'Call tests', sub {
-	diag '==== Call tests ===';
 	plan( skip_all => 'skip') if !$test_exec{call};
+	diag '==== Call tests ====';
 	$c->call('string_function', [], sub {
 		my $a = @_[0];
 		diag Dumper \@_ if !$a;
@@ -126,8 +157,8 @@ subtest 'Call tests', sub {
 };
 
 subtest 'Select tests', sub {
-	diag '==== Select tests ===';
 	plan( skip_all => 'skip') if !$test_exec{select};
+	diag '==== Select tests ====';
 
 
 	my $_plan = [
@@ -187,8 +218,8 @@ subtest 'Select tests', sub {
 
 
 subtest 'Insert tests', sub {
-	diag '==== Insert tests ===';
 	plan( skip_all => 'skip') if !$test_exec{insert};
+	diag '==== Insert tests ====';
 
 	my $_plan = [
 		[["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { replace => 0, hash => 0 }, {
@@ -227,8 +258,9 @@ subtest 'Insert tests', sub {
 
 
 subtest 'Delete tests', sub {
-	diag '==== Delete tests ===';
 	plan( skip_all => 'skip') if !$test_exec{delete};
+	diag '==== Delete tests ====';
+
 	my $_plan = [
 		[['tt1', 'tt2', 456], {}, {
 			count => 1,
@@ -263,8 +295,8 @@ subtest 'Delete tests', sub {
 };
 
 subtest 'Update tests', sub {
-	diag '==== Update tests ===';
 	plan( skip_all => 'skip') if !$test_exec{update};
+	diag '==== Update tests ====';
 
 
 	my $_plan = [
@@ -378,6 +410,16 @@ subtest 'Update tests', sub {
 		});
 		EV::loop;
 	}
+};
+
+subtest 'Memory tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{memtest};
+	diag '==== Memory tests ===';
+	memcheck 50000, $c,"ping",[];
+	memcheck 50000, $c,"select",[1,['t1', 't2']];
+	memcheck 50000, $c,"select",['tester',{ _t1 => 't1' }];
+	memcheck 50000, $c,"insert",['tester',{ _t1 => 't1' }, { hash => 1 }];
+	memcheck 50000, $c,"ping",[];
 };
 
 done_testing()

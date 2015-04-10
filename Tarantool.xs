@@ -148,6 +148,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	else {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
+		SvREFCNT_dec(ctx->wbuf);
 	}
 
 	/* body */

@@ -1162,7 +1162,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 					if (k < known_tuple_size && (name = av_fetch(fields, k, 0)) && *name) {
 						(void) hv_store(tuple, SvPV_nolen(*name), sv_len(*name), field_value, 0);
 					} else {
-						cwarn("Field name for field %d is not defined", k);
+						// cwarn("Field name for field %d is not defined", k);
 						if (unknown_fields == NULL) {
 							unknown_fields = newAV();
 						}

@@ -172,15 +172,18 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	} else if (fmt == FMT_UNKNOWN) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
+		HV *stash = NULL;
 
 		SV *actual_src = NULL;
 		if (SvROK(src)) {
 			actual_src = SvRV(src);
+			if (SvOBJECT(actual_src)) {
+				stash = SvSTASH(actual_src);
+			}
 		} else {
 			actual_src = src;
 		}
-
-		HV *stash = SvSTASH(actual_src);
+		// sv_dump(actual_src);
 
 		if (stash == boolean_stash) {
 			bool v = (bool) SvIV(actual_src);
