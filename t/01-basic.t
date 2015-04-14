@@ -43,6 +43,7 @@ sub memcheck ($$$$) {
 	my $start = time;
 	my $do;$do = sub {
 		#warn "[$cnt/$n] call $method(@$args): @_";
+		# diag Dumper \@_;
 		return EV::unloop if ++$cnt >= $n;
 		$obj->$method(@$args,$do);
 	};$do->();
@@ -65,6 +66,10 @@ my $tnt = {
 	port => 3301,
 	host => '127.0.0.1'
 };
+
+
+my $SPACE_NAME = 'tester';
+
 
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
@@ -101,7 +106,7 @@ my $t; $t = EV::timer 1.0, 0, sub {
 };
 EV::loop;
 
-Renewer::renew_tnt($c, sub {
+Renewer::renew_tnt($c, $SPACE_NAME, sub {
 	EV::unloop;
 });
 EV::loop;
@@ -206,7 +211,7 @@ subtest 'Select tests', sub {
 	];
 
 	for my $p (@$_plan) {
-		$c->select('tester', $p->[0], $p->[1], sub {
+		$c->select($SPACE_NAME, $p->[0], $p->[1], sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
@@ -239,15 +244,24 @@ subtest 'Insert tests', sub {
 			status => 'ok',
 			code => 0,
 			sync => ignore()
+		}],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { replace => 0, hash => 0 }, {
+			count => 1,
+			tuples => [
+						['t1', 't2', 18, -100]
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
 		}]
 	];
 	for my $p (@$_plan) {
-		$c->insert('tester', $p->[0], $p->[1], sub {
+		$c->insert($SPACE_NAME, $p->[0], $p->[1], sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 
-			Renewer::renew_tnt($c, sub {
+			Renewer::renew_tnt($c, $SPACE_NAME, sub {
 				EV::unloop;
 			});
 		});
@@ -279,12 +293,12 @@ subtest 'Delete tests', sub {
 	];
 
 	for my $p (@$_plan) {
-		$c->delete('tester', $p->[0], $p->[1], sub {
+		$c->delete($SPACE_NAME, $p->[0], $p->[1], sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 
-			Renewer::renew_tnt($c, sub {
+			Renewer::renew_tnt($c, $SPACE_NAME, sub {
 				EV::unloop;
 			});
 		});
@@ -398,13 +412,13 @@ subtest 'Update tests', sub {
 	];
 
 	for my $p (@$_plan) {
-		$c->update('tester', $p->[0], $p->[1], $p->[2], sub {
+		$c->update($SPACE_NAME, $p->[0], $p->[1], $p->[2], sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 
 			cmp_deeply($a, $p->[3]);
 
-			Renewer::renew_tnt($c, sub {
+			Renewer::renew_tnt($c, $SPACE_NAME,sub {
 				EV::unloop;
 			});
 		});
@@ -415,11 +429,10 @@ subtest 'Update tests', sub {
 subtest 'Memory tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{memtest};
 	diag '==== Memory tests ===';
-	memcheck 50000, $c,"ping",[];
-	memcheck 50000, $c,"select",[1,['t1', 't2']];
-	memcheck 50000, $c,"select",['tester',{ _t1 => 't1' }];
-	memcheck 50000, $c,"insert",['tester',{ _t1 => 't1' }, { hash => 1 }];
-	memcheck 50000, $c,"ping",[];
+	memcheck 50000, $c, "ping",[];
+	memcheck 50000, $c, "select",[1,['t1']];
+	# memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
+	# memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1 }];
 };
 
 done_testing()

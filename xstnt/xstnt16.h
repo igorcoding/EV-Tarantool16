@@ -495,7 +495,8 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+		// cwarn("%d", av_len(idx->fields) + 1);
+		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -1334,6 +1335,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 					fld->format = spc->f.f[ix];
 					fld->name = field_name;
 					(void) hv_store(spc->field, SvPV_nolen(field_name), field_name_len, fldsv, 0);
+					// cwarn("field_name = %.*s", SvCUR(field_name), SvPV_nolen(field_name));
 					av_push(spc->fields, SvREFCNT_inc(field_name));
 				}
 			}
@@ -1451,14 +1453,14 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 					}
 
 					SV **f = av_fetch(spc->fields, ix, 0);
-					if (!f) {
-						// if this field is not in space format information
-						croak("this field is not in space format information");
-					}
-					HE *fhe = hv_fetch_ent(spc->field, *f, 1, 0);
-					if (SvOK( HeVAL(fhe) )) {
-						av_push(idx->fields, SvREFCNT_inc(((TntField *)SvPVX( HeVAL(fhe) ))->name));
-						// idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
+					if (f) {
+						HE *fhe = hv_fetch_ent(spc->field, *f, 1, 0);
+						if (SvOK( HeVAL(fhe) )) {
+							av_push(idx->fields, SvREFCNT_inc(((TntField *)SvPVX( HeVAL(fhe) ))->name));
+							// idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
+						}
+					} else {
+						warn("the field %d of space %.*s is not in space format information", ix, SvCUR(spc->name), SvPV_nolen(spc->name));
 					}
 				}
 

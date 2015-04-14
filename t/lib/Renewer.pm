@@ -14,6 +14,7 @@ use Errno;
 use Scalar::Util 'weaken';
 # use AE;
 
+
 my @data = (
 	["t1", "t2", 17, -745, "heyo"],
 	["t1", "t2", 2, [1, 2, 3, "str1", 4]],
@@ -22,7 +23,7 @@ my @data = (
 );
 
 sub insertion {
-	my ($c, $args, $current, $cb) = @_;
+	my ($c, $space, $args, $current, $cb) = @_;
 
 	if ($current >= scalar(@$args)) {
 	# if ($current >= 1) {
@@ -30,35 +31,35 @@ sub insertion {
 		return;
 	}
 
-	$c->eval('return box.space.tester:insert{...}', $$args[$current], sub {
+	$c->eval("return box.space.$space:insert{...}", $$args[$current], sub {
 		my $a = @_[0];
 		# say Dumper \@_;
-		insertion($c, $args, $current + 1, $cb);
+		insertion($c, $space, $args, $current + 1, $cb);
 	});
 }
 
 sub deletion {
-	my ($c, $args, $current, $cb) = @_;
+	my ($c, $space, $args, $current, $cb) = @_;
 
 	if ($current >= scalar(@$args)) {
 		$cb->();
 		return;
 	}
 
-	$c->delete('tester', [@{@$args[$current]}[0..2]], sub {
+	$c->delete($space, [@{@$args[$current]}[0..2]], sub {
 		my $a = @_[0];
 		# say Dumper \@_;
-		deletion($c, $args, $current + 1, $cb);
+		deletion($c, $space, $args, $current + 1, $cb);
 	});
 }
 
 sub renew_tnt {
-	my ($c, $cb) = @_;
-	$c->select('tester', [], { hash => 0 }, sub {
+	my ($c, $space, $cb) = @_;
+	$c->select($space, [], { hash => 0 }, sub {
 		my $a = @_[0];
 
-		deletion $c, $a->{tuples}, 0, sub {
-			insertion($c, \@data, 0, $cb);
+		deletion $c, $space, $a->{tuples}, 0, sub {
+			insertion($c, $space, \@data, 0, $cb);
 		};
 
 	});
