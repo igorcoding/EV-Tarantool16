@@ -23,7 +23,6 @@ cd -
 
 if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"
-	curl -L https://cpanmin.us | sudo perl - App::cpanminus
 	cpanm Types::Serialiser
 	cpanm EV
 	cpanm EV::MakeMaker
@@ -41,6 +40,26 @@ else
 	sudo cpanm Test::Valgrind
 
 	sudo ln -s ${HOME}/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
+
+	echo 'Build Perl 5.16.3...'
+
+	mkdir -p ${HOME}/perl
+	mkdir -p ${HOME}/perl-src
+
+	cd ${HOME}/perl-src
+
+	wget http://www.cpan.org/src/5.0/perl-5.16.3.tar.gz -O - | tar -xzvf -
+	cd perl-5.16.3/
+	./Configure -des -Dprefix=${HOME}/perl -Duselargefiles -Duse64bitint -DUSEMYMALLOC -DDEBUGGING -DDEBUG_LEAKING_SCALARS -DPERL_MEM_LOG -Dinc_version_list=none -Doptimize="-march=athlon64 -fomit-frame-pointer -pipe -ggdb -g3 -O2" -Dccflags="-DPIC -fPIC -O2 -march=athlon64 -fomit-frame-pointer -pipe -ggdb -g3" -D locincpth="${HOME}/perl/include /usr/local/include" -D loclibpth="${HOME}/perl/lib /usr/local/lib" -D privlib=${HOME}/perl/lib/perl5/5.16.3 -D archlib=${HOME}/perl/lib/perl5/5.16.3 -D sitelib=${HOME}/perl/lib/perl5/5.16.3 -D sitearch=${HOME}/perl/lib/perl5/5.16.3 -Uinstallhtml1dir= -Uinstallhtml3dir= -Uinstallman1dir= -Uinstallman3dir= -Uinstallsitehtml1dir= -Uinstallsitehtml3dir= -Uinstallsiteman1dir= -Uinstallsiteman3dir=
+	make
+	make install
+
+	sudo ${HOME}/perl/bin/perl `which cpanm` Types::Serialiser
+	sudo ${HOME}/perl/bin/perl `which cpanm` EV
+	sudo ${HOME}/perl/bin/perl `which cpanm` EV::MakeMaker
+	sudo ${HOME}/perl/bin/perl `which cpanm` AnyEvent
+	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Deep
+	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Valgrind
 fi
 
 
