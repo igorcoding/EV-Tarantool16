@@ -15,18 +15,9 @@ use Devel::Leak;
 use Devel::Peek;
 # use AE;
 
-my %test_exec = (
-	ping => 1,
-	# eval => 1,
-	# call => 1,
-	# select => 1,
-	# insert => 1,
-	# delete => 1,
-	# update => 1,
-	# memtest => 1
-);
+my $var;
+Devel::Leak::NoteSV($var);
 
-# my $tnt = tnt_run();
 my $cfs = 0;
 my $connected;
 my $disconnected;
@@ -43,21 +34,27 @@ my $c; $c = EV::Tarantool->new({
 	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
-		warn "connected: @_";
-		$connected++;
+		# warn "connected: @_";
+		# $connected++;
+		my $t; $t = EV::timer 1.0, 0, sub {
+			# diag Dumper $c->spaces;
+			EV::unloop;
+			undef $t;
+		};
+		EV::loop;
 		EV::unloop;
 	},
 	connfail => sub {
-		my $err = 0+$!;
-		is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
+		# my $err = 0+$!;
+		# is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
 		# $nc->(@_) if $cfs == 0;
-		$cfs++;
+		# $cfs++;
 		# and
 		EV::unloop;
 	},
 	disconnected => sub {
-		warn "discon: @_ / $!";
-		$disconnected++;
+		# warn "discon: @_ / $!";
+		# $disconnected++;
 		EV::unloop;
 	},
 });
@@ -67,21 +64,14 @@ my $c; $c = EV::Tarantool->new({
 
 # undef $c;
 
-my $var;
-Devel::Leak::NoteSV($var);
 $c->connect;
 EV::loop;
 
 
 
-my $t; $t = EV::timer 1.0, 0, sub {
-	# diag Dumper $c->spaces;
-	EV::unloop;
-	undef $t;
-};
-EV::loop;
 
 undef $c;
+undef $tnt;
 
 Devel::Leak::CheckSV($var);
 

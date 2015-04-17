@@ -35,8 +35,6 @@ typedef struct {
 	SV      *salt;
 } TntCnn;
 
-typedef void (*pre_full_connect_cb_t)(TntCnn *cnn, HV *data);
-
 static const uint32_t _SPACE_SPACEID = 280;
 static const uint32_t _INDEX_SPACEID = 288;
 
@@ -89,7 +87,7 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 	if ((ctx->wbuf = pkt_select(ctx, iid, tnt->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL ))) {
 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
-		SvREFCNT_inc(ctx->cb = NULL);
+		ctx->cb = NULL;
 		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
 
 		++tnt->pending;
@@ -149,6 +147,9 @@ static void on_read(ev_cnn * self, size_t len) {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
 		SvREFCNT_dec(ctx->wbuf);
+		if (ctx->f.size && !ctx->f.nofree) {
+			safefree(ctx->f.f);
+		}
 	}
 
 	/* body */
@@ -254,12 +255,16 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	else {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
+		SvREFCNT_dec(ctx->wbuf);
+		if (ctx->f.size && !ctx->f.nofree) {
+			safefree(ctx->f.f);
+		}
 	}
 	rbuf += length;
 
 	/* body */
 
-	// check that status is ok
+	// TODO: check that status is ok
 
 	length = parse_index_body(tnt->spaces, rbuf, buf_len);
 	// cwarn("body length = %d", length);
@@ -330,6 +335,10 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	else {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
+		SvREFCNT_dec(ctx->wbuf);
+		if (ctx->f.size && !ctx->f.nofree) {
+			safefree(ctx->f.f);
+		}
 	}
 	rbuf += length;
 
@@ -353,7 +362,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		if (tnt->spaces) {
 			destroy_spaces(tnt->spaces);
 		}
-		tnt->spaces = SvREFCNT_inc(SvRV(*spaces_hv_key));
+		tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
 	}
 	self->on_read = (c_cb_read_t) on_index_info_read;
 	_execute_select(tnt, _INDEX_SPACEID);
@@ -383,14 +392,17 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 
 	//TODO: perform authentication here and save salt and server version
 
-	self->ruse -= buf_len;
 	cwarn("on_greet_read:: self->ruse: %d", (int)self->ruse);
 
-	self->on_read = (c_cb_read_t) on_spaces_info_read;
-	// tnt->pre_full_connect_cb = (pre_full_connect_cb_t) &pre_connect_on_spaces_read;
-	//TODO: perform _spaces select
-	_execute_select(tnt, _SPACE_SPACEID);
+	self->ruse -= buf_len;
+	if (self->ruse > 0) {
+		//cwarn("move buf on %zu",self->ruse);
+		memmove(self->rbuf,rbuf,self->ruse);
+	}
 
+	self->on_read = (c_cb_read_t) on_spaces_info_read;
+	_execute_select(tnt, _SPACE_SPACEID);
+	// self->on_read = (c_cb_read_t) on_read;
 
 
 	FREETMPS;
@@ -457,7 +469,7 @@ static void on_disconnect (TntCnn * self, int err) {
 	FREETMPS;LEAVE;
 }
 
-INLINE SV *get_bool (const char *name) {
+INLINE SV *get_bool(const char *name) {
 	SV *sv = get_sv(name, 1);
 
 	SvREADONLY_on(sv);
