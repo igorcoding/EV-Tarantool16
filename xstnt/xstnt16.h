@@ -72,12 +72,7 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 		}
 		else {
 			warn("No space %d config. Creating dummy space",ns);
-			SV *spcf = newSV( sizeof(TntSpace) );
-			SvUPGRADE( spcf, SVt_PV );
-			SvCUR_set(spcf,sizeof(TntSpace));
-			SvPOKp_on(spcf);
-			TntSpace * spc = (TntSpace *) SvPVX(spcf);
-			memset(spc,0,sizeof(TntSpace));
+			dSVX(spcf, spc, TntSpace);
 
 			spc->id = ns;
 			spc->name = newSVpvf("%u", ns);
@@ -100,40 +95,66 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 	}
 }
 
+static void destroy_space(TntSpace *spc) {
+	HE *he;
+	if (spc->name) {
+		cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
+
+		if (spc->fields) SvREFCNT_dec(spc->fields);
+		if (spc->field) {
+			SvREFCNT_dec( spc->field );
+			spc->field = NULL;
+		}
+		if (spc->indexes) {
+			//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
+			(void) hv_iterinit( spc->indexes );
+			while ((he = hv_iternext( spc->indexes ))) {
+				TntIndex * idx = (TntIndex *) SvPVX( HeVAL(he) );
+				if (idx->name) {
+					//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
+					if (idx->f.size > 0) safefree(idx->f.f);
+					if (idx->fields) SvREFCNT_dec(idx->fields);
+					SvREFCNT_dec(idx->name);
+					idx->name = NULL;
+					if (idx->type) {
+						SvREFCNT_dec(idx->type);
+						idx->type = NULL;
+					}
+				}
+			}
+			SvREFCNT_dec( spc->indexes );
+		}
+		SvREFCNT_dec(spc->name);
+		spc->name = NULL;
+		if (spc->f.size) {
+			safefree(spc->f.f);
+		}
+		if (spc->owner) {
+			SvREFCNT_dec(spc->owner);
+			spc->owner = NULL;
+		}
+		if (spc->engine) {
+			SvREFCNT_dec(spc->engine);
+			spc->engine = NULL;
+		}
+		if (spc->fields_count) {
+			SvREFCNT_dec(spc->fields_count);
+			spc->fields_count = NULL;
+		}
+		if (spc->flags) {
+			SvREFCNT_dec(spc->flags);
+			spc->flags = NULL;
+		}
+	}
+}
+
 static void destroy_spaces(HV *spaces) {
+	cwarn("Destroy started");
 	HE *ent;
 	(void) hv_iterinit( spaces );
 	while ((ent = hv_iternext( spaces ))) {
-		HE *he;
 		TntSpace * spc = (TntSpace *) SvPVX( HeVAL(ent) );
-		if (spc->name) {
-			//cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
-			if (spc->fields) SvREFCNT_dec(spc->fields);
-			if (spc->field) {
-				SvREFCNT_dec( spc->field );
-			}
-			if (spc->indexes) {
-				//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
-				(void) hv_iterinit( spc->indexes );
-				while ((he = hv_iternext( spc->indexes ))) {
-					TntIndex * idx = (TntIndex *) SvPVX( HeVAL(he) );
-					if (idx->name) {
-						//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
-						if (idx->f.size > 0) safefree(idx->f.f);
-						if (idx->fields) SvREFCNT_dec(idx->fields);
-						SvREFCNT_dec(idx->name);
-						idx->name = 0;
-					}
-				}
-				SvREFCNT_dec( spc->indexes );
-			}
-			SvREFCNT_dec(spc->name);
-			spc->name = 0;
-			if (spc->f.size) {
-				safefree(spc->f.f);
-			}
-		}
-
+		destroy_space(spc);
 	}
 	SvREFCNT_dec(spaces);
 }
@@ -1143,7 +1164,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 		AV *tuples = newAV();
 		av_extend(tuples, cont_size);
 		(void) hv_stores(ret, "count", newSViv(cont_size));
-		(void) hv_stores(ret, "tuples", newRV_noinc((SV *) tuples ));
+		(void) hv_stores(ret, "tuples", newRV_noinc((SV *) tuples));
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k = 0;
@@ -1180,9 +1201,8 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 			for (i = 0; i < cont_size; ++i) {
 				AV* tuple = newAV();
 				av_push(tuples, newRV_noinc((SV *)tuple));
-				av_extend(tuple, tuple_size);
-
 				tuple_size = mp_decode_array(&p);
+				av_extend(tuple, tuple_size);
 
 				for (k = 0; k < tuple_size; ++k) {
 					(void) av_push(tuple, decode_obj(&p));
@@ -1250,19 +1270,11 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 				warn("Invalid tuple size. Should be %d. Got %d", VALID_TUPLE_SIZE, tuple_size);
 			}
 
-			SV *sv_id = decode_obj(&p);
+			SV *sv_id = sv_2mortal(decode_obj(&p));
 			int id = (U32) SvUV(sv_id);
 			// cwarn("space_id=%d", id);
 
-			SV *spcf = newSV( sizeof(TntSpace) );
-
-			SvUPGRADE(spcf, SVt_PV);
-			SvCUR_set(spcf, sizeof(TntSpace));
-			SvPOKp_on(spcf);
-			TntSpace *spc = (TntSpace *) SvPVX(spcf);
-			memset(spc, 0, sizeof(TntSpace));
-
-			(void) hv_store( data, (char *) &id, sizeof(U32), spcf, 0);
+			dSVX(spcf, spc, TntSpace);
 
 			spc->id = id;
 			spc->indexes = newHV();
@@ -1277,7 +1289,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 			++k; if (k <= tuple_size) spc->engine = decode_obj(&p);
 			++k; if (k <= tuple_size) spc->fields_count = decode_obj(&p);
 			++k; if (k <= tuple_size) spc->flags = decode_obj(&p);
-			++k; if (k <= tuple_size) {                             // format
+			++k; if (k <= tuple_size) { // format
 
 				uint32_t str_len = 0;
 				uint32_t format_arr_size = mp_decode_array(&p);
@@ -1302,7 +1314,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 						if (str_len == 4 && strncasecmp(str, "name", 4) == 0) {
 							str = mp_decode_str(&p, &str_len); // getting the name itself
-							field_name = newSVpvn(str, str_len);
+							field_name = sv_2mortal(newSVpvn(str, str_len));
 							field_name_len = str_len;
 						}
 						else
@@ -1340,6 +1352,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 				}
 			}
 
+			(void) hv_store(data, (char *) &id, sizeof(U32), spcf, 0);
 			(void) hv_store(data, SvPV_nolen(spc->name), SvCUR(spc->name), SvREFCNT_inc(spcf),0);
 		}
 
@@ -1399,13 +1412,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 			if ((key = hv_fetch(spaces, (char *) &space_id, sizeof(uint32_t), 0)) && *key) {
 				TntSpace* spc = (TntSpace*) SvPVX(*key);
 
-				SV *idxcf = newSV(sizeof(TntIndex));
-				SvUPGRADE(idxcf, SVt_PV);
-				SvCUR_set(idxcf, sizeof(TntIndex));
-				SvPOKp_on(idxcf);
-				TntIndex *idx = (TntIndex *) SvPVX(idxcf);
-				memset(idx, 0, sizeof(TntIndex));
-
+				dSVX(idxcf, idx, TntIndex);
 				idx->id = index_id;
 				idx->name = decode_obj(&p);
 				idx->type = decode_obj(&p);

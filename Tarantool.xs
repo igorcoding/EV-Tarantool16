@@ -86,7 +86,7 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 
 	uint32_t iid = ++tnt->seq;
 
-	if ((ctx->wbuf = pkt_select(ctx, iid, NULL, sv_2mortal(newSVuv(space_id)), newRV_noinc((SV *) newAV()), NULL, NULL ))) {
+	if ((ctx->wbuf = pkt_select(ctx, iid, tnt->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL ))) {
 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		SvREFCNT_inc(ctx->cb = NULL);
@@ -232,7 +232,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		return;
 	}
 
-	HV *spaces_hv = newHV();
+	HV *spaces_hv = (HV *) sv_2mortal((SV *) newHV());
 
 	/* header */
 	uint32_t id = 0;
@@ -308,7 +308,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		return;
 	}
 
-	HV *spaces_hv = newHV();
+	HV *spaces_hv = (HV *) sv_2mortal((SV *) newHV());
 
 	/* header */
 	uint32_t id = 0;
@@ -350,7 +350,10 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 	SV **spaces_hv_key;
 	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key)) {
-		tnt->spaces = SvRV(*spaces_hv_key);
+		if (tnt->spaces) {
+			destroy_spaces(tnt->spaces);
+		}
+		tnt->spaces = SvREFCNT_inc(SvRV(*spaces_hv_key));
 	}
 	self->on_read = (c_cb_read_t) on_index_info_read;
 	_execute_select(tnt, _INDEX_SPACEID);

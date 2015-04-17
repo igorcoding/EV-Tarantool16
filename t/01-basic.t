@@ -431,7 +431,7 @@ subtest 'Memory tests', sub {
 	diag '==== Memory tests ===';
 	memcheck 50000, $c, "ping",[];
 	memcheck 50000, $c, "select",[1,['t1']];
-	# memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
+	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
 	# memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1 }];
 };
 

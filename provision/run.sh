@@ -60,6 +60,7 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` AnyEvent
 	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Deep
 	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Valgrind
+	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
 fi
 
 

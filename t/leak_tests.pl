@@ -36,6 +36,7 @@ my $tnt = {
 	host => '127.0.0.1'
 };
 
+
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
@@ -61,8 +62,17 @@ my $c; $c = EV::Tarantool->new({
 	},
 });
 
+# Dump($tnt);
+# Dump($c);
+
+# undef $c;
+
+my $var;
+Devel::Leak::NoteSV($var);
 $c->connect;
 EV::loop;
+
+
 
 my $t; $t = EV::timer 1.0, 0, sub {
 	# diag Dumper $c->spaces;
@@ -71,8 +81,11 @@ my $t; $t = EV::timer 1.0, 0, sub {
 };
 EV::loop;
 
-my $var;
-Devel::Leak::NoteSV($var);
+undef $c;
+
+Devel::Leak::CheckSV($var);
+
+
 # for (1..10) {
 # $c->ping(sub {
 # 	my $a = @_[0];
@@ -127,17 +140,17 @@ Devel::Leak::NoteSV($var);
 # }
 # undef $p;
 
-my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
+# my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 
-for (1..10) {
-$c->update('tester', $p->[0], $p->[1], $p->[2], sub {
-	my $a = @_[0];
-	EV::unloop;
-});
-EV::loop;
-}
-undef $p;
+# for (1..10) {
+# $c->update('tester', $p->[0], $p->[1], $p->[2], sub {
+# 	my $a = @_[0];
+# 	EV::unloop;
+# });
+# EV::loop;
+# }
+# undef $p;
 
 
 
-Devel::Leak::CheckSV($var);
+# Devel::Leak::CheckSV($var);
