@@ -157,6 +157,9 @@ static void on_read(ev_cnn * self, size_t len) {
 
 	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
 	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+	if (unlikely(length <= 0)) {
+		// TODO: handle error
+	}
 	// cwarn("body length = %d", length);
 	rbuf += length;
 
@@ -267,6 +270,9 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	// TODO: check that status is ok
 
 	length = parse_index_body(tnt->spaces, rbuf, buf_len);
+	if (unlikely(length <= 0)) {
+		// TODO: handle error
+	}
 	// cwarn("body length = %d", length);
 	rbuf += length;
 
@@ -345,6 +351,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* body */
 
 	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
+	if (unlikely(length <= 0)) {
+		// TODO: handle error
+	}
 	// cwarn("body length = %d", length);
 	rbuf += length;
 
@@ -358,15 +367,18 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 
 	SV **spaces_hv_key;
-	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key)) {
+	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
 		if (tnt->spaces) {
 			destroy_spaces(tnt->spaces);
 		}
 		tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
+
+		self->on_read = (c_cb_read_t) on_index_info_read;
+		_execute_select(tnt, _INDEX_SPACEID);
+		// self->on_read = (c_cb_read_t) on_read;
+	} else {
+		self->on_read = (c_cb_read_t) on_read;
 	}
-	self->on_read = (c_cb_read_t) on_index_info_read;
-	_execute_select(tnt, _INDEX_SPACEID);
-	// self->on_read = (c_cb_read_t) on_read;
 
 	// FREETMPS;
 	// LEAVE;

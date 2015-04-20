@@ -101,55 +101,63 @@ static void destroy_spaces(HV *spaces) {
 	(void) hv_iterinit( spaces );
 	while ((ent = hv_iternext( spaces ))) {
 		TntSpace * spc = (TntSpace *) SvPVX( HeVAL(ent) );
+		// cwarn("%p", spc);
 		HE *he;
 		if (spc->name) {
 			cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
-
-			if (spc->fields) SvREFCNT_dec(spc->fields);
-			if (spc->field) {
-				SvREFCNT_dec( spc->field );
-				spc->field = NULL;
-			}
-			if (spc->indexes) {
-				//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
-				(void) hv_iterinit( spc->indexes );
-				while ((he = hv_iternext( spc->indexes ))) {
-					TntIndex * idx = (TntIndex *) SvPVX( HeVAL(he) );
-					if (idx->name) {
-						//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
-						if (idx->f.size > 0) safefree(idx->f.f);
-						if (idx->fields) SvREFCNT_dec(idx->fields);
-						SvREFCNT_dec(idx->name);
-						idx->name = NULL;
-						if (idx->type) {
-							SvREFCNT_dec(idx->type);
-							idx->type = NULL;
-						}
-					}
-				}
-				SvREFCNT_dec( spc->indexes );
-			}
 			SvREFCNT_dec(spc->name);
 			spc->name = NULL;
-			if (spc->f.size) {
-				safefree(spc->f.f);
+		}
+
+		if (spc->fields) {
+			SvREFCNT_dec(spc->fields);
+			spc->fields = NULL;
+		}
+		if (spc->field) {
+			SvREFCNT_dec(spc->field);
+			spc->field = NULL;
+		}
+		if (spc->indexes) {
+			//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
+			(void) hv_iterinit( spc->indexes );
+			while ((he = hv_iternext( spc->indexes ))) {
+				TntIndex * idx = (TntIndex *) SvPVX( HeVAL(he) );
+				if (idx->name) {
+					//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
+					if (idx->f.size > 0) safefree(idx->f.f);
+					if (idx->fields) SvREFCNT_dec(idx->fields);
+					SvREFCNT_dec(idx->name);
+					idx->name = NULL;
+					if (idx->type) {
+						SvREFCNT_dec(idx->type);
+						idx->type = NULL;
+					}
+				}
 			}
-			if (spc->owner) {
-				SvREFCNT_dec(spc->owner);
-				spc->owner = NULL;
-			}
-			if (spc->engine) {
-				SvREFCNT_dec(spc->engine);
-				spc->engine = NULL;
-			}
-			if (spc->fields_count) {
-				SvREFCNT_dec(spc->fields_count);
-				spc->fields_count = NULL;
-			}
-			if (spc->flags) {
-				SvREFCNT_dec(spc->flags);
-				spc->flags = NULL;
-			}
+			SvREFCNT_dec( spc->indexes );
+			spc->indexes = NULL;
+		}
+
+		if (spc->f.size) {
+			safefree(spc->f.f);
+			spc->f.f = NULL;
+			spc->f.size = 0;
+		}
+		if (spc->owner) {
+			SvREFCNT_dec(spc->owner);
+			spc->owner = NULL;
+		}
+		if (spc->engine) {
+			SvREFCNT_dec(spc->engine);
+			spc->engine = NULL;
+		}
+		if (spc->fields_count) {
+			SvREFCNT_dec(spc->fields_count);
+			spc->fields_count = NULL;
+		}
+		if (spc->flags) {
+			SvREFCNT_dec(spc->flags);
+			spc->flags = NULL;
 		}
 	}
 	SvREFCNT_dec(spaces);
@@ -1252,7 +1260,6 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 		for (i = 0; i < cont_size; ++i) {
 			k = 1;
-			HV *sp = newHV();
 
 			tuple_size = mp_decode_array(&p);
 			// cwarn("tuple_size = %d", tuple_size);
