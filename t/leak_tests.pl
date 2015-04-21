@@ -18,6 +18,7 @@ use Devel::Peek;
 my $var;
 Devel::Leak::NoteSV($var);
 
+# for (0..10) {
 my $cfs = 0;
 my $connected;
 my $disconnected;
@@ -72,6 +73,7 @@ EV::loop;
 
 undef $c;
 undef $tnt;
+# }
 
 Devel::Leak::CheckSV($var);
 

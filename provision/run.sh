@@ -38,6 +38,7 @@ else
 	sudo cpanm AnyEvent
 	sudo cpanm Test::Deep
 	sudo cpanm Test::Valgrind
+	sudo cpanm List::BinarySearch
 
 	sudo ln -s ${HOME}/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
 
