@@ -19,7 +19,6 @@ static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
 										 5;  // sync len
 
 
-
 #define check_tuple(tuple, allow_hash) STMT_START { \
 	if (SvROK(tuple)) { \
 		if ( SvTYPE(SvRV(tuple)) == SVt_PVHV ) { \

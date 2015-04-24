@@ -18,6 +18,14 @@
 # define INLINE static
 #endif
 
+#define TNT_CROAK(msg) STMT_START {     \
+	croak("[Tarantool Error] %s", msg); \
+} STMT_END
+
+#define PE_CROAK(msg) STMT_START {    		\
+	croak("[Programming Error] %s", msg); 	\
+} STMT_END
+
 typedef struct {
 	xs_ev_cnn_struct;
 
@@ -88,7 +96,7 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
 		ctx->cb = NULL;
-		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+		(void) hv_store(tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0);
 
 		++tnt->pending;
 
@@ -112,27 +120,29 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
 	if (buf_len == 0) {
-		cwarn("buflen==0. weird.");
+		PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
 	uint32_t pkt_length = decode_pkt_len(&rbuf);
-	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
-		cwarn("not enough");
+		debug("not enough");
 		return;
 	}
 
-	HV *hv = newHV();
+	HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-	// cwarn("hdr_length = %d", length);
-	if (unlikely(id == 0)) {
-		// TODO: error
-		cwarn("id == 0");
+	if (unlikely(length < 0)) {
+		TNT_CROAK("Unexpected response header");
+		return;
+	}
+	if (unlikely(id <= 0)) {
+		cwarn("Wrong sync id (id <= 0)");
+		rbuf += length + 5;
 		return;
 	}
 
@@ -140,7 +150,8 @@ static void on_read(ev_cnn * self, size_t len) {
 	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 	if (!key) {
-		cwarn("key %d not found", id);
+		debug("key %d not found", id);
+		rbuf += length + 5;
 		return;
 	}
 	else {
@@ -158,9 +169,9 @@ static void on_read(ev_cnn * self, size_t len) {
 	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
 	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
 	if (unlikely(length <= 0)) {
-		// TODO: handle error
+		TNT_CROAK("Unexpected response body");
+		return;
 	}
-	// cwarn("body length = %d", length);
 	rbuf += length;
 
 	dSP;
@@ -174,7 +185,7 @@ static void on_read(ev_cnn * self, size_t len) {
 		if (var && SvIV (*var) == 0) {
 			PUSHMARK(SP);
 			EXTEND(SP, 1);
-			PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
 			PUTBACK;
 		}
 		else {
@@ -183,7 +194,7 @@ static void on_read(ev_cnn * self, size_t len) {
 			EXTEND(SP, 3);
 			PUSHs( &PL_sv_undef );
 			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( (SV *) hv )) );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
 			PUTBACK;
 		}
 
@@ -200,7 +211,6 @@ static void on_read(ev_cnn * self, size_t len) {
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
-		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
@@ -209,12 +219,6 @@ static void on_read(ev_cnn * self, size_t len) {
 }
 
 static void on_index_info_read(ev_cnn * self, size_t len) {
-	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	// cwarn("self->ruse: %zu", self->ruse);
-
-	// ENTER;
-	// SAVETMPS;
-
 	do_disable_rw_timer(self);
 
 	TntCnn * tnt = (TntCnn *) self;
@@ -224,7 +228,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
 	if (buf_len == 0) {
-		cwarn("buflen==0. weird.");
+		PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
@@ -232,7 +236,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
-		cwarn("not enough");
+		debug("not enough");
 		return;
 	}
 
@@ -241,10 +245,12 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	// cwarn("hdr_length = %d", length);
-	if (unlikely(id == 0)) {
-		// TODO: error
-		cwarn("id == 0");
+	if (unlikely(length < 0)) {
+		TNT_CROAK("Unexpected response header");
+		return;
+	}
+	if (unlikely(id <= 0)) {
+		PE_CROAK("Wrong sync id (id <= 0)");
 		return;
 	}
 
@@ -253,6 +259,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 	if (!key) {
 		cwarn("key %d not found", id);
+		rbuf += length + 5;
 		return;
 	}
 	else {
@@ -267,14 +274,17 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 	/* body */
 
-	// TODO: check that status is ok
-
-	length = parse_index_body(tnt->spaces, rbuf, buf_len);
-	if (unlikely(length <= 0)) {
-		// TODO: handle error
+	SV **spaces_hv_key;
+	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0)) {
+		cwarn("Couldn\'t get index info");
+	} else {
+		length = parse_index_body(tnt->spaces, rbuf, buf_len);
+		if (unlikely(length <= 0)) {
+			TNT_CROAK("Unexpected response body");
+			return;
+		}
+		rbuf += length;
 	}
-	// cwarn("body length = %d", length);
-	rbuf += length;
 
 	--tnt->pending;
 
@@ -283,21 +293,10 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
-
-	// tnt->spaces = newRV_noinc(spaces_hv);
 	self->on_read = (c_cb_read_t) on_read;
-
-	// FREETMPS;
-	// LEAVE;
 }
 
 static void on_spaces_info_read(ev_cnn * self, size_t len) {
-	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	// cwarn("self->ruse: %zu", self->ruse);
-
-	// ENTER;
-	// SAVETMPS;
-
 	do_disable_rw_timer(self);
 
 	TntCnn * tnt = (TntCnn *) self;
@@ -307,7 +306,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
 	if (buf_len == 0) {
-		cwarn("buflen==0. weird.");
+		PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
@@ -315,7 +314,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
-		cwarn("not enough");
+		debug("not enough");
 		return;
 	}
 
@@ -324,10 +323,12 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* header */
 	uint32_t id = 0;
 	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	// cwarn("hdr_length = %d", length);
-	if (unlikely(id == 0)) {
-		// TODO: error
-		cwarn("id == 0");
+	if (unlikely(length < 0)) {
+		TNT_CROAK("Unexpected response header");
+		return;
+	}
+	if (unlikely(id <= 0)) {
+		PE_CROAK("Wrong sync id (id <= 0)");
 		return;
 	}
 
@@ -336,9 +337,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 	if (!key) {
 		cwarn("key %d not found", id);
+		rbuf += length + 5;
 		return;
-	}
-	else {
+	} else {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
 		SvREFCNT_dec(ctx->wbuf);
@@ -350,43 +351,44 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 	/* body */
 
-	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
-	if (unlikely(length <= 0)) {
-		// TODO: handle error
+	SV **spaces_hv_key;
+	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0)) {
+		cwarn("Couldn\'t get spaces info");
+		self->on_read = (c_cb_read_t) on_read;
+	} else {
+		length = parse_spaces_body(spaces_hv, rbuf, buf_len);
+		if (unlikely(length <= 0)) {
+			TNT_CROAK("Unexpected response body");
+			return;
+		}
+		rbuf += length;
+
+		SV **spaces_hv_key;
+		if ((spaces_hv_key = hv_fetchs(spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
+			if (tnt->spaces) {
+				destroy_spaces(tnt->spaces);
+			}
+			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
+
+			self->on_read = (c_cb_read_t) on_index_info_read;
+			_execute_select(tnt, _INDEX_SPACEID);
+			// self->on_read = (c_cb_read_t) on_read;
+		} else {
+			self->on_read = (c_cb_read_t) on_read;
+		}
 	}
-	// cwarn("body length = %d", length);
-	rbuf += length;
 
 	--tnt->pending;
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
-		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
-
-
-	SV **spaces_hv_key;
-	if ((spaces_hv_key = hv_fetchs( spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
-		if (tnt->spaces) {
-			destroy_spaces(tnt->spaces);
-		}
-		tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
-
-		self->on_read = (c_cb_read_t) on_index_info_read;
-		_execute_select(tnt, _INDEX_SPACEID);
-		// self->on_read = (c_cb_read_t) on_read;
-	} else {
-		self->on_read = (c_cb_read_t) on_read;
-	}
-
-	// FREETMPS;
-	// LEAVE;
 }
 
 
 static void on_greet_read(ev_cnn * self, size_t len) {
-	cwarn("greet_read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
+	warn("Tarantool Greeting. %.*s", (int) self->ruse, self->rbuf);
 
 	ENTER;
 	SAVETMPS;
@@ -403,8 +405,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	}
 
 	//TODO: perform authentication here and save salt and server version
-
-	cwarn("on_greet_read:: self->ruse: %d", (int)self->ruse);
 
 	self->ruse -= buf_len;
 	if (self->ruse > 0) {
