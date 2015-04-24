@@ -11,12 +11,12 @@ use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
 use Renewer;
-use Devel::Leak;
-use Devel::Peek;
+# use Devel::Leak;
+# use Devel::Peek;
 # use AE;
 
 my $var;
-Devel::Leak::NoteSV($var);
+# Devel::Leak::NoteSV($var);
 
 # for (0..10) {
 my $cfs = 0;
@@ -68,14 +68,20 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-
+$c->eval('return box.space.sophier:select({})', [], {}, sub {
+	my ($a) = @_;
+	my $size = @{$a->{tuples}->[0]};
+	say $size;
+	EV::unloop;
+});
+EV::loop;
 
 
 undef $c;
 undef $tnt;
 # }
 
-Devel::Leak::CheckSV($var);
+# Devel::Leak::CheckSV($var);
 
 
 # for (1..10) {
