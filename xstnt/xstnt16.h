@@ -95,15 +95,14 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 }
 
 static void destroy_spaces(HV *spaces) {
-	cwarn("Destroy started");
+	debug("Destroy started");
 	HE *ent;
 	(void) hv_iterinit( spaces );
 	while ((ent = hv_iternext( spaces ))) {
 		TntSpace * spc = (TntSpace *) SvPVX( HeVAL(ent) );
-		// cwarn("%p", spc);
 		HE *he;
 		if (spc->name) {
-			cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
+			debug("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
 			SvREFCNT_dec(spc->name);
 			spc->name = NULL;
 		}
@@ -294,18 +293,19 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 static inline U32 get_iterator(SV *iterator_str) {
 	const char *str = SvPVX(iterator_str);
 	U32 str_len = SvCUR(iterator_str);
-	COMP_STR(str, "EQ", str_len, 2, 0);
-	COMP_STR(str, "REQ", str_len, 3, 1);
-	COMP_STR(str, "ALL", str_len, 3, 2);
-	COMP_STR(str, "LT", str_len, 2, 3);
-	COMP_STR(str, "LE", str_len, 2, 4);
-	COMP_STR(str, "GE", str_len, 2, 5);
-	COMP_STR(str, "GT", str_len, 2, 6);
-	COMP_STR(str, "BITS_ALL_SET", str_len, 12, 7);
-	COMP_STR(str, "BITS_ANY_SET", str_len, 12, 8);
-	COMP_STR(str, "BITS_ALL_NOT_SET", str_len, 16, 9);
-	COMP_STR(str, "OVERLAPS", str_len, 8, 10);
-	COMP_STR(str, "NEIGHBOR", str_len, 8, 11);
+	COMP_STR(str, "EQ", 				str_len, 2,  TNT_IT_EQ);
+	COMP_STR(str, "REQ", 				str_len, 3,  TNT_IT_REQ);
+	COMP_STR(str, "ALL", 				str_len, 3,  TNT_IT_ALL);
+	COMP_STR(str, "LT", 				str_len, 2,  TNT_IT_LT);
+	COMP_STR(str, "LE", 				str_len, 2,  TNT_IT_LE);
+	COMP_STR(str, "GE", 				str_len, 2,  TNT_IT_GE);
+	COMP_STR(str, "GT", 				str_len, 2,  TNT_IT_GT);
+	COMP_STR(str, "BITS_ALL_SET", 		str_len, 12, TNT_IT_BITS_ALL_SET);
+	COMP_STR(str, "BITS_ANY_SET", 		str_len, 12, TNT_IT_BITS_ANY_SET);
+	COMP_STR(str, "BITS_ALL_NOT_SET", 	str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
+	COMP_STR(str, "OVERLAPS", 			str_len, 8,  TNT_IT_OVERLAPS);
+	COMP_STR(str, "NEIGHBOR", 			str_len, 8,  TNT_IT_NEIGHBOR);
+	cwarn("Unknown iterator: %.*s", str_len, str);
 	return -1;
 }
 
@@ -1224,7 +1224,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 }
 
 static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, const char const *data_end) {
-	uint32_t VALID_TUPLE_SIZE = 7;
+	const uint32_t VALID_TUPLE_SIZE = 7;
 
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
@@ -1249,10 +1249,6 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 		(void) hv_stores(ret, "count", newSViv(cont_size));
 		(void) hv_stores(ret, "data", newRV_noinc((SV *) data));
-
-		// AV *tuples = newAV();
-		// av_extend(tuples, cont_size);
-
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k;
@@ -1361,7 +1357,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 		break;
 	}
 	default:
-		cwarn("response data type = %d", mp_typeof(*p));
+		cwarn("unexpected response data type (%d)", mp_typeof(*p));
 		break;
 	}
 
@@ -1369,8 +1365,6 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 }
 
 static inline int parse_index_body_data(HV *spaces, const char const *data_begin, const char const *data_end) {
-	uint32_t VALID_TUPLE_SIZE = 7;
-
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1389,15 +1383,6 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
-
-		// HV *data = newHV();
-
-		// (void) hv_stores(ret, "count", newSViv(cont_size));
-		// (void) hv_stores(ret, "data", newRV_noinc((SV *) data));
-
-		// AV *tuples = newAV();
-		// av_extend(tuples, cont_size);
-
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k;
@@ -1579,12 +1564,9 @@ static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_spaces_body_data(ret, data_begin, p);
-
-
 			break;
 		}
 		}
-		// r->bitmap |= (1ULL << key);
 	}
 	return p - data;
 }

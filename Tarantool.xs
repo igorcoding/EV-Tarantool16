@@ -444,7 +444,7 @@ void free_reqs (TntCnn *self, const char * message) {
 			PUSHMARK(SP);
 			EXTEND(SP, 2);
 			PUSHs( &PL_sv_undef );
-			PUSHs( sv_2mortal(newSVpvf(message)) );
+			PUSHs( sv_2mortal(newSVpvf("%s", message)) );
 			PUTBACK;
 
 			(void) call_sv( ctx->cb, G_DISCARD | G_VOID );
@@ -517,7 +517,7 @@ void new(SV *pk, HV *conf)
 		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0) // TODO: connected cb is assigned here, but it shoudldn't however
 		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 		// self->cnn.on_read = (c_cb_read_t) on_read;
-		self->on_disconnect_before = on_disconnect;
+		self->on_disconnect_before = (c_cb_err_t) on_disconnect;
 
 
 		//cwarn("new     this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(iv),iv, self, self->self);

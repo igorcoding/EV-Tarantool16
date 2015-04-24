@@ -6,7 +6,7 @@
 	url = https://github.com/Mons/libevares.git
 [submodule "evcnn"]
 	path = evcnn
-	url = https://github.com/Mons/libevconnection.git
+	url = https://github.com/igorcoding/libevconnection.git
 [submodule "msgpuck"]
 	path = msgpuck
 	url = https://github.com/tarantool/msgpuck.git

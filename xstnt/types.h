@@ -107,5 +107,20 @@ typedef enum {
 	FMT_INT = 'i'
 } TNT_FORMAT_TYPE;
 
+typedef enum {
+	TNT_IT_EQ = 0,
+	TNT_IT_REQ = 1,
+	TNT_IT_ALL = 2,
+	TNT_IT_LT = 3,
+	TNT_IT_LE = 4,
+	TNT_IT_GE = 5,
+	TNT_IT_GT = 6,
+	TNT_IT_BITS_ALL_SET = 7,
+	TNT_IT_BITS_ANY_SET = 8,
+	TNT_IT_BITS_ALL_NOT_SET = 9,
+	TNT_IT_OVERLAPS = 10,
+	TNT_IT_NEIGHBOR = 11,
+} tnt_iterator_t;
+
 
 #endif // _TYPES_H_
