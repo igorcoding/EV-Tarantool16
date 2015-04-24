@@ -275,7 +275,11 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	/* body */
 
 	SV **spaces_hv_key;
-	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0)) {
+	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key))) {
+		int code = SvIV(*spaces_hv_key);
+		if (code != 0) {
+			cwarn("Couldn\'t get index info. Code = %d", code);
+		}
 		cwarn("Couldn\'t get index info");
 	} else {
 		length = parse_index_body(tnt->spaces, rbuf, buf_len);
@@ -352,7 +356,11 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	/* body */
 
 	SV **spaces_hv_key;
-	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0)) {
+	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key))) {
+		int code = SvIV(*spaces_hv_key);
+		if (code != 0) {
+			cwarn("Couldn\'t get spaces info. Code = %d", code);
+		}
 		cwarn("Couldn\'t get spaces info");
 		self->on_read = (c_cb_read_t) on_read;
 	} else {

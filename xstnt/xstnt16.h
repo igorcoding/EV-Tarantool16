@@ -758,7 +758,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ mp_sizeof_map(body_map_sz)
+				+ 1 // mp_sizeof_map(body_map_sz)
 				+ 1 // mp_sizeof_uint(TP_SPACE)
 				+ mp_sizeof_uint(spc->id);
 
@@ -781,8 +781,6 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
-
-	// TODO: check_tuple(keys, spc);
 	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
 		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
@@ -862,7 +860,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ mp_sizeof_map(body_map_sz)
+				+ 1 // mp_sizeof_map(body_map_sz)
 				+ 1 // mp_sizeof_uint(TP_SPACE)
 				+ mp_sizeof_uint(spc->id);
 
@@ -884,7 +882,6 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
-	// TODO: check_tuple(keys, spc);
 	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
 		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
@@ -926,13 +923,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
-
-	// if(( spc = evt_find_space( space, spaces ) )) {
-	//  ctx->space = spc;
-	// }
-	// else {
-	//  ctx->use_hash = 0;
-	// }
 
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
@@ -978,8 +968,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
-
-	// TODO: check_tuple(keys, spc);
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
 		croak_cb(cb,"tuple must be ARRAYREF or HASHREF");
@@ -1016,13 +1004,6 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
-
-	// if(( spc = evt_find_space( space, spaces ) )) {
-	//  ctx->space = spc;
-	// }
-	// else {
-	//  ctx->use_hash = 0;
-	// }
 
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
@@ -1068,11 +1049,9 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
-
-	// TODO: check_tuple(keys, spc);
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"tuple must be ARRAYREF or HASHREF");
+		croak_cb(cb, "tuple must be ARRAYREF or HASHREF");
 	}
 
 	keys_size = av_len(fields) + 1;
@@ -1101,7 +1080,6 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 	const char *p = data;
 	const char *test = p;
 
-	// header
 	test = p;
 	if (mp_check(&test, data + size))
 		return -1;
@@ -1153,12 +1131,12 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	case MP_MAP: {
-		cont_size = mp_decode_map(&p);
-		cwarn("map.size=%d", cont_size);
-		// TODO: this is not valid probably
-		break;
-	}
+	// case MP_MAP: {
+	// 	cont_size = mp_decode_map(&p);
+	// 	cwarn("map.size=%d", cont_size);
+	// 	// TODO: this is not valid probably
+	// 	break;
+	// }
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
@@ -1216,7 +1194,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 		break;
 	}
 	default:
-		cwarn("response data type = %d", mp_typeof(*p));
+		cwarn("unexpected response data type = %d", mp_typeof(*p));
 		break;
 	}
 
@@ -1234,12 +1212,12 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	case MP_MAP: {
-		cont_size = mp_decode_map(&p);
-		cwarn("map.size=%d", cont_size);
-		// TODO: this is not valid probably
-		break;
-	}
+	// case MP_MAP: {
+	// 	cont_size = mp_decode_map(&p);
+	// 	cwarn("map.size=%d", cont_size);
+	// 	// TODO: this is not valid probably
+	// 	break;
+	// }
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
@@ -1300,8 +1278,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 				for (ix = 0; ix < format_arr_size; ++ix) {
 					uint32_t field_format_map_size = mp_decode_map(&p);
 					if (field_format_map_size != 2) {
-						// TODO: error!
-						cwarn("Bad things happened! field_format_map_size != 2");
+						croak("Bad things happened! field_format_map_size != 2");
 					}
 
 					SV *field_name;
@@ -1373,12 +1350,12 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	case MP_MAP: {
-		cont_size = mp_decode_map(&p);
-		cwarn("map.size=%d", cont_size);
-		// TODO: this is not valid probably
-		break;
-	}
+	// case MP_MAP: {
+	// 	cont_size = mp_decode_map(&p);
+	// 	cwarn("map.size=%d", cont_size);
+	// 	// TODO: this is not valid probably
+	// 	break;
+	// }
 
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
@@ -1470,7 +1447,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 		break;
 	}
 	default:
-		cwarn("response data type = %d", mp_typeof(*p));
+		cwarn("unexpected response data type = %d", mp_typeof(*p));
 		break;
 	}
 
@@ -1518,7 +1495,6 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 			break;
 		}
 		}
-		// r->bitmap |= (1ULL << key);
 	}
 	return p - data;
 }
@@ -1596,12 +1572,7 @@ static int parse_index_body(HV *spaces, const char const *data, STRLEN size) {
 			if (mp_typeof(*p) != MP_STR)
 				return -1;
 			uint32_t elen = 0;
-			const char *err_str = mp_decode_str(&p, &elen);
-
-			// TODO: notify about an error
-
-			// (void) hv_stores(ret, "status", newSVpvs("error"));
-			// (void) hv_stores(ret, "errstr", newSVpvn(err_str, elen));
+			mp_next(&p); // const char *err_str = mp_decode_str(&p, &elen);
 			break;
 		}
 
@@ -1609,7 +1580,6 @@ static int parse_index_body(HV *spaces, const char const *data, STRLEN size) {
 			if (mp_typeof(*p) != MP_ARRAY)
 				return -1;
 
-			// (void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_index_body_data(spaces, data_begin, p);
@@ -1618,7 +1588,6 @@ static int parse_index_body(HV *spaces, const char const *data, STRLEN size) {
 			break;
 		}
 		}
-		// r->bitmap |= (1ULL << key);
 	}
 	return p - data;
 }
