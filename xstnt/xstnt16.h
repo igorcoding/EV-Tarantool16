@@ -255,6 +255,7 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 			av_push( rv, SvREFCNT_inc(HeVAL(fl)) );
 		}
 		else {
+			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
 			// TODO: not sure that we should ignore it
 			// av_push( rv, &PL_sv_undef );
 		}
@@ -434,8 +435,6 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
-
-	// TODO: check_tuple(keys, spc);
 	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
 		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
@@ -641,7 +640,7 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
 				}
 
-				sz += 1 //mp_sizeof_array(3)
+				sz += 1 // mp_sizeof_array(3)
 					  + 2 // mp_sizeof_str(1)
 					  + mp_sizeof_uint(field_no)
 					  ;
@@ -652,7 +651,6 @@ static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
 				h = encode_obj(argument, h, rv, &sz, field_format);
-				// h = mp_encode_uint(h, argument); // TODO
 
 				break;
 			}
@@ -739,7 +737,6 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	}
 	else {
 		ctx->f.size = 0;
-		// croak_cb(cb, "No extra params provided");
 	}
 
 	if (!idx) {
@@ -805,6 +802,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	encode_keys(h, sz, fields, keys_size, fmt, key);
 
 	h = pkt_update_write_tuple(ctx, spc, idx, tuple, sz, rv, h, cb);
+	if (!h) return NULL;
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);

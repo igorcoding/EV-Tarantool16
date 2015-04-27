@@ -68,7 +68,7 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-$c->eval('return box.space.sophier:select({})', [], {}, sub {
+$c->eval('return box.space.sophier:len()', [], {}, sub {
 	my ($a) = @_;
 	my $size = @{$a->{tuples}->[0]};
 	say $size;

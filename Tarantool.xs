@@ -120,7 +120,7 @@ static void on_read(ev_cnn * self, size_t len) {
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
 	if (buf_len == 0) {
-		PE_CROAK("No content arrived. (buflen==0)");
+		// PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
