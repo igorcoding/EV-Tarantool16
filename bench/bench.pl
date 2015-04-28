@@ -64,6 +64,8 @@ sub main() {
 	my $blob_gen_w;
 	my $connected = 0;
 
+	my $starttime = time;
+
 
 	my $sig_w; $sig_w = AE::signal "INT", sub {
 		if (defined($c)) {
@@ -141,7 +143,8 @@ sub main() {
 	if (defined($c)) {
 		$c->disconnect;
 		undef $c;
-		say 'Done.';
+		my $elapsed = time - $starttime;
+		say 'Done. time: ', $elapsed;
 	}
 }
 
