@@ -324,7 +324,6 @@ static SV *decode_obj(const char **p) {
 		HV *hash = newHV();
 		for (i = 0; i < map_size; ++i) {
 			bool _set = true;
-			SV *key;
 			switch(mp_typeof(**p)) {
 			case MP_STR: {
 				map_key_str = mp_decode_str(p, &map_key_len);
@@ -349,6 +348,7 @@ static SV *decode_obj(const char **p) {
 				break;
 			}
 			default:
+				cwarn("Got unexpected type as a tuple map key");
 				_set = false;
 				break;
 			}
@@ -366,7 +366,7 @@ static SV *decode_obj(const char **p) {
 		mp_next(p);
 		return &PL_sv_undef;
 	default:
-		warn("Got unexpected type as a tuple element value");
+		cwarn("Got unexpected type as a tuple element value");
 		mp_next(p);
 		return &PL_sv_undef;
 	}

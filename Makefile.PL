@@ -10,12 +10,12 @@ Requires: perl-EV
 
 WriteMakefile(
 	NAME              => 'EV::Tarantool',
-	AUTHOR            => 'Mons Anderson <mons@cpan.org>',
+	AUTHOR            => 'igorcoding <igorcoding@gmail.com>',
 	VERSION_FROM      => 'lib/EV/Tarantool.pm',
 	ABSTRACT_FROM     => 'lib/EV/Tarantool.pm',
 	PREREQ_PM         => { EV => 4 },
 	LIBS              => ['-lcares'],
-	DEFINE            => '-g -ggdb -O0 -std=c99',
+	DEFINE            => '-g -ggdb -O3 -std=c99',
 	CONFIGURE => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(

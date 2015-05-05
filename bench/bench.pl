@@ -114,7 +114,7 @@ sub main() {
 		my %opts = (%$common_opts, %$inserter_opts);
 		Inserter::executor($c, \%opts, sub {
 			my ($generated_keys) = @_;
-			say Dumper $generated_keys;
+			# say Dumper $generated_keys;
 			EV::unloop;
 		});
 	} elsif ($mode eq 'selector') {
@@ -131,7 +131,7 @@ sub main() {
 
 		Inserter::executor($c, \%opts, sub {
 			my ($generated_keys) = @_;
-			say Dumper $generated_keys;
+			# say Dumper $generated_keys;
 			EV::unloop;
 		});
 	}else {

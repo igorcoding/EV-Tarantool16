@@ -1,6 +1,7 @@
 box.cfg{
 	listen = 3301,
-	log_level = 5
+	log_level = 5,
+	-- logger = 'tarantool.log'
 }
 
 s = box.space.tester

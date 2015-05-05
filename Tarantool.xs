@@ -77,7 +77,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 		FREETMPS; LEAVE;
 	}
 
-	hv_delete( self->reqs, (char *) &ctx->id, sizeof(ctx->id),0);
+	(void) hv_delete( self->reqs, (char *) &ctx->id, sizeof(ctx->id),0);
 
 	--self->pending;
 

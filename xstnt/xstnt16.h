@@ -403,23 +403,23 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	size_t sz = HEADER_CONST_LEN
 				+ 1 // mp_sizeof_map(body_map_sz)
 				+ 1 // mp_sizeof_uint(TP_SPACE)
-				+ mp_sizeof_uint(spc->id)
+				+ 9 // mp_sizeof_uint(spc->id)
 				+ 1 // mp_sizeof_uint(TP_LIMIT)
-				+ mp_sizeof_uint(limit);
+				+ 9; // mp_sizeof_uint(limit);
 
 	if (index != -1) {
 		sz += 1 // mp_sizeof_uint(TP_INDEX)
-			  + mp_sizeof_uint(index);
+			  + 9; // mp_sizeof_uint(index);
 	}
 
 	if (offset != -1) {
 		sz += 1 // mp_sizeof_uint(TP_OFFSET)
-			  + mp_sizeof_uint(offset);
+			  + 9; // mp_sizeof_uint(offset);
 	}
 
 	if (iterator != -1) {
 		sz += 1 // mp_sizeof_uint(TP_ITERATOR)
-			  + mp_sizeof_uint(iterator);
+			  + 1; // mp_sizeof_uint(iterator); // 1 is because of tmt_iterator_t
 	}
 
 	sz += 1; // mp_sizeof_uint(TP_KEY);

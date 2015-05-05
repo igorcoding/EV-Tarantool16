@@ -52,7 +52,7 @@ sub generate_blobs {
 			}
 			++$i;
 			my $key = generate_key \$k, $total_count, $replace;
-			printf "%s %s\n", $log_str, $key;
+			# printf "%s %s\n", $log_str, $key;
 			my $blob_size = Util::rand_num $min_size, $max_size;
 			my $blob;
 			read $fh, $blob, $blob_size;
@@ -74,7 +74,7 @@ sub tnt_inserter {
 
 	$c->insert($space_name, [$key, $blob], { replace => $replace }, sub {
 		my $a = @_[0];
-		say Dumper \@_ unless $a;
+		# say Dumper \@_ unless $a;
 		$cb->($a) if $cb;
 	});
 }
