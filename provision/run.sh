@@ -9,7 +9,7 @@ deb-src http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
 EOF'
 
 sudo apt-get update
-sudo apt-get install -y tarantool libexpat1-dev valgrind
+sudo apt-get install -y tarantool libexpat1-dev
 
 USR_SRC=/usr/local/src
 wget http://c-ares.haxx.se/download/c-ares-1.9.1.tar.gz -O - | sudo tar -C ${USR_SRC} -xzvf -
@@ -25,12 +25,11 @@ if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"
 	cpanm Types::Serialiser
 	cpanm EV
-	cpanm EV::MakeMaker
 	cpanm AnyEvent
 	cpanm Test::Deep
-	cpanm Test::Valgrind
 	sudo ln -s ${HOME}/build/igorcoding/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
 else
+	sudo apt-get install -y valgrind
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
 	sudo cpanm Types::Serialiser
 	sudo cpanm EV
@@ -64,8 +63,9 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
 fi
 
-
 sudo tarantoolctl start init
 
 # sudo service tarantool restart
 tarantool --version
+
+mkdir -p ${HOME}/tnt

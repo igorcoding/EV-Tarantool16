@@ -9,6 +9,7 @@ use EV;
 use AE;
 use Data::Dumper;
 use List::BinarySearch qw( binsearch binsearch_pos );
+use Scalar::Util qw( weaken );
 
 use Util;
 
@@ -80,10 +81,28 @@ sub select_blobs {
 	my $period = 1.0 / $rps;
 
 	my $i = 1;
-	my $t; $t = AE::timer $period, $period, sub {
+	my $measured_rps = 0;
+	my $rps_measures = 0;
+	my $last_id = $i;
+
+	my $tt; $tt = AE::timer 1, 1, sub {
+		$measured_rps += $i - $last_id;
+		$last_id = $i;
+		++$rps_measures;
+	};
+
+	my $done_called = 0;
+	my $t; $t = sub {
+		# my $t = $t or return;
 		if (defined($count) && $i > $count) {
 			undef $t;
-			$done_cb->();
+			# if (not $done_called) {
+				# $done_called = 1;
+				undef $tt;
+				$measured_rps /= $rps_measures if $rps_measures != 0;
+				say Dumper $measured_rps;
+				$done_cb->();
+			# }
 			return;
 		}
 		my $id = Util::rand_num 1, $max_id;
@@ -92,19 +111,28 @@ sub select_blobs {
 		++$i;
 
 		my $begin_time = time;
+		printf "%.4f. started %d\n", EV::now, $i;
 
 		$selector->($key, sub {
-			my ($resp) = @_;
-			my $exec_time = time - $begin_time;
-			if (defined($resp)) {
-				push @{$datapoints->{success}}, $exec_time;
-				running_stats $stats_data->{success}, $exec_time;
-			} else {
-				push @{$datapoints->{error}}, $exec_time;
-				running_stats $stats_data->{error}, $exec_time;
+			if (defined $t) {
+				my ($resp) = @_;
+				my $exec_time = time - $begin_time;
+				if (defined($resp)) {
+					push @{$datapoints->{success}}, $exec_time;
+					running_stats $stats_data->{success}, $exec_time;
+				} else {
+					push @{$datapoints->{error}}, $exec_time;
+					running_stats $stats_data->{error}, $exec_time;
+				}
+				printf "%.4f. finished %d\n", EV::now, $i;
+				$t->();
 			}
 		});
 	};
+
+	$t->() for 1..$rps;
+	weaken($t);
+
 	return $t;
 }
 

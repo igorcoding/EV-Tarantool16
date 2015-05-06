@@ -124,7 +124,9 @@ static void on_read(ev_cnn * self, size_t len) {
 		return;
 	}
 
-	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	// uint32_t pkt_length = decode_pkt_len(&rbuf);
+	uint32_t pkt_length;
+	decode_pkt_len_(&rbuf, pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
 		debug("not enough");
@@ -232,7 +234,9 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		return;
 	}
 
-	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	// uint32_t pkt_length = decode_pkt_len(&rbuf);
+	uint32_t pkt_length;
+	decode_pkt_len_(&rbuf, pkt_length);
 	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {
@@ -314,7 +318,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		return;
 	}
 
-	uint32_t pkt_length = decode_pkt_len(&rbuf);
+	// uint32_t pkt_length = decode_pkt_len(&rbuf);
+	uint32_t pkt_length;
+	decode_pkt_len_(&rbuf, pkt_length);
 	// cwarn("pkt_length = %d", pkt_length);
 
 	if (buf_len - 5 < pkt_length) {

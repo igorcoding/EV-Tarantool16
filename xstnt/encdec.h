@@ -261,6 +261,13 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	return dest;
 }
 
+#define decode_pkt_len_(h, out) STMT_START {\
+	char *p = *h;\
+	uint32_t l = *((uint32_t *)(p+1));\
+	*h += 5;\
+	out = be32toh(l);\
+} STMT_END
+
 static inline uint32_t decode_pkt_len(char **h) {
 	char *p = *h;
 	uint32_t l = *((uint32_t *)(p+1));
