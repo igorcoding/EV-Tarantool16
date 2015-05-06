@@ -68,10 +68,11 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-$c->eval('return box.space.sophier:len()', [], {}, sub {
+$c->call('string_function', [], {}, sub {
 	my ($a) = @_;
-	my $size = @{$a->{tuples}->[0]};
-	say $size;
+	# my $size = @{$a->{tuples}->[0]};
+	# say $size;
+	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;

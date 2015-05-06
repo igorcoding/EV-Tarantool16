@@ -104,7 +104,8 @@ typedef enum {
 	FMT_NUM = 'n',
 	FMT_STR = 's',
 	FMT_NUMBER = 'b',
-	FMT_INT = 'i'
+	FMT_INT = 'i',
+	FMT_ARRAY = 'a'
 } TNT_FORMAT_TYPE;
 
 typedef enum {

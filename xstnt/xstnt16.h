@@ -171,6 +171,7 @@ static void destroy_spaces(HV *spaces) {
 						case FMT_STR:                                           \
 						case FMT_NUMBER:                                        \
 						case FMT_INT:                                           \
+						case FMT_ARRAY:                                         \
 							p++; break;                                         \
 						default:                                                \
 							croak_cb(cb,"Unknown pattern in format: %c", *p);   \
@@ -1305,12 +1306,21 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 							if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
 								spc->f.f[ix] = FMT_NUMBER;
 							}
+							else
 							if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
 								spc->f.f[ix] = FMT_INT;
 							}
 							else
+							if (str_len == 5 && strncasecmp(str, "ARRAY", 5) == 0) {
+								spc->f.f[ix] = FMT_ARRAY;
+							}
+							else
 							if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
 								spc->f.f[ix] = FMT_UNKNOWN;
+							}
+							else {
+								spc->f.f[ix] = FMT_UNKNOWN;
+								cwarn("Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 							}
 						}
 					}
@@ -1413,12 +1423,21 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 					if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
 						idx->f.f[part_i] = FMT_NUMBER;
 					}
+					else
 					if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
 						idx->f.f[part_i] = FMT_INT;
 					}
 					else
+					if (str_len == 5 && strncasecmp(str, "ARRAY", 5) == 0) {
+						idx->f.f[part_i] = FMT_ARRAY;
+					}
+					else
 					if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
 						idx->f.f[part_i] = FMT_UNKNOWN;
+					}
+					else {
+						idx->f.f[part_i] = FMT_UNKNOWN;
+						cwarn("Unknown part type \'%.*s\' for index %d of space \'%.*s\'", str_len, str, index_id, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 					}
 
 					SV **f = av_fetch(spc->fields, ix, 0);

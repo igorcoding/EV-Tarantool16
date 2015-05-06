@@ -102,6 +102,38 @@ static SV *types_true, *types_false;
 	dest = mp_encode_map(dest, keys_size);					\
 } STMT_END
 
+#define REAL_SV(sv, real_sv, stash)\
+	HV *stash = NULL;\
+	SV *real_sv = NULL;\
+	if (SvROK(src)) {\
+		real_sv = SvRV(sv);\
+		if (SvOBJECT(real_sv)) {\
+			stash = SvSTASH(real_sv);\
+		}\
+	} else {\
+		real_sv = sv;\
+	}
+
+
+#define encode_AV(actual_src, rv, dest, sz) STMT_START {\
+	AV *arr = (AV *) actual_src;\
+	uint32_t arr_size = av_len(arr) + 1;\
+	uint32_t i = 0;\
+	encode_array(dest, sz, rv, arr_size);\
+	\
+	SV **elem;\
+	for (i = 0; i < arr_size; ++i) {\
+		elem = av_fetch(arr, i, 0);\
+		if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {\
+			dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN);\
+		} else {\
+			encode_nil(dest, sz, rv);\
+		}\
+	}\
+} STMT_END
+
+
+
 static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	// cwarn("fmt = %d", fmt);
 
@@ -169,21 +201,20 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 			croak("Incompatible types. Format expects: %c", fmt);
 		}
 
+	} else if (fmt == FMT_ARRAY) {
+		REAL_SV(src, actual_src, stash);
+
+		if (SvTYPE(actual_src) == SVt_PVAV) {
+			encode_AV(actual_src, rv, dest, sz);
+			return dest;
+		} else {
+			croak("Incompatible types. Format expects: %c", fmt);
+		}
+
 	} else if (fmt == FMT_UNKNOWN) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
-		HV *stash = NULL;
-
-		SV *actual_src = NULL;
-		if (SvROK(src)) {
-			actual_src = SvRV(src);
-			if (SvOBJECT(actual_src)) {
-				stash = SvSTASH(actual_src);
-			}
-		} else {
-			actual_src = src;
-		}
-		// sv_dump(actual_src);
+		REAL_SV(src, actual_src, stash);
 
 		if (stash == boolean_stash) {
 			bool v = (bool) SvIV(actual_src);
@@ -197,21 +228,7 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 
 			} else if (SvTYPE(actual_src) == SVt_PVAV) {  // array
 
-				AV *arr = (AV *) actual_src;
-				uint32_t arr_size = av_len(arr) + 1;
-				uint32_t i = 0;
-
-				encode_array(dest, sz, rv, arr_size);
-
-				SV **elem;
-				for (i = 0; i < arr_size; ++i) {
-					elem = av_fetch(arr, i, 0);
-					if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {
-						dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN);
-					} else {
-						encode_nil(dest, sz, rv);
-					}
-				}
+				encode_AV(actual_src, rv, dest, sz);
 				return dest;
 
 			} else if (SvTYPE(actual_src) == SVt_PVHV) {  // hash
