@@ -49,7 +49,8 @@ static SV *types_true, *types_false;
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def;           \
 			h = encode_obj(*key, h, rv, &sz, _fmt);                     \
 		} else {                                                        \
-			cwarn("something is going wrong");                          \
+			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN);		\
+			cwarn("Passed key is invalid. Consider revising.");			\
 		}                                                               \
 	}                                                                   \
 } STMT_END
@@ -140,16 +141,18 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	SvGETMAGIC(src);
 
 	if (fmt == FMT_STR) {
+		SV *actual_src = src;
+		// REAL_SV(src, actual_src, stash);
 
 		STRLEN str_len = 0;
 		char *str = NULL;
 
-		if (SvPOK(src)) {
-			str = SvPV_nolen(src);
-			str_len = SvCUR(src);
+		if (SvPOK(actual_src)) {
+			str = SvPV_nolen(actual_src);
+			str_len = SvCUR(actual_src);
 		} else {
-			str = SvPV(src, str_len);
-			str_len = SvCUR(src);
+			str = SvPV(actual_src, str_len);
+			str_len = SvCUR(actual_src);
 		}
 
 		encode_str(dest, sz, rv, str, str_len);

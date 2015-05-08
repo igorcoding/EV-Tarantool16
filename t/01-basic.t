@@ -24,7 +24,8 @@ my %test_exec = (
 	insert => 1,
 	delete => 1,
 	update => 1,
-	memtest => 1
+	memtest => 1,
+	RTREE => 1
 );
 
 sub meminfo () {
@@ -302,10 +303,10 @@ subtest 'Delete tests', sub {
 				EV::unloop;
 			});
 		});
+		EV::loop;
 	}
 
 
-	EV::loop;
 };
 
 subtest 'Update tests', sub {
@@ -408,7 +409,15 @@ subtest 'Update tests', sub {
 			status => 'ok',
 			code => 0,
 			sync => ignore()
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', -50], [4 => '=', 'another_heyo'] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 17, -795, 'another_heyo']],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
 		}]
+
 	];
 
 	for my $p (@$_plan) {
@@ -424,6 +433,135 @@ subtest 'Update tests', sub {
 		});
 		EV::loop;
 	}
+};
+
+subtest 'RTREE tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{RTREE};
+	diag '==== RTREE tests ====';
+	my $space = "rtree";
+
+	Renewer::renew_tnt($c, $space, sub {
+		EV::unloop;
+	});
+	EV::loop;
+
+
+	my $_plan = [
+		["select", [], {hash=>0}, {
+			count => 0,
+			tuples => [],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["insert", ['a1', [1,2]], {hash=>0}, {
+			count => 1,
+			tuples => [['a1', [1,2]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["insert", ['a2', [5,6,7,8]], {hash=>0}, {
+			count => 1,
+			tuples => [['a2', [5,6,7,8]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["insert", ['a3', [9,10,11,12]], {hash=>0}, {
+			count => 1,
+			tuples => [['a3', [9,10,11,12]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["insert", ['a4', [5,6,10,15]], {hash=>0}, {
+			count => 1,
+			tuples => [['a4', [5,6,10,15]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", ['a1'], {hash=>0}, {
+			count => 1,
+			tuples => [['a1', [1,2]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", ['a2'], {hash=>0}, {
+			count => 1,
+			tuples => [['a2', [5,6,7,8]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", ['a3'], {hash=>0}, {
+			count => 1,
+			tuples => [['a3', [9,10,11,12]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", ['a4'], {hash=>0}, {
+			count => 1,
+			tuples => [['a4', [5,6,10,15]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'EQ'}, {
+			count => 1,
+			tuples => [['a2', [5,6,7,8]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'OVERLAPS'}, {
+			count => 2,
+			tuples => [['a2', [5,6,7,8]], ['a4', [5,6,10,15]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'GT'}, {
+			count => 0,
+			tuples => [],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'GE'}, {
+			count => 2,
+			tuples => [['a2', [5,6,7,8]], ['a4', [5, 6, 10, 15]]],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'LT'}, {
+			count => 0,
+			tuples => [],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+	];
+
+	for my $p (@$_plan) {
+		my $op = $p->[0];
+		$c->$op($space, $p->[1], $p->[2], sub {
+			my $a = @_[0];
+			diag Dumper \@_ if !$a;
+			cmp_deeply $a, $p->[3];
+
+			# Renewer::renew_tnt($c, $SPACE_NAME, sub {
+				EV::unloop;
+			# });
+		});
+		EV::loop;
+	}
+
+
 };
 
 subtest 'Memory tests', sub {

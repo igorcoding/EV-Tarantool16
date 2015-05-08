@@ -14,56 +14,34 @@ use Errno;
 use Scalar::Util 'weaken';
 # use AE;
 
-
-my @data = (
-	["t1", "t2", 17, -745, "heyo"],
-	["t1", "t2", 2, [1, 2, 3, "str1", 4]],
-	["t1", "t2", 3, {key1 => 'value1', key2 => 42, 33 => Types::Serialiser::true, 35 => Types::Serialiser::false}],
-	["tt1", "tt2", 456, 5]
-);
-
 sub insertion {
-	my ($c, $space, $args, $current, $cb) = @_;
+	my ($c, $space, $cb) = @_;
 
-	if ($current >= scalar(@$args)) {
-	# if ($current >= 1) {
-		$cb->();
-		return;
-	}
-
-	$c->eval("return box.space.$space:insert{...}", $$args[$current], sub {
+	$c->call("fill_$space", [], sub {
 		my $a = @_[0];
-		# say Dumper \@_;
-		insertion($c, $space, $args, $current + 1, $cb);
+		$cb->();
 	});
 }
 
 sub deletion {
-	my ($c, $space, $args, $current, $cb) = @_;
+	my ($c, $space, $cb) = @_;
 
-	if ($current >= scalar(@$args)) {
-		$cb->();
-		return;
-	}
-
-	$c->delete($space, [@{@$args[$current]}[0..2]], sub {
+	$c->call("truncate_$space", [], sub {
 		my $a = @_[0];
 		# say Dumper \@_;
-		deletion($c, $space, $args, $current + 1, $cb);
+		$cb->();
 	});
 }
 
 sub renew_tnt {
 	my ($c, $space, $cb) = @_;
-	$c->select($space, [], { hash => 0 }, sub {
-		my $a = @_[0];
 
-		deletion $c, $space, $a->{tuples}, 0, sub {
-			insertion($c, $space, \@data, 0, $cb);
-		};
-
-	});
+	deletion $c, $space, sub {
+		insertion($c, $space, $cb);
+	};
 }
+
+1;
 
 # renew_tnt(sub {
 # 	EV::unloop;

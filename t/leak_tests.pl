@@ -11,8 +11,8 @@ use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
 use Renewer;
-# use Devel::Leak;
-# use Devel::Peek;
+use Devel::Leak;
+use Devel::Peek;
 # use AE;
 
 my $var;
@@ -68,21 +68,22 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-$c->call('string_function', [], {}, sub {
-	my ($a) = @_;
-	# my $size = @{$a->{tuples}->[0]};
-	# say $size;
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
 
 
-undef $c;
-undef $tnt;
+# $c->select('tester', [], {hash=>0}, sub {
+# 	my ($a) = @_;
+# 	# my $size = @{$a->{tuples}->[0]};
+# 	# say $size;
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+
+# undef $c;
+# undef $tnt;
 # }
 
-# Devel::Leak::CheckSV($var);
 
 
 # for (1..10) {
@@ -95,16 +96,20 @@ undef $tnt;
 # EV::loop;
 # }
 
-# my $p = [[], {hash => 0}];
+Devel::Leak::NoteSV($var);
+
+my $p = [[], {hash => 0}];
 
 # for (1..10) {
-# $c->select('tester', $p->[0], $p->[1], sub {
-# 			my $a = @_[0];
-# 			EV::unloop;
-# 		});
-# EV::loop;
+$c->select('tester', $p->[0], $p->[1], sub {
+			my $a = @_[0];
+			EV::unloop;
+		});
+EV::loop;
 # }
-# undef $p;
+undef $p;
+
+Devel::Leak::CheckSV($var);
 
 # my $p = [["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { replace => 0, hash => 0 }];
 

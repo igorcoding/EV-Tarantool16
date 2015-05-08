@@ -1,5 +1,9 @@
-#! /usr/bin/env tarantool
--- print 'What?'
+box.cfg{
+	listen = 3301,
+	log_level = 5,
+	-- logger = 'tarantool.log'
+}
+box.schema.user.grant('guest','read,write,execute,create,drop','universe')
 
 s_tester = box.space.tester
 if s_tester then
