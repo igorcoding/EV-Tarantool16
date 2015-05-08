@@ -11,8 +11,8 @@ use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
 use Renewer;
-# use Devel::Leak;
-# use Devel::Peek;
+use Devel::Leak;
+use Devel::Peek;
 # use AE;
 
 my $var;
@@ -68,21 +68,26 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-$c->call('string_function', [], {}, sub {
+Devel::Leak::NoteSV($var);
+
+# for (1..10) {
+$c->select('tester', [], sub {
 	my ($a) = @_;
 	# my $size = @{$a->{tuples}->[0]};
 	# say $size;
-	say Dumper \@_;
+	# say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
 
-
-undef $c;
-undef $tnt;
 # }
 
-# Devel::Leak::CheckSV($var);
+
+# undef $c;
+# undef $tnt;
+# }
+
+Devel::Leak::CheckSV($var);
 
 
 # for (1..10) {

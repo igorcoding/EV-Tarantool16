@@ -27,7 +27,7 @@ if [ ${TRAVIS} == true ]; then
 	cpanm EV
 	cpanm AnyEvent
 	cpanm Test::Deep
-	sudo ln -s ${HOME}/build/igorcoding/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
+	sudo ln -s ${HOME}/build/igorcoding/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
 else
 	sudo apt-get install -y valgrind
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
@@ -39,7 +39,7 @@ else
 	sudo cpanm Test::Valgrind
 	sudo cpanm List::BinarySearch
 
-	sudo ln -s ${HOME}/EV-Tarantool1.6/provision/init.lua /etc/tarantool/instances.enabled/
+	sudo ln -s ${HOME}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
 
 	echo 'Build Perl 5.16.3...'
 
@@ -63,7 +63,7 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
 fi
 
-sudo tarantoolctl start init
+sudo tarantoolctl start evtnt
 
 # sudo service tarantool restart
 tarantool --version

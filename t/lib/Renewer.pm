@@ -2,17 +2,12 @@ package Renewer;
 
 use 5.010;
 use strict;
-use Test::More;
-use Test::Deep;
 use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
-use EV::Tarantool;
-use Time::HiRes 'sleep','time';
 use Data::Dumper;
 use Errno;
-use Scalar::Util 'weaken';
-# use AE;
+use Test::More;
 
 
 my @data = (
@@ -26,7 +21,6 @@ sub insertion {
 	my ($c, $space, $args, $current, $cb) = @_;
 
 	if ($current >= scalar(@$args)) {
-	# if ($current >= 1) {
 		$cb->();
 		return;
 	}
@@ -36,36 +30,46 @@ sub insertion {
 		# say Dumper \@_;
 		insertion($c, $space, $args, $current + 1, $cb);
 	});
+
+	# my ($c, $space, $cb) = @_;
+	# $c->call("fill_$space", [], {}, sub {
+	# 	# my $a = @_[0];
+	# 	# diag Dumper $a;
+	# 	$cb->();
+	# });
 }
 
 sub deletion {
-	my ($c, $space, $args, $current, $cb) = @_;
+	my ($c, $space, $cb) = @_;
 
-	if ($current >= scalar(@$args)) {
-		$cb->();
-		return;
-	}
-
-	$c->delete($space, [@{@$args[$current]}[0..2]], sub {
+	$c->call("truncate_$space", [], sub {
 		my $a = @_[0];
-		# say Dumper \@_;
-		deletion($c, $space, $args, $current + 1, $cb);
+		$cb->();
 	});
 }
 
 sub renew_tnt {
 	my ($c, $space, $cb) = @_;
-	$c->select($space, [], { hash => 0 }, sub {
-		my $a = @_[0];
 
-		deletion $c, $space, $a->{tuples}, 0, sub {
-			insertion($c, $space, \@data, 0, $cb);
-		};
-
+	$c->call("truncate_$space", [], sub {
+		# my $a = @_[0];
+		# $cb->();
+		$c->call("fill_$space", [], sub {
+			my $a = @_[0];
+			# diag Dumper $a;
+			$cb->();
+		});
 	});
+
+	# deletion $c, $space, sub {
+	# 	insertion($c, $space, \@data, 0, $cb);
+	# 	# insertion($c, $space, $cb);
+	# };
 }
 
 # renew_tnt(sub {
 # 	EV::unloop;
 # });
 # EV::loop;
+
+1;

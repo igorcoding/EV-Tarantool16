@@ -1086,7 +1086,7 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 		return -1;
 
 	uint32_t n = mp_decode_map(&p);
-	uint32_t code;
+	uint32_t code = 0;
 	while (n-- > 0) {
 		if (mp_typeof(*p) != MP_UINT)
 			return -1;

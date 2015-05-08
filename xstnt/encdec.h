@@ -49,7 +49,8 @@ static SV *types_true, *types_false;
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def;           \
 			h = encode_obj(*key, h, rv, &sz, _fmt);                     \
 		} else {                                                        \
-			cwarn("something is going wrong");                          \
+			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN);		\
+			cwarn("Passed key is invalid. Consider revising.");			\
 		}                                                               \
 	}                                                                   \
 } STMT_END
@@ -140,16 +141,17 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	SvGETMAGIC(src);
 
 	if (fmt == FMT_STR) {
+		REAL_SV(src, actual_src, stash);
 
 		STRLEN str_len = 0;
 		char *str = NULL;
 
-		if (SvPOK(src)) {
-			str = SvPV_nolen(src);
-			str_len = SvCUR(src);
+		if (SvPOK(actual_src)) {
+			str = SvPV_nolen(actual_src);
+			str_len = SvCUR(actual_src);
 		} else {
-			str = SvPV(src, str_len);
-			str_len = SvCUR(src);
+			str = SvPV(actual_src, str_len);
+			str_len = SvCUR(actual_src);
 		}
 
 		encode_str(dest, sz, rv, str, str_len);
@@ -355,7 +357,7 @@ static SV *decode_obj(const char **p) {
 			}
 			case MP_UINT: {
 				uint64_t value = mp_decode_uint(p);
-				SV *s = newSVuv(value);
+				SV *s = sv_2mortal(newSVuv(value));
 				STRLEN l;
 
 				map_key_str = SvPV(s, l);
@@ -364,7 +366,7 @@ static SV *decode_obj(const char **p) {
 			}
 			case MP_INT: {
 				int64_t value = mp_decode_int(p);
-				SV *s = newSViv(value);
+				SV *s = sv_2mortal(newSViv(value));
 				STRLEN l;
 
 				map_key_str = SvPV(s, l);

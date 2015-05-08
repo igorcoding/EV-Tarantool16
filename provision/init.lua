@@ -1,13 +1,13 @@
-box.cfg{
-	listen = 3301,
-	log_level = 5,
-	-- logger = 'tarantool.log'
-}
-box.schema.user.grant('guest','read,write,execute','universe')
+#! /usr/bin/env tarantool
 
 s_tester = box.space.tester
 if s_tester then
 	s_tester:drop{}
+end
+
+s_rtree = box.space.rtree
+if s_rtree then
+	s_rtree:drop{}
 end
 
 s_memier = box.space.memier
@@ -20,38 +20,107 @@ if s_sophier then
 	s_sophier:drop{}
 end
 
-function init_tester(s_tester)
+
+-------------------------------------------------------------------------------
+
+local function init_tester(s)
 	_format = {}
 	_format[1] = {type='str', name='_t1'}
 	_format[2] = {type='str', name='_t2'}
 	_format[3] = {type='num', name='_t3'}
 	_format[4] = {type='num', name='_t4'}
-	s_tester:format(_format)
+	s:format(_format)
 
-	i = s_tester:create_index('primary', {type = 'tree', parts = {1, 'STR', 2, 'STR', 3, 'NUM'}})
-	-- i2 = s_tester:create_index('spatial', {type = 'RTREE', unique = false, parts = {7, 'ARRAY'}})
-
-
-	-- arr = {1, 2, 3, "str1", 4}
-	-- obj = {}
-	-- obj['key1'] = "value1"
-	-- obj['key2'] = 42
-	-- obj[33] = true
-	-- obj[35] = false
-
-	-- s_tester:insert{"t1", "t2", 1, -745, "heyo"};
-	-- s_tester:insert{"t1", "t2", 2, arr};
-	-- s_tester:insert{"t1", "t2", 3, obj};
-	-- s_tester:insert{"tt1", "tt2", 456};
+	i = s:create_index('primary', {type = 'tree', parts = {1, 'STR', 2, 'STR', 3, 'NUM'}})
+	-- box.space.tester:insert({'s','a',3,4})
 end
 
-function init_sophier(s_sophier)
-	i = s_sophier:create_index('primary', {type = 'tree', parts = {1, 'STR'}})
+function fill_tester()
+	arr = {1, 2, 3, "str1", 4}
+	obj = {}
+	obj['key1'] = "value1"
+	obj['key2'] = 42
+	obj[33] = true
+	obj[35] = false
+
+	box.space.tester:insert{"t1", "t2", 17, -745, "heyo"};
+	box.space.tester:insert{"t1", "t2", 2, arr};
+	box.space.tester:insert{"t1", "t2", 3, obj};
+	box.space.tester:insert{"tt1", "tt2", 456, 5};
 end
 
-function string_function()
-  return "hello world"
+function truncate_tester()
+	s = box.space.tester
+	t = {}
+	i = 1
+	for k, v in s:pairs() do
+		t[i] = {v[1], v[2], v[3]}
+		i = i + 1
+	end
+
+	for i, v in pairs(t) do
+		s:delete(v)
+	end
 end
+
+-------------------------------------------------------------------------------
+
+local function init_sophier(s)
+	i = s:create_index('primary', {type = 'tree', parts = {1, 'STR'}})
+end
+
+local function _truncate_sophier(s)
+	t = {}
+	i = 1
+	for k, v in s:pairs() do
+		t[i] = {v[1]}
+		i = i + 1
+	end
+
+	for i, v in pairs(t) do
+		s:delete(v)
+	end
+end
+
+function truncate_sophier()
+	s = box.space.sophier
+	_truncate_sophier(s)
+end
+
+function truncate_memier()
+	s = box.space.memier
+	_truncate_sophier(s)
+end
+
+
+-------------------------------------------------------------------------------
+
+
+local function init_rtree(s)
+	i = s:create_index('primary', {type = 'TREE', parts = {1, 'STR'}})
+	i2 = s:create_index('spatial', {type = 'RTREE', unique = false, parts = {2, 'ARRAY'}})
+end
+
+function fill_rtree()
+
+end
+
+function truncate_rtree()
+	s = box.space.rtree
+	t = {}
+	i = 1
+	for k, v in s:pairs() do
+		t[i] = {v[1]}
+		i = i + 1
+	end
+
+	for i, v in pairs(t) do
+		s:delete(v)
+	end
+end
+
+
+-------------------------------------------------------------------------------
 
 
 s_tester = box.schema.space.create('tester')
@@ -62,3 +131,25 @@ init_sophier(s_memier)
 
 s_sophier = box.schema.space.create('sophier', {engine = 'sophia'})
 init_sophier(s_sophier)
+
+s_rtree = box.schema.space.create('rtree')
+init_rtree(s_rtree)
+
+
+function string_function()
+  return "hello world"
+end
+
+function truncate_all()
+	print "Truncating tester space"
+	truncate_tester()
+
+	print "Truncating sophier space"
+	truncate_sophier()
+
+	print "Truncating memier space"
+	truncate_memier()
+
+	print "Truncating rtree space"
+	truncate_rtree()
+end
