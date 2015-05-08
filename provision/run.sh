@@ -30,9 +30,10 @@ if [ ${TRAVIS} == true ]; then
 	cpanm AnyEvent
 	cpanm Test::Deep
 
+	echo ${TRAVIS_BUILD_DIR}
 	sudo ln -s ${TRAVIS_BUILD_DIR}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
-
-	export HOME=${TRAVIS_BUILD_DIR}
+	HOME=${TRAVIS_BUILD_DIR} sudo tarantoolctl start evtnt
+	export HOME=${PREV_HOME}
 else
 	sudo apt-get install -y valgrind
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
@@ -68,10 +69,9 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
 
 	mkdir -p ${HOME}/tnt
-fi
 
-sudo tarantoolctl start evtnt
-export HOME=${PREV_HOME}
+	sudo tarantoolctl start evtnt
+fi
 
 # sudo service tarantool restart
 tarantool --version
