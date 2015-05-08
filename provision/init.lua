@@ -1,5 +1,4 @@
 #! /usr/bin/env tarantool
--- print 'What?'
 
 s_tester = box.space.tester
 if s_tester then

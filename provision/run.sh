@@ -21,13 +21,18 @@ sudo make install
 
 cd -
 
+PREV_HOME=${HOME}
+
 if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"
 	cpanm Types::Serialiser
 	cpanm EV
 	cpanm AnyEvent
 	cpanm Test::Deep
-	sudo ln -s ${HOME}/build/igorcoding/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
+
+	sudo ln -s ${TRAVIS_BUILD_DIR}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
+
+	export HOME=${TRAVIS_BUILD_DIR}
 else
 	sudo apt-get install -y valgrind
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
@@ -61,11 +66,12 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Deep
 	sudo ${HOME}/perl/bin/perl `which cpanm` Test::Valgrind
 	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
+
+	mkdir -p ${HOME}/tnt
 fi
 
 sudo tarantoolctl start evtnt
+export HOME=${PREV_HOME}
 
 # sudo service tarantool restart
 tarantool --version
-
-mkdir -p ${HOME}/tnt

@@ -141,8 +141,7 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	SvGETMAGIC(src);
 
 	if (fmt == FMT_STR) {
-		SV *actual_src = src;
-		// REAL_SV(src, actual_src, stash);
+		REAL_SV(src, actual_src, stash);
 
 		STRLEN str_len = 0;
 		char *str = NULL;
@@ -358,7 +357,7 @@ static SV *decode_obj(const char **p) {
 			}
 			case MP_UINT: {
 				uint64_t value = mp_decode_uint(p);
-				SV *s = newSVuv(value);
+				SV *s = sv_2mortal(newSVuv(value));
 				STRLEN l;
 
 				map_key_str = SvPV(s, l);
@@ -367,7 +366,7 @@ static SV *decode_obj(const char **p) {
 			}
 			case MP_INT: {
 				int64_t value = mp_decode_int(p);
-				SV *s = newSViv(value);
+				SV *s = sv_2mortal(newSViv(value));
 				STRLEN l;
 
 				map_key_str = SvPV(s, l);

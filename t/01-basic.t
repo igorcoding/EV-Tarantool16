@@ -2,16 +2,16 @@ package main;
 
 use 5.010;
 use strict;
-use Test::More;
-use Test::Deep;
 use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
-use EV::Tarantool;
 use Time::HiRes 'sleep','time';
-use Data::Dumper;
-use Errno;
 use Scalar::Util 'weaken';
+use Errno;
+use EV::Tarantool;
+use Test::More;
+use Test::Deep;
+use Data::Dumper;
 use Renewer;
 # use Devel::Leak;
 # use AE;
@@ -24,8 +24,8 @@ my %test_exec = (
 	insert => 1,
 	delete => 1,
 	update => 1,
-	memtest => 1,
-	RTREE => 1
+	RTREE => 1,
+	memtest => 1
 );
 
 sub meminfo () {
@@ -416,8 +416,7 @@ subtest 'Update tests', sub {
 			status => 'ok',
 			code => 0,
 			sync => ignore()
-		}]
-
+ 		}]
 	];
 
 	for my $p (@$_plan) {
@@ -553,10 +552,7 @@ subtest 'RTREE tests', sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[3];
-
-			# Renewer::renew_tnt($c, $SPACE_NAME, sub {
-				EV::unloop;
-			# });
+			EV::unloop;
 		});
 		EV::loop;
 	}
@@ -568,9 +564,10 @@ subtest 'Memory tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{memtest};
 	diag '==== Memory tests ===';
 	memcheck 50000, $c, "ping",[];
+	memcheck 50000, $c, "call",["string_function",[]];
 	memcheck 50000, $c, "select",[$SPACE_NAME,['t1']];
 	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
-	# memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1 }];
+	memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1, replace => 1 }];
 };
 
 done_testing()

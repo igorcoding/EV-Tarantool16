@@ -68,6 +68,21 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
+Devel::Leak::NoteSV($var);
+
+# for (1..10) {
+$c->select('tester', [], sub {
+	my ($a) = @_;
+	# my $size = @{$a->{tuples}->[0]};
+	# say $size;
+	# say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
+# }
+
+Devel::Leak::CheckSV($var);
 
 
 # $c->select('tester', [], {hash=>0}, sub {
@@ -85,7 +100,6 @@ EV::loop;
 # }
 
 
-
 # for (1..10) {
 # $c->ping(sub {
 # 	my $a = @_[0];
@@ -95,21 +109,6 @@ EV::loop;
 # });
 # EV::loop;
 # }
-
-Devel::Leak::NoteSV($var);
-
-my $p = [[], {hash => 0}];
-
-# for (1..10) {
-$c->select('tester', $p->[0], $p->[1], sub {
-			my $a = @_[0];
-			EV::unloop;
-		});
-EV::loop;
-# }
-undef $p;
-
-Devel::Leak::CheckSV($var);
 
 # my $p = [["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { replace => 0, hash => 0 }];
 

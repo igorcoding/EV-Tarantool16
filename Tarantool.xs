@@ -119,7 +119,8 @@ static void on_read(ev_cnn * self, size_t len) {
 
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len == 0) {
+	if (buf_len < 5) {
+		debug("not enough");
 		// PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
@@ -229,8 +230,9 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len == 0) {
-		PE_CROAK("No content arrived. (buflen==0)");
+	if (buf_len < 5) {
+		debug("not enough");
+		// PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
@@ -313,8 +315,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 	/* len */
 	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len == 0) {
-		PE_CROAK("No content arrived. (buflen==0)");
+	if (buf_len < 5) {
+		debug("not enough");
+		// PE_CROAK("No content arrived. (buflen==0)");
 		return;
 	}
 
