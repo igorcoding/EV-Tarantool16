@@ -18,7 +18,7 @@ use Devel::Peek;
 my $var;
 # Devel::Leak::NoteSV($var);
 
-# for (0..10) {
+for (0..100) {
 my $cfs = 0;
 my $connected;
 my $disconnected;
@@ -28,6 +28,7 @@ my $tnt = {
 	host => '127.0.0.1'
 };
 
+Devel::Leak::NoteSV($var);
 
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
@@ -37,12 +38,12 @@ my $c; $c = EV::Tarantool->new({
 	connected => sub {
 		# warn "connected: @_";
 		# $connected++;
-		my $t; $t = EV::timer 1.0, 0, sub {
-			# diag Dumper $c->spaces;
-			EV::unloop;
-			undef $t;
-		};
-		EV::loop;
+		# my $t; $t = EV::timer 1.0, 0, sub {
+		# 	# diag Dumper $c->spaces;
+		# 	EV::unloop;
+		# 	undef $t;
+		# };
+		# EV::loop;
 		EV::unloop;
 	},
 	connfail => sub {
@@ -63,24 +64,26 @@ my $c; $c = EV::Tarantool->new({
 # Dump($tnt);
 # Dump($c);
 
-# undef $c;
 
 $c->connect;
 EV::loop;
 
-Devel::Leak::NoteSV($var);
+# undef $c;
+
+# }
+
 
 # for (1..10) {
 $c->select('tester', [], sub {
 	my ($a) = @_;
-	# my $size = @{$a->{tuples}->[0]};
-	# say $size;
+# 	# my $size = @{$a->{tuples}->[0]};
+# 	# say $size;
 	# say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
 
-# }
+}
 
 Devel::Leak::CheckSV($var);
 

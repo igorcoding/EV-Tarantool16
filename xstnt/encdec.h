@@ -3,6 +3,11 @@
 
 #include "types.h"
 
+#define TNT_GREET_LENGTH 128
+#define TNT_VER_LENGTH 64
+#define TNT_SALT_LENGTH 44
+#define TNT_PAD_LENGTH ((TNT_GREET_LENGTH) - (TNT_VER_LENGTH) - (TNT_SALT_LENGTH))
+
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
 
@@ -279,6 +284,20 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 
 	return dest;
 }
+
+
+#define decode_greeting(data, tnt_ver_begin, tnt_ver_end, salt_begin, salt_end) STMT_START {\
+	char *p = data;\
+	tnt_ver_begin = p;\
+	p += TNT_VER_LENGTH;\
+	tnt_ver_end = p;\
+	\
+	salt_begin = p;\
+	p += TNT_SALT_LENGTH;\
+	salt_end = p;\
+	\
+	p += TNT_PAD_LENGTH;\
+} STMT_END
 
 #define decode_pkt_len_(h, out) STMT_START {\
 	char *p = *h;\

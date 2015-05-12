@@ -65,7 +65,9 @@ my $disconnected;
 
 my $tnt = {
 	port => 3301,
-	host => '127.0.0.1'
+	host => '127.0.0.1',
+	username => 'test_user',
+	password => 'test_pass',
 };
 
 
@@ -75,6 +77,8 @@ my $SPACE_NAME = 'tester';
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
+	username => $tnt->{username},
+	password => $tnt->{password},
 	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
@@ -100,12 +104,12 @@ my $c; $c = EV::Tarantool->new({
 $c->connect;
 EV::loop;
 
-my $t; $t = EV::timer 1.0, 0, sub {
-	# diag Dumper $c->spaces;
-	EV::unloop;
-	undef $t;
-};
-EV::loop;
+# my $t; $t = EV::timer 1.0, 0, sub {
+# 	# diag Dumper $c->spaces;
+# 	EV::unloop;
+# 	undef $t;
+# };
+# EV::loop;
 
 Renewer::renew_tnt($c, $SPACE_NAME, sub {
 	EV::unloop;

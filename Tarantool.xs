@@ -11,6 +11,7 @@
 #define MYDEBUG
 
 #include "xstnt16.h"
+#include "auth.h"
 
 #if __GNUC__ >= 3
 # define INLINE static inline
@@ -39,8 +40,8 @@ typedef struct {
 	U32      use_hash;
 	HV      *reqs;
 	HV      *spaces;
-	SV      *server_version;
-	SV      *salt;
+	SV      *username;
+	SV      *password;
 } TntCnn;
 
 static const uint32_t _SPACE_SPACEID = 280;
@@ -95,7 +96,7 @@ static void _execute_select(TntCnn * tnt, uint32_t space_id) {
 	if ((ctx->wbuf = pkt_select(ctx, iid, tnt->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL ))) {
 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
 
-		ctx->cb = NULL;
+		SvREFCNT_inc(ctx->cb = tnt->connected);
 		(void) hv_store(tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0);
 
 		++tnt->pending;
@@ -222,6 +223,9 @@ static void on_read(ev_cnn * self, size_t len) {
 }
 
 static void on_index_info_read(ev_cnn * self, size_t len) {
+	ENTER;
+	SAVETMPS;
+
 	do_disable_rw_timer(self);
 
 	TntCnn * tnt = (TntCnn *) self;
@@ -267,8 +271,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		cwarn("key %d not found", id);
 		rbuf += length + 5;
 		return;
-	}
-	else {
+	} else {
 		ctx = (TntCtx *) SvPVX(key);
 		ev_timer_stop(self->loop, &ctx->t);
 		SvREFCNT_dec(ctx->wbuf);
@@ -279,7 +282,6 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	rbuf += length;
 
 	/* body */
-
 	SV **spaces_hv_key;
 	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key))) {
 		int code = SvIV(*spaces_hv_key);
@@ -288,12 +290,45 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		}
 		cwarn("Couldn\'t get index info");
 	} else {
-		length = parse_index_body(tnt->spaces, rbuf, buf_len);
+		length = parse_index_body(tnt->spaces, spaces_hv, rbuf, buf_len);
 		if (unlikely(length <= 0)) {
 			TNT_CROAK("Unexpected response body");
 			return;
 		}
 		rbuf += length;
+	}
+
+	dSP;
+
+	if (ctx->cb) {
+		SPAGAIN;
+
+		ENTER; SAVETMPS;
+
+		SV ** var = hv_fetchs(spaces_hv,"code",0);
+		if (var && SvIV (*var) == 0) {
+			PUSHMARK(SP);
+			PUTBACK;
+		}
+		else {
+			var = hv_fetchs(spaces_hv,"errstr",0);
+			PUSHMARK(SP);
+			EXTEND(SP, 3);
+			PUSHs( &PL_sv_undef );
+			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) spaces_hv) )) );
+			PUTBACK;
+		}
+
+		(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
+
+		//SPAGAIN;PUTBACK;
+
+		SvREFCNT_dec(ctx->cb);
+
+		FREETMPS; LEAVE;
+	} else {
+		cwarn("No callback after index info fetching");
 	}
 
 	--tnt->pending;
@@ -304,9 +339,15 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 	self->on_read = (c_cb_read_t) on_read;
+
+	FREETMPS;
+	LEAVE;
 }
 
 static void on_spaces_info_read(ev_cnn * self, size_t len) {
+	ENTER;
+	SAVETMPS;
+
 	do_disable_rw_timer(self);
 
 	TntCnn * tnt = (TntCnn *) self;
@@ -363,35 +404,55 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	rbuf += length;
 
 	/* body */
+	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
+	if (unlikely(length <= 0)) {
+		TNT_CROAK("Unexpected response body");
+		return;
+	}
+	rbuf += length;
 
 	SV **spaces_hv_key;
-	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key))) {
-		int code = SvIV(*spaces_hv_key);
-		if (code != 0) {
-			cwarn("Couldn\'t get spaces info. Code = %d", code);
+	if ((spaces_hv_key = hv_fetchs(spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
+		if (tnt->spaces) {
+			destroy_spaces(tnt->spaces);
 		}
-		cwarn("Couldn\'t get spaces info");
+		tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
+
+		self->on_read = (c_cb_read_t) on_index_info_read;
+		_execute_select(tnt, _INDEX_SPACEID);
+		// self->on_read = (c_cb_read_t) on_read;
+	} else {
+		self->on_read = (c_cb_read_t) on_read;
+	}
+
+	dSP;
+
+	spaces_hv_key = hv_fetchs(spaces_hv, "code", 0);
+	if (!spaces_hv_key || !(*spaces_hv_key) || !SvOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0) {
+		if (ctx->cb) {
+			SPAGAIN;
+			ENTER; SAVETMPS;
+
+			spaces_hv_key = hv_fetchs(spaces_hv,"errstr",0);
+			PUSHMARK(SP);
+			EXTEND(SP, 3);
+			PUSHs( &PL_sv_undef );
+			PUSHs( spaces_hv_key && *spaces_hv_key ? sv_2mortal(newSVsv(*spaces_hv_key)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) spaces_hv) )) );
+			PUTBACK;
+
+			(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
+
+			//SPAGAIN;PUTBACK;
+
+			SvREFCNT_dec(ctx->cb);
+
+			FREETMPS; LEAVE;
+		}
 		self->on_read = (c_cb_read_t) on_read;
 	} else {
-		length = parse_spaces_body(spaces_hv, rbuf, buf_len);
-		if (unlikely(length <= 0)) {
-			TNT_CROAK("Unexpected response body");
-			return;
-		}
-		rbuf += length;
-
-		SV **spaces_hv_key;
-		if ((spaces_hv_key = hv_fetchs(spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
-			if (tnt->spaces) {
-				destroy_spaces(tnt->spaces);
-			}
-			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
-
-			self->on_read = (c_cb_read_t) on_index_info_read;
-			_execute_select(tnt, _INDEX_SPACEID);
-			// self->on_read = (c_cb_read_t) on_read;
-		} else {
-			self->on_read = (c_cb_read_t) on_read;
+		if (ctx->cb) {
+			SvREFCNT_dec(ctx->cb);
 		}
 	}
 
@@ -401,6 +462,9 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	if (self->ruse > 0) {
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
+
+	FREETMPS;
+	LEAVE;
 }
 
 
@@ -423,15 +487,39 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 
 	//TODO: perform authentication here and save salt and server version
 
+	char *tnt_ver_begin = NULL, *tnt_ver_end = NULL;
+	char *salt_begin = NULL, *salt_end = NULL;
+	decode_greeting(rbuf, tnt_ver_begin, tnt_ver_end, salt_begin, salt_end);
+
 	self->ruse -= buf_len;
 	if (self->ruse > 0) {
 		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
-	self->on_read = (c_cb_read_t) on_spaces_info_read;
-	_execute_select(tnt, _SPACE_SPACEID);
-	// self->on_read = (c_cb_read_t) on_read;
+	// if (tnt->username && tnt->password) {
+	// 	dSVX(ctxsv, ctx, TntCtx);
+	// 	sv_2mortal(ctxsv);
+	// 	ctx->call = "auth";
+	// 	ctx->use_hash = tnt->use_hash;
+
+	// 	uint32_t iid = ++tnt->seq;
+
+	// 	if ((ctx->wbuf = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end))) {
+	// 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
+
+	// 		SvREFCNT_inc(ctx->cb = tnt->connected);
+	// 		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
+
+	// 		++tnt->pending;
+
+	// 		do_write( &tnt->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
+	// 	}
+	// } else {
+		self->on_read = (c_cb_read_t) on_spaces_info_read;
+		_execute_select(tnt, _SPACE_SPACEID);
+		// self->on_read = (c_cb_read_t) on_read;
+	// }
 
 
 	FREETMPS;
@@ -532,6 +620,7 @@ void new(SV *pk, HV *conf)
 	PPCODE:
 		if (0) pk = pk;
 		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0) // TODO: connected cb is assigned here, but it shoudldn't however
+		self->call_connected = false;
 		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 		// self->cnn.on_read = (c_cb_read_t) on_read;
 		self->on_disconnect_before = (c_cb_err_t) on_disconnect;
@@ -545,6 +634,8 @@ void new(SV *pk, HV *conf)
 
 		self->use_hash = 1;
 		if ((key = hv_fetchs(conf, "hash", 0)) ) self->use_hash = SvOK(*key) ? SvIV(*key) : 0;
+		if ((key = hv_fetchs(conf, "username", 0)) && SvPOK(*key)) SvREFCNT_inc(self->username = *key);
+		if ((key = hv_fetchs(conf, "password", 0)) && SvPOK(*key)) SvREFCNT_inc(self->password = *key);
 
 		self->spaces = newHV();
 
@@ -570,6 +661,8 @@ void DESTROY(SV *this)
 				destroy_spaces(self->spaces);
 			}
 		}
+		if (self->username) SvREFCNT_dec(self->username);
+		if (self->password) SvREFCNT_dec(self->password);
 		xs_ev_cnn_destroy(self);
 
 

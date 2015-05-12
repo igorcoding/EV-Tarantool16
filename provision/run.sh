@@ -9,7 +9,7 @@ deb-src http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
 EOF'
 
 sudo apt-get update
-sudo apt-get install -y tarantool libexpat1-dev
+sudo apt-get install -y tarantool libexpat1-dev libssl-dev
 
 USR_SRC=/usr/local/src
 wget http://c-ares.haxx.se/download/c-ares-1.9.1.tar.gz -O - | sudo tar -C ${USR_SRC} -xzvf -
@@ -30,7 +30,6 @@ if [ ${TRAVIS} == true ]; then
 	cpanm AnyEvent
 	cpanm Test::Deep
 
-	echo ${TRAVIS_BUILD_DIR}
 	sudo ln -s ${TRAVIS_BUILD_DIR}/provision/evtnt.lua /etc/tarantool/instances.enabled/
 	HOME=${TRAVIS_BUILD_DIR}/../ sudo tarantoolctl start evtnt
 	export HOME=${PREV_HOME}
@@ -39,7 +38,6 @@ else
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
 	sudo cpanm Types::Serialiser
 	sudo cpanm EV
-	sudo cpanm EV::MakeMaker
 	sudo cpanm AnyEvent
 	sudo cpanm Test::Deep
 	sudo cpanm Test::Valgrind

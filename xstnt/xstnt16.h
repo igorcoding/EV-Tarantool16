@@ -9,6 +9,7 @@
 #include "defines.h"
 #include "types.h"
 #include "encdec.h"
+#include "auth.h"
 
 static const uint32_t SCRAMBLE_SIZE = 20;
 static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
@@ -336,6 +337,60 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	}
 
 	return OP_UPD_UNKNOWN;
+}
+
+static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char const *salt_begin, const char const *salt_end) {
+	cwarn("password: %.*s", SvCUR(password), SvPV_nolen(password));
+
+	unsigned char* salt;
+	size_t salt_size = 0;
+	base64_decode(salt_begin, salt_end, &salt, &salt_size);
+
+	const size_t password_hash_len = SHA_DIGEST_LENGTH;
+
+	unsigned char step1[password_hash_len];
+	sha1_encode(SvPV_nolen(password), SvCUR(password), step1);  // step1
+
+	unsigned char step23[password_hash_len];
+	sha1_encode(step1, password_hash_len, step23);  // step2
+
+	int salt_with_step2_size = salt_size + password_hash_len;
+	unsigned char salt_with_step2[salt_with_step2_size];
+	memcpy(salt_with_step2, salt, salt_size);
+	memcpy(salt_with_step2 + salt_size, step23, password_hash_len);
+
+	sha1_encode(salt_with_step2, salt_with_step2_size, step23);  // step3
+
+	for (int i = 0; i < password_hash_len; ++i) {
+	    step23[i] = step1[i] ^ step23[i];
+	}
+
+	cwarn("[Testing auth 1] %.*s\n", password_hash_len, step23);
+	safefree(salt);
+
+	size_t sz = HEADER_CONST_LEN
+				+ 1  // mp_sizeof_map(2)
+				+ 1  // mp_sizeof_uint(TP_USERNAME)
+				+ mp_sizeof_str(SvCUR(username))
+				+ 1  // mp_sizeof_uint(TP_TUPLE)
+				+ 1  // mp_sizeof_array(2)
+				+ 1 + 9  // mp_sizeof_str(9)
+				+ 1 + 20 // mp_sizeof_str(20)
+				;
+	create_buffer(rv, h, sz, TP_AUTH, iid);
+
+	h = mp_encode_map(h, 2);
+	h = mp_encode_uint(h, TP_USERNAME);
+	h = mp_encode_str(h, SvPV_nolen(username), SvCUR(username));
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, 2);
+	h = mp_encode_str(h, "chap-sha1", 9);
+	h = mp_encode_str(h, step23, password_hash_len);
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+	return SvREFCNT_inc(rv);
 }
 
 
@@ -1564,7 +1619,7 @@ static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
 	return p - data;
 }
 
-static int parse_index_body(HV *spaces, const char const *data, STRLEN size) {
+static int parse_index_body(HV *spaces, HV *err_ret, const char const *data, STRLEN size) {
 	// TODO: COPY AND THE F*CKING PASTE
 
 	const char *ptr, *beg, *end;
@@ -1589,7 +1644,9 @@ static int parse_index_body(HV *spaces, const char const *data, STRLEN size) {
 			if (mp_typeof(*p) != MP_STR)
 				return -1;
 			uint32_t elen = 0;
-			mp_next(&p); // const char *err_str = mp_decode_str(&p, &elen);
+			const char *err_str = mp_decode_str(&p, &elen);
+			(void) hv_stores(err_ret, "status", newSVpvs("error"));
+			(void) hv_stores(err_ret, "errstr", newSVpvn(err_str, elen));
 			break;
 		}
 
