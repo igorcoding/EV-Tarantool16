@@ -85,90 +85,88 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	FREETMPS;LEAVE;
 }
 
-static void _execute_select(TntCnn * tnt, uint32_t space_id) {
+#define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb) STMT_START {\
+	if (ctx->wbuf = pkt) {\
+		SvREFCNT_inc(ctx->cb = (cb));\
+		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
+		++self->pending;\
+		do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
+	}\
+} STMT_END
+
+INLINE void _execute_select(TntCnn *self, uint32_t space_id, SV *cb) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
 	ctx->call = "select";
-	ctx->use_hash = tnt->use_hash;
-
-	uint32_t iid = ++tnt->seq;
-
-	if ((ctx->wbuf = pkt_select(ctx, iid, tnt->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL ))) {
-		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-		SvREFCNT_inc(ctx->cb = tnt->connected);
-		(void) hv_store(tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0);
-
-		++tnt->pending;
-
-		do_write( &tnt->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-	}
+	ctx->use_hash = self->use_hash;
+	uint32_t iid = ++self->seq;
+	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, cb );
+	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 }
 
-static void on_read(ev_cnn * self, size_t len) {
-	// cwarn("read %zu: %-.*s",len, (int)self->ruse, self->rbuf);
-	// cwarn("self->ruse: %zu", self->ruse);
+#define on_read_no_body(self, len)\
+	do_disable_rw_timer(self);\
+	\
+	TntCnn * tnt = (TntCnn *) self;\
+	char *rbuf = self->rbuf;\
+	char *end = rbuf + self->ruse;\
+	\
+	/* len */\
+	ptrdiff_t buf_len = end - rbuf;\
+	if (buf_len < 5) {\
+		debug("not enough");\
+		return;\
+	}\
+	\
+	uint32_t pkt_length;\
+	decode_pkt_len_(&rbuf, pkt_length);\
+	\
+	if (buf_len - 5 < pkt_length) {\
+		debug("not enough");\
+		return;\
+	}\
+	\
+	HV *hv = (HV *) sv_2mortal((SV *) newHV());\
+	\
+	/* header */\
+	uint32_t id = 0;\
+	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);\
+	if (unlikely(length < 0)) {\
+		TNT_CROAK("Unexpected response header");\
+		return;\
+	}\
+	if (unlikely(id <= 0)) {\
+		PE_CROAK("Wrong sync id (id <= 0)");\
+		rbuf += length;\
+		return;\
+	}\
+	\
+	TntCtx *ctx;\
+	{\
+		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);\
+		\
+		if (!key) {\
+			cwarn("key %d not found", id);\
+			rbuf += length;\
+			return;\
+		} else {\
+			ctx = (TntCtx *) SvPVX(key);\
+			ev_timer_stop(self->loop, &ctx->t);\
+			SvREFCNT_dec(ctx->wbuf);\
+			if (ctx->f.size && !ctx->f.nofree) {\
+				safefree(ctx->f.f);\
+			}\
+		}\
+	}\
+	rbuf += length;
 
+static void on_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	do_disable_rw_timer(self);
-
-	TntCnn * tnt = (TntCnn *) self;
-	char *rbuf = self->rbuf;
-	char *end = rbuf + self->ruse;
-
-	/* len */
-	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len < 5) {
-		debug("not enough");
-		// PE_CROAK("No content arrived. (buflen==0)");
-		return;
-	}
-
-	// uint32_t pkt_length = decode_pkt_len(&rbuf);
-	uint32_t pkt_length;
-	decode_pkt_len_(&rbuf, pkt_length);
-
-	if (buf_len - 5 < pkt_length) {
-		debug("not enough");
-		return;
-	}
-
-	HV *hv = (HV *) sv_2mortal((SV *) newHV());
-
-	/* header */
-	uint32_t id = 0;
-	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-	if (unlikely(length < 0)) {
-		TNT_CROAK("Unexpected response header");
-		return;
-	}
-	if (unlikely(id <= 0)) {
-		cwarn("Wrong sync id (id <= 0)");
-		rbuf += length + 5;
-		return;
-	}
-
-	TntCtx *ctx;
-	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
-
-	if (!key) {
-		debug("key %d not found", id);
-		rbuf += length + 5;
-		return;
-	}
-	else {
-		ctx = (TntCtx *) SvPVX(key);
-		ev_timer_stop(self->loop, &ctx->t);
-		SvREFCNT_dec(ctx->wbuf);
-		if (ctx->f.size && !ctx->f.nofree) {
-			safefree(ctx->f.f);
-		}
-	}
+	on_read_no_body(self, len);
 
 	/* body */
-	rbuf += length;
 
 	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
 	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
@@ -226,97 +224,34 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	do_disable_rw_timer(self);
-
-	TntCnn * tnt = (TntCnn *) self;
-	char *rbuf = self->rbuf;
-	char *end = rbuf + self->ruse;
-
-	/* len */
-	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len < 5) {
-		debug("not enough");
-		// PE_CROAK("No content arrived. (buflen==0)");
-		return;
-	}
-
-	// uint32_t pkt_length = decode_pkt_len(&rbuf);
-	uint32_t pkt_length;
-	decode_pkt_len_(&rbuf, pkt_length);
-	// cwarn("pkt_length = %d", pkt_length);
-
-	if (buf_len - 5 < pkt_length) {
-		debug("not enough");
-		return;
-	}
-
-	HV *spaces_hv = (HV *) sv_2mortal((SV *) newHV());
-
-	/* header */
-	uint32_t id = 0;
-	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	if (unlikely(length < 0)) {
-		TNT_CROAK("Unexpected response header");
-		return;
-	}
-	if (unlikely(id <= 0)) {
-		PE_CROAK("Wrong sync id (id <= 0)");
-		return;
-	}
-
-	TntCtx *ctx;
-	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
-
-	if (!key) {
-		cwarn("key %d not found", id);
-		rbuf += length + 5;
-		return;
-	} else {
-		ctx = (TntCtx *) SvPVX(key);
-		ev_timer_stop(self->loop, &ctx->t);
-		SvREFCNT_dec(ctx->wbuf);
-		if (ctx->f.size && !ctx->f.nofree) {
-			safefree(ctx->f.f);
-		}
-	}
-	rbuf += length;
+	on_read_no_body(self, len);
 
 	/* body */
-	SV **spaces_hv_key;
-	if (unlikely(!(spaces_hv_key = hv_fetchs(spaces_hv, "code", 0)) || !SvOK(*spaces_hv_key) || !SvIOK(*spaces_hv_key))) {
-		int code = SvIV(*spaces_hv_key);
-		if (code != 0) {
-			cwarn("Couldn\'t get index info. Code = %d", code);
-		}
-		cwarn("Couldn\'t get index info");
-	} else {
-		length = parse_index_body(tnt->spaces, spaces_hv, rbuf, buf_len);
-		if (unlikely(length <= 0)) {
-			TNT_CROAK("Unexpected response body");
-			return;
-		}
-		rbuf += length;
+
+	length = parse_index_body(tnt->spaces, hv, rbuf, buf_len);
+	if (unlikely(length <= 0)) {
+		TNT_CROAK("Unexpected response body");
+		return;
 	}
+	rbuf += length;
 
 	dSP;
 
 	if (ctx->cb) {
 		SPAGAIN;
-
 		ENTER; SAVETMPS;
 
-		SV ** var = hv_fetchs(spaces_hv,"code",0);
-		if (var && SvIV (*var) == 0) {
+		SV **key = hv_fetchs(hv, "code", 0);
+		if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
 			PUSHMARK(SP);
 			PUTBACK;
-		}
-		else {
-			var = hv_fetchs(spaces_hv,"errstr",0);
+		} else {
+			key = hv_fetchs(hv,"errstr",0);
 			PUSHMARK(SP);
 			EXTEND(SP, 3);
 			PUSHs( &PL_sv_undef );
-			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) spaces_hv) )) );
+			PUSHs( key && *key ? sv_2mortal(newSVsv(*key)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
 			PUTBACK;
 		}
 
@@ -328,7 +263,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 		FREETMPS; LEAVE;
 	} else {
-		cwarn("No callback after index info fetching");
+		cwarn("No callback defined after index info fetching");
 	}
 
 	--tnt->pending;
@@ -348,97 +283,31 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	do_disable_rw_timer(self);
-
-	TntCnn * tnt = (TntCnn *) self;
-	char *rbuf = self->rbuf;
-	char *end = rbuf + self->ruse;
-
-	/* len */
-	ptrdiff_t buf_len = end - rbuf;
-	if (buf_len < 5) {
-		debug("not enough");
-		// PE_CROAK("No content arrived. (buflen==0)");
-		return;
-	}
-
-	// uint32_t pkt_length = decode_pkt_len(&rbuf);
-	uint32_t pkt_length;
-	decode_pkt_len_(&rbuf, pkt_length);
-	// cwarn("pkt_length = %d", pkt_length);
-
-	if (buf_len - 5 < pkt_length) {
-		debug("not enough");
-		return;
-	}
-
-	HV *spaces_hv = (HV *) sv_2mortal((SV *) newHV());
-
-	/* header */
-	uint32_t id = 0;
-	int length = parse_reply_hdr(spaces_hv, rbuf, buf_len, &id);
-	if (unlikely(length < 0)) {
-		TNT_CROAK("Unexpected response header");
-		return;
-	}
-	if (unlikely(id <= 0)) {
-		PE_CROAK("Wrong sync id (id <= 0)");
-		return;
-	}
-
-	TntCtx *ctx;
-	SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
-
-	if (!key) {
-		cwarn("key %d not found", id);
-		rbuf += length + 5;
-		return;
-	} else {
-		ctx = (TntCtx *) SvPVX(key);
-		ev_timer_stop(self->loop, &ctx->t);
-		SvREFCNT_dec(ctx->wbuf);
-		if (ctx->f.size && !ctx->f.nofree) {
-			safefree(ctx->f.f);
-		}
-	}
-	rbuf += length;
+	on_read_no_body(self, len);
 
 	/* body */
-	length = parse_spaces_body(spaces_hv, rbuf, buf_len);
+
+	length = parse_spaces_body(hv, rbuf, buf_len);
 	if (unlikely(length <= 0)) {
 		TNT_CROAK("Unexpected response body");
 		return;
 	}
 	rbuf += length;
 
-	SV **spaces_hv_key;
-	if ((spaces_hv_key = hv_fetchs(spaces_hv, "data", 0)) && SvOK(*spaces_hv_key) && SvROK(*spaces_hv_key)) {
-		if (tnt->spaces) {
-			destroy_spaces(tnt->spaces);
-		}
-		tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*spaces_hv_key));
-
-		self->on_read = (c_cb_read_t) on_index_info_read;
-		_execute_select(tnt, _INDEX_SPACEID);
-		// self->on_read = (c_cb_read_t) on_read;
-	} else {
-		self->on_read = (c_cb_read_t) on_read;
-	}
-
 	dSP;
 
-	spaces_hv_key = hv_fetchs(spaces_hv, "code", 0);
-	if (!spaces_hv_key || !(*spaces_hv_key) || !SvOK(*spaces_hv_key) || SvIV(*spaces_hv_key) != 0) {
+	SV **key = hv_fetchs(hv, "code", 0);
+	if (unlikely(!key || !(*key) || !SvOK(*key) || SvIV(*key) != 0)) {
 		if (ctx->cb) {
 			SPAGAIN;
 			ENTER; SAVETMPS;
 
-			spaces_hv_key = hv_fetchs(spaces_hv,"errstr",0);
+			key = hv_fetchs(hv,"errstr",0);
 			PUSHMARK(SP);
 			EXTEND(SP, 3);
 			PUSHs( &PL_sv_undef );
-			PUSHs( spaces_hv_key && *spaces_hv_key ? sv_2mortal(newSVsv(*spaces_hv_key)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) spaces_hv) )) );
+			PUSHs( key && *key ? sv_2mortal(newSVsv(*key)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
 			PUTBACK;
 
 			(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
@@ -448,11 +317,25 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 			SvREFCNT_dec(ctx->cb);
 
 			FREETMPS; LEAVE;
+
+			self->on_read = (c_cb_read_t) on_read;
 		}
-		self->on_read = (c_cb_read_t) on_read;
 	} else {
 		if (ctx->cb) {
 			SvREFCNT_dec(ctx->cb);
+		}
+
+		if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
+			if (tnt->spaces) {
+				destroy_spaces(tnt->spaces);
+			}
+			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
+
+			self->on_read = (c_cb_read_t) on_index_info_read;
+			_execute_select(tnt, _INDEX_SPACEID, ctx->cb);
+			// self->on_read = (c_cb_read_t) on_read;
+		} else {
+			self->on_read = (c_cb_read_t) on_read;
 		}
 	}
 
@@ -469,7 +352,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 
 static void on_greet_read(ev_cnn * self, size_t len) {
-	warn("Tarantool Greeting. %.*s", (int) self->ruse, self->rbuf);
+	warn("Tarantool greets you. %.*s", (int) self->ruse, self->rbuf);
 
 	ENTER;
 	SAVETMPS;
@@ -497,27 +380,19 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
-	// if (tnt->username && tnt->password) {
+	SV *cb = tnt->connected;
+
+	// if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
 	// 	dSVX(ctxsv, ctx, TntCtx);
 	// 	sv_2mortal(ctxsv);
 	// 	ctx->call = "auth";
 	// 	ctx->use_hash = tnt->use_hash;
-
 	// 	uint32_t iid = ++tnt->seq;
-
-	// 	if ((ctx->wbuf = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end))) {
-	// 		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-	// 		SvREFCNT_inc(ctx->cb = tnt->connected);
-	// 		(void) hv_store( tnt->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-
-	// 		++tnt->pending;
-
-	// 		do_write( &tnt->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-	// 	}
+	// 	SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, cb);
+	// 	EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
 	// } else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
-		_execute_select(tnt, _SPACE_SPACEID);
+		_execute_select(tnt, _SPACE_SPACEID, cb);
 		// self->on_read = (c_cb_read_t) on_read;
 	// }
 
@@ -689,17 +564,12 @@ void ping(SV *this, SV * cb)
 		xs_ev_cnn_checkconn(self,cb);
 
 		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
 		ctx->call = "ping";
-
+		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SvREFCNT_inc(ctx->cb = cb);
-		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), ctxsv, 0 );
-
-		ctx->wbuf = pkt_ping(iid);
-		// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-		++self->pending;
-		do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf) );
+		SV *pkt = pkt_ping(iid);
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -716,19 +586,9 @@ void select( SV *this, SV *space, SV * keys, ... )
 		sv_2mortal(ctxsv);
 		ctx->call = "select";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if ((ctx->wbuf = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-
-			++self->pending;
-
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -744,16 +604,9 @@ void insert( SV *this, SV *space, SV * t, ... )
 		sv_2mortal(ctxsv);
 		ctx->call = "insert";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if(( ctx->wbuf = pkt_insert(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ) )) {
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-			++self->pending;
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -767,18 +620,11 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->call = "insert";
+		ctx->call = "update";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if(( ctx->wbuf = pkt_update(ctx, iid, self->spaces, space, key, tuple, items == 6 ? (HV *) SvRV(ST( 4)) : 0, cb ) )) {
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-			++self->pending;
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, items == 6 ? (HV *) SvRV(ST( 4)) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -794,16 +640,9 @@ void delete( SV *this, SV *space, SV * t, ... )
 		sv_2mortal(ctxsv);
 		ctx->call = "delete";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if(( ctx->wbuf = pkt_delete(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ) )) {
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-			++self->pending;
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -820,19 +659,9 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		sv_2mortal(ctxsv);
 		ctx->call = "eval";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if ((ctx->wbuf = pkt_eval(ctx, iid, self->spaces, expression, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-
-			++self->pending;
-
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;
 
@@ -847,20 +676,10 @@ void call( SV *this, SV *function_name, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->call = "eval";
+		ctx->call = "call";
 		ctx->use_hash = self->use_hash;
-
 		uint32_t iid = ++self->seq;
-
-		if ((ctx->wbuf = pkt_call(ctx, iid, self->spaces, function_name, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb ))) {
-			// cwarn("wbuf_size: %zu", SvCUR(ctx->wbuf));
-
-			SvREFCNT_inc(ctx->cb = cb);
-			(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );
-
-			++self->pending;
-
-			do_write( &self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));
-		}
+		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
 
 		XSRETURN_UNDEF;

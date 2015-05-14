@@ -339,7 +339,7 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	return OP_UPD_UNKNOWN;
 }
 
-static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char const *salt_begin, const char const *salt_end) {
+static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char const *salt_begin, const char const *salt_end, SV *cb) {
 	cwarn("password: %.*s", SvCUR(password), SvPV_nolen(password));
 
 	unsigned char* salt;
