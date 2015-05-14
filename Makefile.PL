@@ -14,12 +14,12 @@ WriteMakefile(
 	VERSION_FROM      => 'lib/EV/Tarantool.pm',
 	ABSTRACT_FROM     => 'lib/EV/Tarantool.pm',
 	PREREQ_PM         => { EV => 4 },
-	LIBS              => ['-lcares -lcrypto'],
+	LIBS              => ['-lcares'],
 	DEFINE            => '-g -ggdb -O3 -std=c99',
 	CONFIGURE => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(
-			INC               => '-I/usr/include -I. -I./evcnn/src -I./xstnt -I./xsmy -I./msgpuck',
+			INC               => '-I/usr/include -I. -I./evcnn/src -I./xstnt -I./xsmy -I./msgpuck -I./libs/crypto',
 		)};
 	},
 );

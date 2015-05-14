@@ -11,7 +11,6 @@
 #define MYDEBUG
 
 #include "xstnt16.h"
-#include "auth.h"
 
 #if __GNUC__ >= 3
 # define INLINE static inline
@@ -235,6 +234,8 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	}
 	rbuf += length;
 
+	self->on_read = (c_cb_read_t) on_read;
+
 	dSP;
 
 	if (ctx->cb) {
@@ -244,6 +245,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		SV **key = hv_fetchs(hv, "code", 0);
 		if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
 			PUSHMARK(SP);
+			PUSHs( sv_2mortal(newSVpvf("ok")) );
 			PUTBACK;
 		} else {
 			key = hv_fetchs(hv,"errstr",0);
@@ -273,7 +275,6 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
-	self->on_read = (c_cb_read_t) on_read;
 
 	FREETMPS;
 	LEAVE;
@@ -298,6 +299,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 	SV **key = hv_fetchs(hv, "code", 0);
 	if (unlikely(!key || !(*key) || !SvOK(*key) || SvIV(*key) != 0)) {
+		self->on_read = (c_cb_read_t) on_read;
 		if (ctx->cb) {
 			SPAGAIN;
 			ENTER; SAVETMPS;
@@ -317,8 +319,6 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 			SvREFCNT_dec(ctx->cb);
 
 			FREETMPS; LEAVE;
-
-			self->on_read = (c_cb_read_t) on_read;
 		}
 	} else {
 		if (ctx->cb) {
@@ -326,12 +326,13 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		}
 
 		if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
+			self->on_read = (c_cb_read_t) on_index_info_read;
+
 			if (tnt->spaces) {
 				destroy_spaces(tnt->spaces);
 			}
 			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
 
-			self->on_read = (c_cb_read_t) on_index_info_read;
 			_execute_select(tnt, _INDEX_SPACEID, ctx->cb);
 			// self->on_read = (c_cb_read_t) on_read;
 		} else {
@@ -350,6 +351,64 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
+static void on_auth_read(ev_cnn * self, size_t len) {
+	ENTER;
+	SAVETMPS;
+
+	on_read_no_body(self, len);
+
+	/* body */
+
+	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
+	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+	if (unlikely(length <= 0)) {
+		TNT_CROAK("Unexpected response body");
+		return;
+	}
+	rbuf += length;
+
+	dSP;
+
+	if (ctx->cb) {
+		SPAGAIN;
+
+		ENTER; SAVETMPS;
+
+		SV ** var = hv_fetchs(hv,"code",0);
+		if (var && SvIV (*var) == 0) {
+			self->on_read = (c_cb_read_t) on_spaces_info_read;
+			_execute_select(tnt, _SPACE_SPACEID, ctx->cb);
+		}
+		else {
+			self->on_read = (c_cb_read_t) on_read;
+			var = hv_fetchs(hv,"errstr",0);
+			PUSHMARK(SP);
+			EXTEND(SP, 3);
+			PUSHs( &PL_sv_undef );
+			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
+			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
+			PUTBACK;
+			(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
+		}
+
+
+		//SPAGAIN;PUTBACK;
+
+		SvREFCNT_dec(ctx->cb);
+
+		FREETMPS; LEAVE;
+	}
+
+	--tnt->pending;
+
+	self->ruse = end - rbuf;
+	if (self->ruse > 0) {
+		memmove(self->rbuf,rbuf,self->ruse);
+	}
+
+	FREETMPS;
+	LEAVE;
+}
 
 static void on_greet_read(ev_cnn * self, size_t len) {
 	warn("Tarantool greets you. %.*s", (int) self->ruse, self->rbuf);
@@ -382,19 +441,21 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 
 	SV *cb = tnt->connected;
 
-	// if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
-	// 	dSVX(ctxsv, ctx, TntCtx);
-	// 	sv_2mortal(ctxsv);
-	// 	ctx->call = "auth";
-	// 	ctx->use_hash = tnt->use_hash;
-	// 	uint32_t iid = ++tnt->seq;
-	// 	SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, cb);
-	// 	EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
-	// } else {
+	if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		ctx->call = "auth";
+		ctx->use_hash = tnt->use_hash;
+		uint32_t iid = ++tnt->seq;
+		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, cb);
+
+		self->on_read = (c_cb_read_t) on_auth_read;
+		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
+	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
 		_execute_select(tnt, _SPACE_SPACEID, cb);
 		// self->on_read = (c_cb_read_t) on_read;
-	// }
+	}
 
 
 	FREETMPS;

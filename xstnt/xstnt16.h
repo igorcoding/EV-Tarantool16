@@ -9,7 +9,8 @@
 #include "defines.h"
 #include "types.h"
 #include "encdec.h"
-#include "auth.h"
+#include "sha1.h"
+#include "base64.h"
 
 static const uint32_t SCRAMBLE_SIZE = 20;
 static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
@@ -62,7 +63,7 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 
 }
 
-static TntSpace * evt_find_space(SV *space, HV *spaces) {
+static TntSpace * evt_find_space(SV *space, HV *spaces, SV *cb) {
 	U32 ns;
 	SV **key;
 	if (SvIOK( space )) {
@@ -89,8 +90,8 @@ static TntSpace * evt_find_space(SV *space, HV *spaces) {
 		}
 		else {
 			//return NULL;
-			croak("Unknown space %s",SvPV_nolen(space));
-			return 0;
+			croak_cb(cb, "Unknown space %s",SvPV_nolen(space));
+			return NULL;
 		}
 	}
 }
@@ -340,33 +341,32 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 }
 
 static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char const *salt_begin, const char const *salt_end, SV *cb) {
-	cwarn("password: %.*s", SvCUR(password), SvPV_nolen(password));
+	char scramble[SCRAMBLE_SIZE];
 
-	unsigned char* salt;
-	size_t salt_size = 0;
-	base64_decode(salt_begin, salt_end, &salt, &salt_size);
+	const size_t salt_size = 64;
+	char salt[salt_size];
+	base64_decode(salt_begin, (int) (salt_end - salt_begin), salt, salt_size);
 
-	const size_t password_hash_len = SHA_DIGEST_LENGTH;
+	unsigned char hash1[SCRAMBLE_SIZE];
+	unsigned char hash2[SCRAMBLE_SIZE];
+	SHA1_CTX ctx;
 
-	unsigned char step1[password_hash_len];
-	sha1_encode(SvPV_nolen(password), SvCUR(password), step1);  // step1
+	SHA1Init(&ctx);
+	SHA1Update(&ctx, (const unsigned char *) SvPV_nolen(password), SvCUR(password));
+	SHA1Final(hash1, &ctx);
 
-	unsigned char step23[password_hash_len];
-	sha1_encode(step1, password_hash_len, step23);  // step2
+	SHA1Init(&ctx);
+	SHA1Update(&ctx, hash1, SCRAMBLE_SIZE);
+	SHA1Final(hash2, &ctx);
 
-	int salt_with_step2_size = salt_size + password_hash_len;
-	unsigned char salt_with_step2[salt_with_step2_size];
-	memcpy(salt_with_step2, salt, salt_size);
-	memcpy(salt_with_step2 + salt_size, step23, password_hash_len);
+	SHA1Init(&ctx);
+	SHA1Update(&ctx, (const unsigned char *) salt, SCRAMBLE_SIZE);
+	SHA1Update(&ctx, hash2, SCRAMBLE_SIZE);
+	SHA1Final((unsigned char *) scramble, &ctx);
 
-	sha1_encode(salt_with_step2, salt_with_step2_size, step23);  // step3
-
-	for (int i = 0; i < password_hash_len; ++i) {
-	    step23[i] = step1[i] ^ step23[i];
+	for (int i = 0; i < SCRAMBLE_SIZE; ++i) {
+	    scramble[i] = hash1[i] ^ scramble[i];
 	}
-
-	cwarn("[Testing auth 1] %.*s\n", password_hash_len, step23);
-	safefree(salt);
 
 	size_t sz = HEADER_CONST_LEN
 				+ 1  // mp_sizeof_map(2)
@@ -375,7 +375,7 @@ static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, con
 				+ 1  // mp_sizeof_uint(TP_TUPLE)
 				+ 1  // mp_sizeof_array(2)
 				+ 1 + 9  // mp_sizeof_str(9)
-				+ 1 + 20 // mp_sizeof_str(20)
+				+ 1 + SCRAMBLE_SIZE // mp_sizeof_str(SCRAMBLE_SIZE)
 				;
 	create_buffer(rv, h, sz, TP_AUTH, iid);
 
@@ -385,7 +385,7 @@ static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, con
 	h = mp_encode_uint(h, TP_TUPLE);
 	h = mp_encode_array(h, 2);
 	h = mp_encode_str(h, "chap-sha1", 9);
-	h = mp_encode_str(h, step23, password_hash_len);
+	h = mp_encode_str(h, scramble, SCRAMBLE_SIZE);
 
 	char *p = SvPVX(rv);
 	write_length(p, h-p-5);
@@ -421,11 +421,12 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces ) )) {
+	if(( spc = evt_find_space( space, spaces, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
 		ctx->use_hash = 0;
+		return NULL;
 	}
 
 	if (opt) {
@@ -546,7 +547,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces ) )) {
+	if(( spc = evt_find_space( space, spaces, cb ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
@@ -554,6 +555,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	}
 	else {
 		ctx->use_hash = 0;
+		return NULL;
 	}
 
 	if (opt) {
@@ -776,11 +778,12 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces ) )) {
+	if(( spc = evt_find_space( space, spaces, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
 		ctx->use_hash = 0;
+		return NULL;
 	}
 
 	if (opt) {
@@ -879,11 +882,12 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces ) )) {
+	if(( spc = evt_find_space( space, spaces, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
 		ctx->use_hash = 0;
+		return NULL;
 	}
 
 	if (opt) {

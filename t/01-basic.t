@@ -13,6 +13,7 @@ use Test::More;
 use Test::Deep;
 use Data::Dumper;
 use Renewer;
+use Carp;
 # use Devel::Leak;
 # use AE;
 
@@ -82,8 +83,9 @@ my $c; $c = EV::Tarantool->new({
 	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
+		diag Dumper \@_ unless $_[0];
 		warn "connected: @_";
-		$connected++;
+		$connected++ if defined $_[0];
 		EV::unloop;
 	},
 	connfail => sub {
@@ -117,6 +119,7 @@ Renewer::renew_tnt($c, $SPACE_NAME, sub {
 EV::loop;
 
 ok $connected > 0, "Connection is ok";
+croak "Not connected normally" unless $connected > 0;
 
 subtest 'Ping tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{ping};

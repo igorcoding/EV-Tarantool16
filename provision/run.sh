@@ -9,7 +9,7 @@ deb-src http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
 EOF'
 
 sudo apt-get update
-sudo apt-get install -y tarantool libexpat1-dev libssl-dev
+sudo apt-get install -y tarantool libexpat1-dev
 
 USR_SRC=/usr/local/src
 wget http://c-ares.haxx.se/download/c-ares-1.9.1.tar.gz -O - | sudo tar -C ${USR_SRC} -xzvf -

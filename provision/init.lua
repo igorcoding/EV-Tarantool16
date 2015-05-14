@@ -1,5 +1,14 @@
 #! /usr/bin/env tarantool
 
+local username = 'test_user'
+local password = 'test_pass'
+
+if #box.space._user.index.name:select({username}) ~= 0 then
+	box.schema.user.drop(username)
+end
+box.schema.user.create('test_user', {password=password, if_not_exists=true})
+box.schema.user.grant('test_user','read,write,execute,create,drop','universe')
+
 s_tester = box.space.tester
 if s_tester then
 	s_tester:drop{}
