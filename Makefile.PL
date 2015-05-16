@@ -19,7 +19,7 @@ WriteMakefile(
 	CONFIGURE => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(
-			INC               => '-I/usr/include -I. -I./evcnn/src -I./xstnt -I./xsmy -I./msgpuck -I./libs/crypto',
+			INC               => '-I. -I./xstnt -I./xsmy -I/usr/include -I./libs/evcnn/src -I./libs/msgpuck -I./libs/crypto',
 		)};
 	},
 );
