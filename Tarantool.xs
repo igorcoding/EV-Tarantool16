@@ -85,7 +85,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 }
 
 #define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb) STMT_START {\
-	if (ctx->wbuf = pkt) {\
+	if ((ctx->wbuf = pkt)) {\
 		SvREFCNT_inc(ctx->cb = (cb));\
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
 		++self->pending;\
@@ -426,8 +426,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	if (buf_len < 128) {
 		return;
 	}
-
-	//TODO: perform authentication here and save salt and server version
 
 	char *tnt_ver_begin = NULL, *tnt_ver_end = NULL;
 	char *salt_begin = NULL, *salt_end = NULL;

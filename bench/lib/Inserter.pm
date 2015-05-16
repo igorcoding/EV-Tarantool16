@@ -46,6 +46,7 @@ sub generate_blobs {
 		my $k = 0;
 		$t = AE::timer $insert_period, $insert_period, sub {
 			if (defined($max_count) && $i > $max_count) {
+				say "Finishing up. i = $i";
 				undef $t;
 				$done_cb->();
 				return;

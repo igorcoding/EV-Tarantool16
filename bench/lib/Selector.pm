@@ -141,7 +141,7 @@ sub tnt_selector {
 
 	$c->select($space_name, [$key], {}, sub {
 		my $a = @_[0];
-		# say Dumper \@_ unless $a;
+		say Dumper \@_ unless $a;
 		$cb->($a) if $cb;
 	});
 }
