@@ -25,14 +25,19 @@ my $disconnected;
 
 my $tnt = {
 	port => 3301,
-	host => '127.0.0.1'
+	host => '127.0.0.1',
+	username => 'test_user',
+	password => 'test_pass1',
 };
 
-# Devel::Leak::NoteSV($var);
+Devel::Leak::NoteSV($var);
 
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
+	username => $tnt->{username},
+	password => $tnt->{password},
+
 	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
@@ -55,7 +60,7 @@ my $c; $c = EV::Tarantool->new({
 		EV::unloop;
 	},
 	disconnected => sub {
-		# warn "discon: @_ / $!";
+		warn "discon: @_ / $!";
 		# $disconnected++;
 		EV::unloop;
 	},
@@ -75,33 +80,35 @@ EV::loop;
 
 # for (1..10) {
 
-$c->ping(sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+# $c->ping(sub {
+# 	# say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
-$c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE', timeout=> 0.000001}, sub {
-	my ($a) = @_;
-# 	# my $size = @{$a->{tuples}->[0]};
-# 	# say $size;
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+# $c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE', timeout=> 0.000001}, sub {
+# 	my ($a) = @_;
+# # 	# my $size = @{$a->{tuples}->[0]};
+# # 	# say $size;
+# 	# say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
-$c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
-	my ($a) = @_;
-# 	# my $size = @{$a->{tuples}->[0]};
-# 	# say $size;
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+# $c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
+# 	my ($a) = @_;
+# # 	# my $size = @{$a->{tuples}->[0]};
+# # 	# say $size;
+# 	# say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # }
 
-# Devel::Leak::CheckSV($var);
+undef $c;
+
+Devel::Leak::CheckSV($var);
 
 
 # $c->select('tester', [], {hash=>0}, sub {
