@@ -50,9 +50,12 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TntCtx * ctx = (TntCtx *) t;
 	TntCnn * self = (TntCnn *) ctx->self;
 	cwarn("timer called on %p: %s", ctx, ctx->call);
+	cwarn("id = %d", ctx->id);
 	ENTER;SAVETMPS;
 	dSP;
 
+	// ev_timer_stop(self->cnn.loop, &ctx->t);
+	// do_disable_rw_timer(&self->cnn);
 	SvREFCNT_dec(ctx->wbuf);
 	if (ctx->f.size && !ctx->f.nofree) {
 		safefree(ctx->f.f);
@@ -84,6 +87,26 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	FREETMPS;LEAVE;
 }
 
+#define TIMEOUT_TIMER(self, iid, timeout) STMT_START {\
+	if (timeout > 0) {\
+		ev_timer_init(&ctx->t, on_request_timer, timeout, 0.);\
+		ev_timer_start(self->cnn.loop, &ctx->t);\
+	}\
+} STMT_END
+
+#define INIT_TIMEOUT_TIMER(self, iid, opts) STMT_START {\
+	double timeout;\
+	SV **key;\
+	\
+	if ( opts && (key = hv_fetchs( opts, "timeout", 0 ))) {\
+		timeout = SvNV( *key );\
+		/*cwarn("timeout set: %f",timeout);*/\
+	} else {\
+		timeout = self->cnn.rw_timeout;\
+	}\
+	TIMEOUT_TIMER(self, iid, timeout);\
+} STMT_END
+
 #define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb) STMT_START {\
 	if ((ctx->wbuf = pkt)) {\
 		SvREFCNT_inc(ctx->cb = (cb));\
@@ -96,11 +119,14 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 INLINE void _execute_select(TntCnn *self, uint32_t space_id, SV *cb) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
+	ctx->self = self;
 	ctx->call = "select";
 	ctx->use_hash = self->use_hash;
 	uint32_t iid = ++self->seq;
+	ctx->id = iid;
 	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, cb );
 	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+	TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
 }
 
 #define on_read_no_body(self, len)\
@@ -147,6 +173,13 @@ INLINE void _execute_select(TntCnn *self, uint32_t space_id, SV *cb) {
 		if (!key) {\
 			cwarn("key %d not found", id);\
 			rbuf += length;\
+			self->ruse = end - rbuf;\
+			if (self->ruse > 0) {\
+				memmove(self->rbuf,rbuf,self->ruse);\
+			}\
+			\
+			FREETMPS;\
+			LEAVE;\
 			return;\
 		} else {\
 			ctx = (TntCtx *) SvPVX(key);\
@@ -163,52 +196,118 @@ static void on_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	on_read_no_body(self, len);
+	do_disable_rw_timer(self);
 
-	/* body */
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
 
-	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
-	if (unlikely(length <= 0)) {
-		TNT_CROAK("Unexpected response body");
-		return;
-	}
-	rbuf += length;
-
-	dSP;
-
-	if (ctx->cb) {
-		SPAGAIN;
-
-		ENTER; SAVETMPS;
-
-		SV ** var = hv_fetchs(hv,"code",0);
-		if (var && SvIV (*var) == 0) {
-			PUSHMARK(SP);
-			EXTEND(SP, 1);
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
-			PUTBACK;
-		}
-		else {
-			var = hv_fetchs(hv,"errstr",0);
-			PUSHMARK(SP);
-			EXTEND(SP, 3);
-			PUSHs( &PL_sv_undef );
-			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
-			PUTBACK;
+	while ( rbuf < end ) {
+		/* len */
+		ptrdiff_t buf_len = end - rbuf;
+		if (buf_len < 5) {
+			debug("not enough");
+			return;
 		}
 
-		(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
+		uint32_t pkt_length;
+		decode_pkt_len_(&rbuf, pkt_length);
 
-		//SPAGAIN;PUTBACK;
+		if (buf_len - 5 < pkt_length) {
+			debug("not enough");
+			return;
+		}
 
-		SvREFCNT_dec(ctx->cb);
+		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
-		FREETMPS; LEAVE;
+		/* header */
+		uint32_t id = 0;
+		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+		if (unlikely(length < 0)) {
+			TNT_CROAK("Unexpected response header");
+			return;
+		}
+		if (unlikely(id <= 0)) {
+			PE_CROAK("Wrong sync id (id <= 0)");
+			rbuf += length;
+			return;
+		}
+
+		TntCtx *ctx;
+		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+		if (!key) {
+			cwarn("key %d not found", id);
+			rbuf += pkt_length;
+
+		} else {
+			ctx = (TntCtx *) SvPVX(key);
+			ev_timer_stop(self->loop, &ctx->t);
+			SvREFCNT_dec(ctx->wbuf);
+			if (ctx->f.size && !ctx->f.nofree) {
+				safefree(ctx->f.f);
+			}
+			rbuf += length;
+
+			/* body */
+
+			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
+			length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+			if (unlikely(length <= 0)) {
+				TNT_CROAK("Unexpected response body");
+				return;
+			}
+			rbuf += length;
+
+			dSP;
+
+			if (ctx->cb) {
+				SPAGAIN;
+
+				ENTER; SAVETMPS;
+
+				SV ** var = hv_fetchs(hv,"code",0);
+				if (var && SvIV (*var) == 0) {
+					PUSHMARK(SP);
+					EXTEND(SP, 1);
+					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
+					PUTBACK;
+				}
+				else {
+					var = hv_fetchs(hv,"errstr",0);
+					PUSHMARK(SP);
+					EXTEND(SP, 3);
+					PUSHs( &PL_sv_undef );
+					PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
+					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
+					PUTBACK;
+				}
+
+				(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
+
+				//SPAGAIN;PUTBACK;
+
+				SvREFCNT_dec(ctx->cb);
+
+				FREETMPS; LEAVE;
+			}
+
+
+			--tnt->pending;
+
+			if (rbuf == end) {
+				self->ruse = 0;
+				if (tnt->pending == 0) {
+					//do_disable_rw_timer(self);
+				}
+				else {
+					//do_enable_rw_timer(self);
+				}
+				break;
+			}
+		}
+
 	}
-
-	--tnt->pending;
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
@@ -442,13 +541,16 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "auth";
 		ctx->use_hash = tnt->use_hash;
 		uint32_t iid = ++tnt->seq;
+		ctx->id = iid;
 		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, cb);
 
 		self->on_read = (c_cb_read_t) on_auth_read;
 		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
+		TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
 		_execute_select(tnt, _SPACE_SPACEID, cb);
@@ -615,19 +717,24 @@ void spaces(SV *this)
 		XSRETURN(1);
 
 
-void ping(SV *this, SV * cb)
+void ping(SV *this, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "ping";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
+		ctx->id = iid;
 		SV *pkt = pkt_ping(iid);
+		HV *opts = items == 3 ? (HV *) SvRV(ST( 1 )) : 0;
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -642,11 +749,15 @@ void select( SV *this, SV *space, SV * keys, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "select";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
+		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -660,11 +771,15 @@ void insert( SV *this, SV *space, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "insert";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
+		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -678,11 +793,15 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "update";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, items == 6 ? (HV *) SvRV(ST( 4)) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 6 ? (HV *) SvRV(ST(4)) : 0;
+		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -696,11 +815,15 @@ void delete( SV *this, SV *space, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "delete";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
+		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -715,11 +838,15 @@ void eval( SV *this, SV *expression, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "eval";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
+		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -734,10 +861,14 @@ void call( SV *this, SV *function_name, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
+		ctx->self = self;
 		ctx->call = "call";
 		ctx->use_hash = self->use_hash;
 		uint32_t iid = ++self->seq;
-		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, items == 5 ? (HV *) SvRV(ST( 3 )) : 0, cb );
+		ctx->id = iid;
+		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
+		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+		INIT_TIMEOUT_TIMER(self, iid, opts);
 
 		XSRETURN_UNDEF;

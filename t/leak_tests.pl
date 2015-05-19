@@ -74,11 +74,27 @@ EV::loop;
 
 
 # for (1..10) {
+
+$c->ping(sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
+$c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE', timeout=> 0.000001}, sub {
+	my ($a) = @_;
+# 	# my $size = @{$a->{tuples}->[0]};
+# 	# say $size;
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
 $c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
 	my ($a) = @_;
 # 	# my $size = @{$a->{tuples}->[0]};
 # 	# say $size;
-	# say Dumper \@_;
+	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
