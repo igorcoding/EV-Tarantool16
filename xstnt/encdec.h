@@ -47,7 +47,7 @@ static SV *types_true, *types_false;
 	} STMT_END
 
 #define encode_keys(h, sz, fields, keys_size, fmt, key) STMT_START {    \
-	uint8_t field_max_size = 0;                                         \
+	uint32_t k;															\
 	for (k = 0; k < keys_size; k++) {                                   \
 		key = av_fetch( fields, k, 0 );                                 \
 		if (key && *key && SvOK(*key) && sv_len(*key)) {                \
@@ -111,7 +111,7 @@ static SV *types_true, *types_false;
 #define REAL_SV(sv, real_sv, stash)\
 	HV *stash = NULL;\
 	SV *real_sv = NULL;\
-	if (SvROK(src)) {\
+	if (SvROK(sv)) {\
 		real_sv = SvRV(sv);\
 		if (SvOBJECT(real_sv)) {\
 			stash = SvSTASH(real_sv);\
@@ -121,8 +121,8 @@ static SV *types_true, *types_false;
 	}
 
 
-#define encode_AV(actual_src, rv, dest, sz) STMT_START {\
-	AV *arr = (AV *) actual_src;\
+#define encode_AV(src, rv, dest, sz) STMT_START {\
+	AV *arr = (AV *) src;\
 	uint32_t arr_size = av_len(arr) + 1;\
 	uint32_t i = 0;\
 	encode_array(dest, sz, rv, arr_size);\
@@ -140,23 +140,23 @@ static SV *types_true, *types_false;
 
 
 
-static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
+static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fmt) {
 	// cwarn("fmt = %d", fmt);
 
-	SvGETMAGIC(src);
+	SvGETMAGIC(initial_src);
+
+	REAL_SV(initial_src, src, stash);
 
 	if (fmt == FMT_STR) {
-		REAL_SV(src, actual_src, stash);
-
 		STRLEN str_len = 0;
 		char *str = NULL;
 
-		if (SvPOK(actual_src)) {
-			str = SvPV_nolen(actual_src);
-			str_len = SvCUR(actual_src);
+		if (SvPOK(src)) {
+			str = SvPV_nolen(src);
+			str_len = SvCUR(src);
 		} else {
-			str = SvPV(actual_src, str_len);
-			str_len = SvCUR(actual_src);
+			str = SvPV(src, str_len);
+			str_len = SvCUR(src);
 		}
 
 		encode_str(dest, sz, rv, str, str_len);
@@ -209,10 +209,9 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 		}
 
 	} else if (fmt == FMT_ARRAY) {
-		REAL_SV(src, actual_src, stash);
 
-		if (SvTYPE(actual_src) == SVt_PVAV) {
-			encode_AV(actual_src, rv, dest, sz);
+		if (SvTYPE(src) == SVt_PVAV) {
+			encode_AV(src, rv, dest, sz);
 			return dest;
 		} else {
 			croak("Incompatible types. Format expects: %c", fmt);
@@ -221,26 +220,25 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 	} else if (fmt == FMT_UNKNOWN) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
-		REAL_SV(src, actual_src, stash);
 
 		if (stash == boolean_stash) {
-			bool v = (bool) SvIV(actual_src);
+			bool v = (bool) SvIV(src);
 			encode_bool(dest, sz, rv, v);
 			return dest;
 		} else {
 
-			if (SvTYPE(actual_src) == SVt_NULL) {
+			if (SvTYPE(src) == SVt_NULL) {
 				encode_nil(dest, sz, rv);
 				return dest;
 
-			} else if (SvTYPE(actual_src) == SVt_PVAV) {  // array
+			} else if (SvTYPE(src) == SVt_PVAV) {  // array
 
-				encode_AV(actual_src, rv, dest, sz);
+				encode_AV(src, rv, dest, sz);
 				return dest;
 
-			} else if (SvTYPE(actual_src) == SVt_PVHV) {  // hash
+			} else if (SvTYPE(src) == SVt_PVHV) {  // hash
 
-				HV *hv = (HV *) actual_src;
+				HV *hv = (HV *) src;
 				HE *he;
 
 				uint32_t keys_size = hv_iterinit(hv);
@@ -254,14 +252,14 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 				}
 				return dest;
 
-			} else if (SvNOK(actual_src)) {  // double
-				encode_double(dest, sz, rv, SvNVX(actual_src));
+			} else if (SvNOK(src)) {  // double
+				encode_double(dest, sz, rv, SvNVX(src));
 				return dest;
-			} else if (SvUOK(actual_src)) {  // uint
-				encode_uint(dest, sz, rv, SvUVX(actual_src));
+			} else if (SvUOK(src)) {  // uint
+				encode_uint(dest, sz, rv, SvUVX(src));
 				return dest;
 
-			} else if (SvIOK(actual_src)) {  // int or uint
+			} else if (SvIOK(src)) {  // int or uint
 				IV num = SvIVX(src);
 				if (num >= 0) {
 					encode_uint(dest, sz, rv, num);
@@ -270,8 +268,8 @@ static char *encode_obj(SV *src, char *dest, SV *rv, size_t *sz, char fmt) {
 					encode_int(dest, sz, rv, num);
 					return dest;
 				}
-			} else if (SvPOK(actual_src)) {  // string
-				encode_str(dest, sz, rv, SvPV_nolen(actual_src), SvCUR(actual_src));
+			} else if (SvPOK(src)) {  // string
+				encode_str(dest, sz, rv, SvPV_nolen(src), SvCUR(src));
 				return dest;
 			} else {
 				croak("What the heck is that?");

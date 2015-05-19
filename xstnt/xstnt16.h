@@ -247,7 +247,7 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 
 	// cwarn("still ok. fields = %p", fields);
 
-	for (k=0; k <= av_len( fields );k++) {
+	for (k = 0; k <= av_len( fields );k++) {
 		f = av_fetch( fields,k,0 );
 		if (unlikely(!f)) {
 			croak_cb(cb,"Missing field %d entry", k);
@@ -265,7 +265,7 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	}
 	if (unlikely(fcnt != 0)) {
 		HV *used = (HV*)sv_2mortal((SV*)newHV());
-		for (k=0; k <= av_len( fields );k++) {
+		for (k = 0; k <= av_len( fields );k++) {
 			f = av_fetch( fields,k,0 );
 			fl = hv_fetch_ent(hf,*f,0,0);
 			if (fl && SvOK( HeVAL(fl) )) {
@@ -409,13 +409,12 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	U32 limit  = 0xffffffff;
 	U32 offset = -1;
 	U32 index  = 0;
-	U32 flags  = 0;
+	// U32 flags  = 0;
 	U32 iterator = -1;
 
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k,i;
 	SV **key;
 
 	TntSpace *spc = 0;
@@ -541,17 +540,16 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k;
 	SV **key;
 
 	TntSpace *spc = 0;
-	TntIndex *idx = 0;
+	// TntIndex *idx = 0;
 
 	if(( spc = evt_find_space( space, spaces, cb ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
-		idx = evt_find_index( spc, key );
+		// idx = evt_find_index( spc, key );
 	}
 	else {
 		ctx->use_hash = 0;
@@ -605,7 +603,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 
-static inline char * pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, size_t sz, SV *rv, char *h, SV *cb) {
+static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, size_t sz, SV *rv, char *h, SV *cb) {
 	SV **key;
 
 	if (unlikely( !tuple || !SvROK(tuple) || (SvTYPE(SvRV(tuple)) != SVt_PVAV))) {
@@ -772,7 +770,6 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k,i;
 	SV **key;
 
 	TntSpace *spc = 0;
@@ -876,7 +873,6 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k;
 	SV **key;
 
 	TntSpace *spc = 0;
@@ -976,7 +972,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k,i;
 	SV **key;
 
 	TntSpace *spc = 0;
@@ -1057,7 +1052,6 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
-	int k,i;
 	SV **key;
 
 	TntSpace *spc = 0;
@@ -1133,8 +1127,6 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 }
 
 static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_t *id) {
-	const char *ptr, *beg, *end;
-
 	const char *p = data;
 	const char *test = p;
 
@@ -1339,7 +1331,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 						croak("Bad things happened! field_format_map_size != 2");
 					}
 
-					SV *field_name;
+					SV *field_name = NULL;
 					uint32_t field_name_len = 0;
 					while (field_format_map_size-- > 0) {
 
@@ -1382,6 +1374,11 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 								cwarn("Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 							}
 						}
+					}
+
+					if (field_name == NULL) {
+						cwarn("field_name is NULL. Unexpected.");
+						continue;
 					}
 
 					dSVX(fldsv, fld, TntField);
@@ -1428,14 +1425,13 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
 
-		uint32_t tuple_size = 0;
-		uint32_t i = 0, k;
+		// uint32_t tuple_size = 0;
+		uint32_t i = 0;
 
 		SV **key;
 		for (i = 0; i < cont_size; ++i) {
 
-			tuple_size = mp_decode_array(&p);
-			// cwarn("tuple_size = %d", tuple_size);
+			(void) mp_decode_array(&p);
 
 			uint32_t space_id = mp_decode_uint(&p);
 			uint32_t index_id = mp_decode_uint(&p);
@@ -1531,8 +1527,6 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 }
 
 static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
-	const char *ptr, *beg, *end;
-
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1577,10 +1571,6 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 
 
 static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
-	// TODO: COPY AND THE F*CKING PASTE
-
-	const char *ptr, *beg, *end;
-
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1624,10 +1614,6 @@ static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
 }
 
 static int parse_index_body(HV *spaces, HV *err_ret, const char const *data, STRLEN size) {
-	// TODO: COPY AND THE F*CKING PASTE
-
-	const char *ptr, *beg, *end;
-
 	const char *p = data;
 	const char *test = p;
 	// body

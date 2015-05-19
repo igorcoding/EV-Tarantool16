@@ -411,7 +411,6 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 }
 
 static void on_greet_read(ev_cnn * self, size_t len) {
-	warn("Tarantool greets you. %.*s", (int) self->ruse, self->rbuf);
 
 	ENTER;
 	SAVETMPS;
@@ -430,6 +429,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	char *tnt_ver_begin = NULL, *tnt_ver_end = NULL;
 	char *salt_begin = NULL, *salt_end = NULL;
 	decode_greeting(rbuf, tnt_ver_begin, tnt_ver_end, salt_begin, salt_end);
+	warn("%.*s", (int) (tnt_ver_end - tnt_ver_begin), tnt_ver_begin);
 
 	self->ruse -= buf_len;
 	if (self->ruse > 0) {
@@ -454,7 +454,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		_execute_select(tnt, _SPACE_SPACEID, cb);
 		// self->on_read = (c_cb_read_t) on_read;
 	}
-
 
 	FREETMPS;
 	LEAVE;

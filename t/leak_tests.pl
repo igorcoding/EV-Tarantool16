@@ -18,7 +18,7 @@ use Devel::Peek;
 my $var;
 # Devel::Leak::NoteSV($var);
 
-for (0..100) {
+# for (0..100) {
 my $cfs = 0;
 my $connected;
 my $disconnected;
@@ -28,7 +28,7 @@ my $tnt = {
 	host => '127.0.0.1'
 };
 
-Devel::Leak::NoteSV($var);
+# Devel::Leak::NoteSV($var);
 
 my $c; $c = EV::Tarantool->new({
 	host => $tnt->{host},
@@ -74,7 +74,7 @@ EV::loop;
 
 
 # for (1..10) {
-$c->select('tester', [], sub {
+$c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
 	my ($a) = @_;
 # 	# my $size = @{$a->{tuples}->[0]};
 # 	# say $size;
@@ -83,9 +83,9 @@ $c->select('tester', [], sub {
 });
 EV::loop;
 
-}
+# }
 
-Devel::Leak::CheckSV($var);
+# Devel::Leak::CheckSV($var);
 
 
 # $c->select('tester', [], {hash=>0}, sub {
