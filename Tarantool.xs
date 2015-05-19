@@ -550,7 +550,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 
 		self->on_read = (c_cb_read_t) on_auth_read;
 		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
-		TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
+		TIMEOUT_TIMER(tnt, iid, tnt->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
 		_execute_select(tnt, _SPACE_SPACEID, cb);
