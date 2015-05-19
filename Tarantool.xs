@@ -34,6 +34,9 @@ typedef struct {
 	void (*on_connect_before)(void *, struct sockaddr *);
 	void (*on_connect_after)(void *, struct sockaddr *);
 
+	c_cb_conn_t default_on_connected_cb;
+	struct sockaddr peer_info;
+
 	uint32_t pending;
 	uint32_t seq;
 	U32      use_hash;
@@ -46,11 +49,26 @@ typedef struct {
 static const uint32_t _SPACE_SPACEID = 280;
 static const uint32_t _INDEX_SPACEID = 288;
 
+void tnt_on_connected_cb(ev_cnn *cnn, struct sockaddr *peer) {
+	if (likely(peer != NULL)) {
+		TntCnn *self = (TntCnn *) cnn;
+		self->peer_info = *peer;
+	}
+}
+
+static inline void call_connected(TntCnn *self) {
+	self->default_on_connected_cb(&self->cnn, &self->peer_info);
+}
+
+static inline void force_disconnect(TntCnn *self, const char *reason) {
+	// croak("Error happened, but no further action provided. Panda is sad.");
+	on_connect_reset(&self->cnn, 0, reason);
+}
+
 static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TntCtx * ctx = (TntCtx *) t;
 	TntCnn * self = (TntCnn *) ctx->self;
 	cwarn("timer called on %p: %s", ctx, ctx->call);
-	cwarn("id = %d", ctx->id);
 	ENTER;SAVETMPS;
 	dSP;
 
@@ -107,16 +125,16 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TIMEOUT_TIMER(self, iid, timeout);\
 } STMT_END
 
-#define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb) STMT_START {\
+#define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, _cb) STMT_START {\
 	if ((ctx->wbuf = pkt)) {\
-		SvREFCNT_inc(ctx->cb = (cb));\
+		SvREFCNT_inc(ctx->cb = (_cb));\
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
 		++self->pending;\
 		do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
 	}\
 } STMT_END
 
-INLINE void _execute_select(TntCnn *self, uint32_t space_id, SV *cb) {
+INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
 	ctx->self = self;
@@ -124,8 +142,8 @@ INLINE void _execute_select(TntCnn *self, uint32_t space_id, SV *cb) {
 	ctx->use_hash = self->use_hash;
 	uint32_t iid = ++self->seq;
 	ctx->id = iid;
-	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, cb );
-	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
+	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
+	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
 	TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
 }
 
@@ -335,36 +353,12 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 	self->on_read = (c_cb_read_t) on_read;
 
-	dSP;
 
-	if (ctx->cb) {
-		SPAGAIN;
-		ENTER; SAVETMPS;
-
-		SV **key = hv_fetchs(hv, "code", 0);
-		if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
-			PUSHMARK(SP);
-			PUSHs( sv_2mortal(newSVpvf("ok")) );
-			PUTBACK;
-		} else {
-			key = hv_fetchs(hv,"errstr",0);
-			PUSHMARK(SP);
-			EXTEND(SP, 3);
-			PUSHs( &PL_sv_undef );
-			PUSHs( key && *key ? sv_2mortal(newSVsv(*key)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
-			PUTBACK;
-		}
-
-		(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
-
-		//SPAGAIN;PUTBACK;
-
-		SvREFCNT_dec(ctx->cb);
-
-		FREETMPS; LEAVE;
+	SV **key = hv_fetchs(hv, "code", 0);
+	if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
+		call_connected(tnt);
 	} else {
-		cwarn("No callback defined after index info fetching");
+		force_disconnect(tnt, "Couldn\'t retrieve index info.");
 	}
 
 	--tnt->pending;
@@ -394,36 +388,10 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	}
 	rbuf += length;
 
-	dSP;
-
 	SV **key = hv_fetchs(hv, "code", 0);
-	if (unlikely(!key || !(*key) || !SvOK(*key) || SvIV(*key) != 0)) {
-		self->on_read = (c_cb_read_t) on_read;
-		if (ctx->cb) {
-			SPAGAIN;
-			ENTER; SAVETMPS;
-
-			key = hv_fetchs(hv,"errstr",0);
-			PUSHMARK(SP);
-			EXTEND(SP, 3);
-			PUSHs( &PL_sv_undef );
-			PUSHs( key && *key ? sv_2mortal(newSVsv(*key)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
-			PUTBACK;
-
-			(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
-
-			//SPAGAIN;PUTBACK;
-
-			SvREFCNT_dec(ctx->cb);
-
-			FREETMPS; LEAVE;
-		}
+	if (unlikely(!key || !(*key) || !SvIOK(*key) || SvIV(*key) != 0)) {
+		force_disconnect(tnt, "Couldn\'t retrieve space info.");
 	} else {
-		if (ctx->cb) {
-			SvREFCNT_dec(ctx->cb);
-		}
-
 		if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
 			self->on_read = (c_cb_read_t) on_index_info_read;
 
@@ -432,10 +400,10 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 			}
 			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
 
-			_execute_select(tnt, _INDEX_SPACEID, ctx->cb);
+			_execute_select(tnt, _INDEX_SPACEID);
 			// self->on_read = (c_cb_read_t) on_read;
 		} else {
-			self->on_read = (c_cb_read_t) on_read;
+			force_disconnect(tnt, "Couldn\'t retrieve space info.");
 		}
 	}
 
@@ -466,36 +434,15 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 	}
 	rbuf += length;
 
-	dSP;
 
-	if (ctx->cb) {
-		SPAGAIN;
-
-		ENTER; SAVETMPS;
-
-		SV ** var = hv_fetchs(hv,"code",0);
-		if (var && SvIV (*var) == 0) {
-			self->on_read = (c_cb_read_t) on_spaces_info_read;
-			_execute_select(tnt, _SPACE_SPACEID, ctx->cb);
-		}
-		else {
-			self->on_read = (c_cb_read_t) on_read;
-			var = hv_fetchs(hv,"errstr",0);
-			PUSHMARK(SP);
-			EXTEND(SP, 3);
-			PUSHs( &PL_sv_undef );
-			PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-			PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
-			PUTBACK;
-			(void) call_sv(ctx->cb, G_DISCARD | G_VOID);
-		}
-
-
-		//SPAGAIN;PUTBACK;
-
-		SvREFCNT_dec(ctx->cb);
-
-		FREETMPS; LEAVE;
+	SV ** var = hv_fetchs(hv,"code",0);
+	if (var && SvIV (*var) == 0) {
+		self->on_read = (c_cb_read_t) on_spaces_info_read;
+		_execute_select(tnt, _SPACE_SPACEID);
+	}
+	else {
+		var = hv_fetchs(hv,"errstr",0);
+		force_disconnect(tnt, SvPVX(*var));
 	}
 
 	--tnt->pending;
@@ -536,8 +483,6 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
-	SV *cb = tnt->connected;
-
 	if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
@@ -546,14 +491,14 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		ctx->use_hash = tnt->use_hash;
 		uint32_t iid = ++tnt->seq;
 		ctx->id = iid;
-		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, cb);
+		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, NULL);
 
 		self->on_read = (c_cb_read_t) on_auth_read;
-		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, cb);
+		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, NULL);
 		TIMEOUT_TIMER(tnt, iid, tnt->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
-		_execute_select(tnt, _SPACE_SPACEID, cb);
+		_execute_select(tnt, _SPACE_SPACEID);
 		// self->on_read = (c_cb_read_t) on_read;
 	}
 
@@ -655,7 +600,8 @@ void new(SV *pk, HV *conf)
 	PPCODE:
 		if (0) pk = pk;
 		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0) // TODO: connected cb is assigned here, but it shoudldn't however
-		self->call_connected = false;
+		self->default_on_connected_cb = self->cnn.on_connected;
+		self->cnn.on_connected = (c_cb_conn_t) tnt_on_connected_cb;
 		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 		// self->cnn.on_read = (c_cb_read_t) on_read;
 		self->on_disconnect_before = (c_cb_err_t) on_disconnect;
