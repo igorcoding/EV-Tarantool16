@@ -111,7 +111,7 @@ sub select_blobs {
 		++$i;
 
 		my $begin_time = time;
-		printf "%.4f. started %d\n", EV::now, $i;
+		#printf "%.4f. started %d\n", EV::now, $i;
 
 		$selector->($key, sub {
 			if (defined $t) {
@@ -124,7 +124,7 @@ sub select_blobs {
 					push @{$datapoints->{error}}, $exec_time;
 					running_stats $stats_data->{error}, $exec_time;
 				}
-				printf "%.4f. finished %d\n", EV::now, $i;
+				#printf "%.4f. finished %d\n", EV::now, $i;
 				$t->();
 			}
 		});

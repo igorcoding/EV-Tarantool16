@@ -168,6 +168,7 @@ INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
 		debug("not enough");\
 		return;\
 	}\
+	rbuf += 5;\
 	\
 	HV *hv = (HV *) sv_2mortal((SV *) newHV());\
 	\
@@ -224,16 +225,19 @@ static void on_read(ev_cnn * self, size_t len) {
 		/* len */
 		ptrdiff_t buf_len = end - rbuf;
 		if (buf_len < 5) {
+			cwarn("buf_len < 5");
 			debug("not enough");
-			return;
+			break;
 		}
 
 		uint32_t pkt_length;
 		decode_pkt_len_(&rbuf, pkt_length);
+		rbuf += 5;
 
 		if (buf_len - 5 < pkt_length) {
+			cwarn("not enough for a packet");
 			debug("not enough");
-			return;
+			break;
 		}
 
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
