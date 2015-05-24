@@ -147,69 +147,6 @@ INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
 	TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
 }
 
-#define on_read_no_body(self, len)\
-	do_disable_rw_timer(self);\
-	\
-	TntCnn * tnt = (TntCnn *) self;\
-	char *rbuf = self->rbuf;\
-	char *end = rbuf + self->ruse;\
-	\
-	/* len */\
-	ptrdiff_t buf_len = end - rbuf;\
-	if (buf_len < 5) {\
-		debug("not enough");\
-		return;\
-	}\
-	\
-	uint32_t pkt_length;\
-	decode_pkt_len_(&rbuf, pkt_length);\
-	\
-	if (buf_len - 5 < pkt_length) {\
-		debug("not enough");\
-		return;\
-	}\
-	rbuf += 5;\
-	\
-	HV *hv = (HV *) sv_2mortal((SV *) newHV());\
-	\
-	/* header */\
-	uint32_t id = 0;\
-	int length = parse_reply_hdr(hv, rbuf, buf_len, &id);\
-	if (unlikely(length < 0)) {\
-		TNT_CROAK("Unexpected response header");\
-		return;\
-	}\
-	if (unlikely(id <= 0)) {\
-		PE_CROAK("Wrong sync id (id <= 0)");\
-		rbuf += length;\
-		return;\
-	}\
-	\
-	TntCtx *ctx;\
-	{\
-		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);\
-		\
-		if (!key) {\
-			cwarn("key %d not found", id);\
-			rbuf += length;\
-			self->ruse = end - rbuf;\
-			if (self->ruse > 0) {\
-				memmove(self->rbuf,rbuf,self->ruse);\
-			}\
-			\
-			FREETMPS;\
-			LEAVE;\
-			return;\
-		} else {\
-			ctx = (TntCtx *) SvPVX(key);\
-			ev_timer_stop(self->loop, &ctx->t);\
-			SvREFCNT_dec(ctx->wbuf);\
-			if (ctx->f.size && !ctx->f.nofree) {\
-				safefree(ctx->f.f);\
-			}\
-		}\
-	}\
-	rbuf += length;
 
 static void on_read(ev_cnn * self, size_t len) {
 	ENTER;
@@ -225,20 +162,20 @@ static void on_read(ev_cnn * self, size_t len) {
 		/* len */
 		ptrdiff_t buf_len = end - rbuf;
 		if (buf_len < 5) {
-			cwarn("buf_len < 5");
+			//cwarn("buf_len < 5");
 			debug("not enough");
 			break;
 		}
 
 		uint32_t pkt_length;
 		decode_pkt_len_(&rbuf, pkt_length);
-		rbuf += 5;
 
 		if (buf_len - 5 < pkt_length) {
-			cwarn("not enough for a packet");
+			//cwarn("not enough for a packet");
 			debug("not enough");
 			break;
 		}
+		rbuf += 5;
 
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
@@ -344,32 +281,100 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	on_read_no_body(self, len);
+	do_disable_rw_timer(self);
 
-	/* body */
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
 
-	length = parse_index_body(tnt->spaces, hv, rbuf, buf_len);
-	if (unlikely(length <= 0)) {
-		TNT_CROAK("Unexpected response body");
-		return;
+	while ( rbuf < end ) {
+		/* len */
+		ptrdiff_t buf_len = end - rbuf;
+		if (buf_len < 5) {
+			//cwarn("buf_len < 5");
+			debug("not enough");
+			break;
+		}
+
+		uint32_t pkt_length;
+		decode_pkt_len_(&rbuf, pkt_length);
+
+		if (buf_len - 5 < pkt_length) {
+			//cwarn("not enough for a packet");
+			debug("not enough");
+			break;
+		}
+		rbuf += 5;
+
+		HV *hv = (HV *) sv_2mortal((SV *) newHV());
+
+		/* header */
+		uint32_t id = 0;
+		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+		if (unlikely(length < 0)) {
+			TNT_CROAK("Unexpected response header");
+			return;
+		}
+		if (unlikely(id <= 0)) {
+			PE_CROAK("Wrong sync id (id <= 0)");
+			rbuf += length;
+			return;
+		}
+
+		TntCtx *ctx;
+		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+		if (!key) {
+			cwarn("key %d not found", id);
+			rbuf += pkt_length;
+
+		} else {
+			ctx = (TntCtx *) SvPVX(key);
+			ev_timer_stop(self->loop, &ctx->t);
+			SvREFCNT_dec(ctx->wbuf);
+			if (ctx->f.size && !ctx->f.nofree) {
+				safefree(ctx->f.f);
+			}
+			rbuf += length;
+
+			/* body */
+
+			length = parse_index_body(tnt->spaces, hv, rbuf, buf_len);
+			if (unlikely(length <= 0)) {
+				TNT_CROAK("Unexpected response body");
+				return;
+			}
+			rbuf += length;
+
+			self->on_read = (c_cb_read_t) on_read;
+
+
+			SV **key = hv_fetchs(hv, "code", 0);
+			if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
+				call_connected(tnt);
+			} else {
+				force_disconnect(tnt, "Couldn\'t retrieve index info.");
+			}
+
+
+			--tnt->pending;
+
+			if (rbuf == end) {
+				self->ruse = 0;
+				if (tnt->pending == 0) {
+					//do_disable_rw_timer(self);
+				}
+				else {
+					//do_enable_rw_timer(self);
+				}
+				break;
+			}
+		}
+
 	}
-	rbuf += length;
-
-	self->on_read = (c_cb_read_t) on_read;
-
-
-	SV **key = hv_fetchs(hv, "code", 0);
-	if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
-		call_connected(tnt);
-	} else {
-		force_disconnect(tnt, "Couldn\'t retrieve index info.");
-	}
-
-	--tnt->pending;
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
-		//cwarn("move buf on %zu",self->ruse);
 		memmove(self->rbuf,rbuf,self->ruse);
 	}
 
@@ -381,37 +386,106 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	on_read_no_body(self, len);
+	do_disable_rw_timer(self);
 
-	/* body */
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
 
-	length = parse_spaces_body(hv, rbuf, buf_len);
-	if (unlikely(length <= 0)) {
-		TNT_CROAK("Unexpected response body");
-		return;
-	}
-	rbuf += length;
-
-	SV **key = hv_fetchs(hv, "code", 0);
-	if (unlikely(!key || !(*key) || !SvIOK(*key) || SvIV(*key) != 0)) {
-		force_disconnect(tnt, "Couldn\'t retrieve space info.");
-	} else {
-		if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
-			self->on_read = (c_cb_read_t) on_index_info_read;
-
-			if (tnt->spaces) {
-				destroy_spaces(tnt->spaces);
-			}
-			tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
-
-			_execute_select(tnt, _INDEX_SPACEID);
-			// self->on_read = (c_cb_read_t) on_read;
-		} else {
-			force_disconnect(tnt, "Couldn\'t retrieve space info.");
+	while ( rbuf < end ) {
+		/* len */
+		ptrdiff_t buf_len = end - rbuf;
+		if (buf_len < 5) {
+			//cwarn("buf_len < 5");
+			debug("not enough");
+			break;
 		}
-	}
 
-	--tnt->pending;
+		uint32_t pkt_length;
+		decode_pkt_len_(&rbuf, pkt_length);
+
+		if (buf_len - 5 < pkt_length) {
+			//cwarn("not enough for a packet");
+			debug("not enough");
+			break;
+		}
+		rbuf += 5;
+
+		HV *hv = (HV *) sv_2mortal((SV *) newHV());
+
+		/* header */
+		uint32_t id = 0;
+		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+		if (unlikely(length < 0)) {
+			TNT_CROAK("Unexpected response header");
+			return;
+		}
+		if (unlikely(id <= 0)) {
+			PE_CROAK("Wrong sync id (id <= 0)");
+			rbuf += length;
+			return;
+		}
+
+		TntCtx *ctx;
+		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+		if (!key) {
+			cwarn("key %d not found", id);
+			rbuf += pkt_length;
+
+		} else {
+			ctx = (TntCtx *) SvPVX(key);
+			ev_timer_stop(self->loop, &ctx->t);
+			SvREFCNT_dec(ctx->wbuf);
+			if (ctx->f.size && !ctx->f.nofree) {
+				safefree(ctx->f.f);
+			}
+			rbuf += length;
+
+			/* body */
+
+			length = parse_spaces_body(hv, rbuf, buf_len);
+			if (unlikely(length <= 0)) {
+				TNT_CROAK("Unexpected response body");
+				return;
+			}
+			rbuf += length;
+
+			SV **key = hv_fetchs(hv, "code", 0);
+			if (unlikely(!key || !(*key) || !SvIOK(*key) || SvIV(*key) != 0)) {
+				force_disconnect(tnt, "Couldn\'t retrieve space info.");
+			} else {
+				if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
+					self->on_read = (c_cb_read_t) on_index_info_read;
+
+					if (tnt->spaces) {
+						destroy_spaces(tnt->spaces);
+					}
+					tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
+
+					_execute_select(tnt, _INDEX_SPACEID);
+					// self->on_read = (c_cb_read_t) on_read;
+				} else {
+					force_disconnect(tnt, "Couldn\'t retrieve space info.");
+				}
+			}
+
+
+			--tnt->pending;
+
+			if (rbuf == end) {
+				self->ruse = 0;
+				if (tnt->pending == 0) {
+					//do_disable_rw_timer(self);
+				}
+				else {
+					//do_enable_rw_timer(self);
+				}
+				break;
+			}
+		}
+
+	}
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
@@ -426,30 +500,99 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
-	on_read_no_body(self, len);
+	do_disable_rw_timer(self);
 
-	/* body */
+	TntCnn * tnt = (TntCnn *) self;
+	char *rbuf = self->rbuf;
+	char *end = rbuf + self->ruse;
 
-	AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-	length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
-	if (unlikely(length <= 0)) {
-		TNT_CROAK("Unexpected response body");
-		return;
+	while ( rbuf < end ) {
+		/* len */
+		ptrdiff_t buf_len = end - rbuf;
+		if (buf_len < 5) {
+			//cwarn("buf_len < 5");
+			debug("not enough");
+			break;
+		}
+
+		uint32_t pkt_length;
+		decode_pkt_len_(&rbuf, pkt_length);
+
+		if (buf_len - 5 < pkt_length) {
+			//cwarn("not enough for a packet");
+			debug("not enough");
+			break;
+		}
+		rbuf += 5;
+
+		HV *hv = (HV *) sv_2mortal((SV *) newHV());
+
+		/* header */
+		uint32_t id = 0;
+		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
+		if (unlikely(length < 0)) {
+			TNT_CROAK("Unexpected response header");
+			return;
+		}
+		if (unlikely(id <= 0)) {
+			PE_CROAK("Wrong sync id (id <= 0)");
+			rbuf += length;
+			return;
+		}
+
+		TntCtx *ctx;
+		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+
+		if (!key) {
+			cwarn("key %d not found", id);
+			rbuf += pkt_length;
+
+		} else {
+			ctx = (TntCtx *) SvPVX(key);
+			ev_timer_stop(self->loop, &ctx->t);
+			SvREFCNT_dec(ctx->wbuf);
+			if (ctx->f.size && !ctx->f.nofree) {
+				safefree(ctx->f.f);
+			}
+			rbuf += length;
+
+			/* body */
+
+			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
+			length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+			if (unlikely(length <= 0)) {
+				TNT_CROAK("Unexpected response body");
+				return;
+			}
+			rbuf += length;
+
+
+			SV ** var = hv_fetchs(hv,"code",0);
+			if (var && SvIV (*var) == 0) {
+				self->on_read = (c_cb_read_t) on_spaces_info_read;
+				_execute_select(tnt, _SPACE_SPACEID);
+			}
+			else {
+				var = hv_fetchs(hv,"errstr",0);
+				force_disconnect(tnt, SvPVX(*var));
+			}
+
+
+			--tnt->pending;
+
+			if (rbuf == end) {
+				self->ruse = 0;
+				if (tnt->pending == 0) {
+					//do_disable_rw_timer(self);
+				}
+				else {
+					//do_enable_rw_timer(self);
+				}
+				break;
+			}
+		}
+
 	}
-	rbuf += length;
-
-
-	SV ** var = hv_fetchs(hv,"code",0);
-	if (var && SvIV (*var) == 0) {
-		self->on_read = (c_cb_read_t) on_spaces_info_read;
-		_execute_select(tnt, _SPACE_SPACEID);
-	}
-	else {
-		var = hv_fetchs(hv,"errstr",0);
-		force_disconnect(tnt, SvPVX(*var));
-	}
-
-	--tnt->pending;
 
 	self->ruse = end - rbuf;
 	if (self->ruse > 0) {
