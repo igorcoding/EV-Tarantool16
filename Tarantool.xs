@@ -29,10 +29,11 @@
 typedef struct {
 	xs_ev_cnn_struct;
 
-	void (*on_disconnect_before)(void *, int);
-	void (*on_disconnect_after)(void *, int);
-	void (*on_connect_before)(void *, struct sockaddr *);
-	void (*on_connect_after)(void *, struct sockaddr *);
+
+	c_cb_discon_t on_disconnect_before;
+	c_cb_discon_t on_disconnect_after;
+	c_cb_conn_t on_connect_before;
+	c_cb_conn_t on_connect_after;
 
 	c_cb_conn_t default_on_connected_cb;
 	struct sockaddr peer_info;
@@ -61,7 +62,7 @@ static inline void call_connected(TntCnn *self) {
 }
 
 static inline void force_disconnect(TntCnn *self, const char *reason) {
-	// croak("Error happened, but no further action provided. Panda is sad.");
+
 	on_connect_reset(&self->cnn, 0, reason);
 }
 
@@ -697,7 +698,7 @@ void free_reqs (TntCnn *self, const char * message) {
 }
 
 
-static void on_disconnect (TntCnn * self, int err) {
+static void on_disconnect (TntCnn * self, int err, const char *reason) {
 	ENTER;SAVETMPS;
 
 	//warn("disconnect: %s", strerror(err));
@@ -751,7 +752,7 @@ void new(SV *pk, HV *conf)
 		self->cnn.on_connected = (c_cb_conn_t) tnt_on_connected_cb;
 		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 		// self->cnn.on_read = (c_cb_read_t) on_read;
-		self->on_disconnect_before = (c_cb_err_t) on_disconnect;
+		self->on_disconnect_before = (c_cb_discon_t) on_disconnect;
 
 
 		//cwarn("new     this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(iv),iv, self, self->self);
