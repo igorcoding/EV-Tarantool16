@@ -749,15 +749,11 @@ BOOT:
 void new(SV *pk, HV *conf)
 	PPCODE:
 		if (0) pk = pk;
-		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0) // TODO: connected cb is assigned here, but it shoudldn't however
+		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0)
 		self->default_on_connected_cb = self->cnn.on_connected;
 		self->cnn.on_connected = (c_cb_conn_t) tnt_on_connected_cb;
-		self->cnn.on_read = (c_cb_read_t) on_greet_read;
-		// self->cnn.on_read = (c_cb_read_t) on_read;
 		self->on_disconnect_before = (c_cb_discon_t) on_disconnect;
-
-
-		//cwarn("new     this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(iv),iv, self, self->self);
+		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 
 		SV **key;
 
@@ -770,9 +766,6 @@ void new(SV *pk, HV *conf)
 
 		self->spaces = newHV();
 
-		// if ((key = hv_fetchs(conf, "spaces", 0)) && SvROK(*key)) {
-			// configure_spaces( self->spaces, *key );
-		// }
 		XSRETURN(1);
 
 
@@ -781,8 +774,6 @@ void DESTROY(SV *this)
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 
-		//cwarn("destroy this: %p; iv[%d]: %p; self: %p; self->self: %p",ST(0), SvREFCNT(SvRV(this)), SvRV(this), self, self->self);
-		//SV * leak = newSV(1024);
 		if (!PL_dirty) {
 			if (self->reqs) {
 				free_reqs(self, "Destroyed");

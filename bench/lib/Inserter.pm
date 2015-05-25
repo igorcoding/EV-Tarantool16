@@ -93,10 +93,10 @@ sub create_tnt_inserter {
 
 sub tnt_size_selector {
 	my ($c, $space_name, $cb) = @_;
-	$c->eval('return box.space.sophier:select({})', [], {}, sub {
+	$c->eval("return {box.space.$space_name:len{}}", [], {}, sub {
 		my $a = @_[0];
-		my $size = @{$a->{tuples}->[0]};
-		$cb->($size) if $cb;
+		my $resp = $a->{tuples}->[0];
+		$cb->($resp->[0]) if $cb;
 	});
 }
 

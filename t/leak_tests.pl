@@ -86,12 +86,20 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
-	my ($a) = @_;
-# 	# my $size = @{$a->{tuples}->[0]};
-# 	# say $size;
-	say Dumper \@_;
-	EV::unloop;
+# $c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
+# 	my ($a) = @_;
+# # 	# my $size = @{$a->{tuples}->[0]};
+# # 	# say $size;
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+$c->eval("return {box.space.tester:len{}}", [], sub {
+    say 'here';
+    my $a = @_[0];
+    say Dumper \@_;
+    EV::unloop;
 });
 EV::loop;
 
