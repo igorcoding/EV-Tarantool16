@@ -84,15 +84,16 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, SV *cb) {
 			return spc;
 		}
 	}
-	else {
+	else if (SvPOK(space)) {
 		if ((key = hv_fetch( spaces,SvPV_nolen(space),SvCUR(space),0 )) && *key) {
 			return (TntSpace*) SvPVX(*key);
 		}
 		else {
 			//return NULL;
 			croak_cb(cb, "Unknown space %s",SvPV_nolen(space));
-			return NULL;
 		}
+	} else {
+		croak_cb(cb, "Space must be either a string or a number");
 	}
 }
 

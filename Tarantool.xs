@@ -132,6 +132,8 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
 		++self->pending;\
 		do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
+	} else {\
+		return;\
 	}\
 } STMT_END
 
