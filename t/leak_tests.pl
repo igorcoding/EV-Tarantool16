@@ -5,7 +5,7 @@ use Test::Deep;
 use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
-use EV::Tarantool;
+use EV::Tarantool16;
 use Time::HiRes 'sleep','time';
 use Data::Dumper;
 use Errno;
@@ -24,19 +24,19 @@ my $connected;
 my $disconnected;
 
 my $tnt = {
-	port => 3301,
+	port => 3302,
 	host => '127.0.0.1',
-	username => 'test_user',
-	password => 'test_pass',
+	# username => 'test_user',
+	# password => 'test_pass',
 };
 
 Devel::Leak::NoteSV($var);
 
-my $c; $c = EV::Tarantool->new({
+my $c; $c = EV::Tarantool16->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
-	username => $tnt->{username},
-	password => $tnt->{password},
+	# username => $tnt->{username},
+	# password => $tnt->{password},
 
 	# spaces => $realspaces,
 	reconnect => 0.2,
@@ -95,13 +95,19 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->eval("return {box.space.tester:len{}}", [], sub {
-    say 'here';
-    my $a = @_[0];
+$c->call("status_wait", [], {timeout => 10}, sub {
     say Dumper \@_;
     EV::unloop;
 });
 EV::loop;
+
+# $c->eval("return {box.space.tester:len{}}", [], sub {
+#     say 'here';
+#     my $a = @_[0];
+#     say Dumper \@_;
+#     EV::unloop;
+# });
+# EV::loop;
 
 # $c->select('tester', {_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, sub {
 # 	my ($a) = @_;

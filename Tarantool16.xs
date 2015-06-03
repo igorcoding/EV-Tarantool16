@@ -726,18 +726,18 @@ INLINE SV *get_bool(const char *name) {
 }
 
 
-MODULE = EV::Tarantool      PACKAGE = EV::Tarantool::DES
+MODULE = EV::Tarantool16      PACKAGE = EV::Tarantool16::DES
 
 void DESTROY(SV *this)
 	PPCODE:
 		cwarn("DESTROY %p -> %p (%d)",this,SvRV(this),SvREFCNT( SvRV(this) ));
 
-MODULE = EV::Tarantool      PACKAGE = EV::Tarantool
+MODULE = EV::Tarantool16      PACKAGE = EV::Tarantool16
 PROTOTYPES: DISABLE
 BOOT:
 {
-	I_EV_API ("EV::Tarantool");
-	I_EV_CNN_API("EV::Tarantool");
+	I_EV_API ("EV::Tarantool16");
+	I_EV_CNN_API("EV::Tarantool16");
 
 	types_boolean_stash = gv_stashpv("Types::Serialiser::Boolean", 1);
 

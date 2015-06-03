@@ -1,9 +1,10 @@
 --- #YAML:1.0
-name:               EV-Tarantool
-version:            0.04
-abstract:           Perl extension for blah blah blah
+name:               EV-Tarantool16
+version:            0.01
+abstract:           Perl extension for Tarantool 1.6
 author:
-    - Mons Anderson <mons@cpan.org>
+	- Mons Anderson <mons@cpan.org>
+    - igorcoding <igorcoding@gmail.com>
 license:            unknown
 distribution_type:  module
 configure_requires:

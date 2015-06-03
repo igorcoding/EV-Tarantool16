@@ -1,10 +1,12 @@
-package EV::Tarantool::Multi;
+package EV::Tarantool16::Multi;
 
 use 5.010;
 use strict;
 use warnings;
 no warnings 'uninitialized';
-use EV::Tarantool;
+use EV::Tarantool16;
+use Data::Dumper;
+use Scalar::Util qw( weaken );
 
 sub U(@) { $_[0] }
 
@@ -21,16 +23,19 @@ sub new {
 		recovery_lag  => 1,
 		reconnect => 1/3,
 		connected_mode => 'any', # rw|ro|any - when to call 'connected'
+		status_wait_timeout => 10,
 		@_,
+		mapped_servers => {},
+		cluster_status => 'good',
+		leaders => {},
 		stores => [],
 		rwstores => [],
 		rostores => [],
 	},$pkg;
-	
+
 	my $servers = delete $self->{servers};
-	my $spaces = delete $self->{spaces};
 	$self->{servers} = [];
-	
+
 	my $i = 0;
 	my $rws = 0;
 	my $ros = 0;
@@ -38,15 +43,18 @@ sub new {
 		my $srv;
 		my $id = $i++;
 		if (ref) {
-			$srv = { %$_, id => $id };
+			$srv = { %$_, id => $id, uuid => undef };
 		}
 		else {
 			m{^(?:(rw|ro):|)([^:]+)(?::(\d+)|)};
+			# m{^(?:(rw|ro):|)(?:([^:]):([^:])@)?([^:]+)(?::(\d+)|)};
 			$srv = {
 				rw   => $1 eq 'rw' ? 1 : defined $1 ? 0 : 1,
+				# username => $2,
 				host => $2,
 				port => $3 // 33013,
 				id   => $id,
+				uuid => undef
 			};
 		}
 		$srv->{node} = ($srv->{rw} ? 'rw' : 'ro' ) . ':' . $srv->{host} . ':' . $srv->{port};
@@ -58,13 +66,25 @@ sub new {
 			port => $srv->{port},
 			timeout => $self->{timeout},
 			reconnect => $self->{reconnect},
-			spaces => $spaces,
 			read_buffer => 2*1024*1024,
 			connected => sub {
 				my $c = shift;
 				@{ $srv->{peer} = {} }{qw(host port)} = @_;
 				$warned = 0;
-				$self->_db_online( $srv );
+
+				$c->call('get_uuid', [], sub {
+					my ($a) = @_;
+					$self->log_warn("Couldn\'t get node\'s uuid: @_") unless $a;
+					$srv->{uuid} = $a->{tuples}->[0]->[0];
+					$self->{mapped_servers}->{$srv->{uuid}} = $srv;
+
+					$self->_get_leader($srv, sub {
+						# say Dumper shift;
+						$self->_status_wait($srv);
+						$self->_db_online($srv);
+					});
+				});
+
 			},
 			connfail => sub {
 				my ($c,$fail) = @_;
@@ -74,8 +94,9 @@ sub new {
 			disconnected => sub {
 				my $c = shift;
 				@_ and $srv->{peer} and $self->log_warn( "Connection to $srv->{node}/$srv->{peer}{host}:$srv->{peer}{port} closed: @_" );
-				$self->_db_offline( $srv, @_ );
-				
+				# TODO
+				$self->_db_offline($srv, @_);
+
 			},
 		});
 		#$srv->{c}->connect;
@@ -89,7 +110,7 @@ sub new {
 	if (not $ros+$rws ) {
 		die "Cluster could not ever be 'connected' since have no servers (@{$servers})\n";
 	}
-	
+
 	return $self;
 }
 
@@ -116,31 +137,108 @@ sub ok {
 	}
 }
 
+
+sub _get_leader {
+	my $self = shift;
+	my $srv  = shift;
+	my $cb = shift;
+
+	my $c = $srv->{c};
+	$c->call('get_leader', [], sub {
+		my ($a) = @_;
+		$self->log_warn("Couldn\'t get leader from node $srv->{node}: @_") unless $a;
+		my $leader = $a->{tuples}->[0]->[0];
+		$self->{leaders}->{$leader} = $leader;
+
+		$cb->($leader) if $cb;
+	});
+}
+
+sub _find_leaders {
+	# TODO: нет смысла формировать список лидеров с каждого коннекта
+	my $self = shift;
+	my $cb = shift;
+
+	$self->{leaders} = {};
+	my $caller; $caller = sub {
+		my $caller = $caller or return;
+		my ($srvs, $i, $cb) = @_;
+
+		if ($i >= @$srvs) {
+			$cb->() if $cb;
+			return;
+		}
+
+		my $srv = $srvs->[$i];
+		$self->_get_leader($srv, sub {
+			$caller->($srvs, $i + 1, $cb);
+		});
+	};
+	say Dumper $self->{leaders};
+	$caller->($self->{stores}, 0, sub {
+		$cb->() if $cb;
+	});
+	weaken($caller);
+}
+
+sub _status_wait {
+	my $self = shift;
+	my $srv  = shift;
+
+	my $timeout = $self->{status_wait_timeout};
+	my $caller; $caller = sub {
+		my $caller = $caller or return;
+		$srv->{c}->call('status_wait', [$timeout], { timeout => 2 * $timeout }, sub {
+			my ($a) = @_;
+			unless ($a) {
+				$self->log_warn("Couldn\'t get status from node $srv->{node}: @_");
+				return;
+			}
+
+			my $s = $a->{tuples}->[0]->[0];
+			my $prev_status = $self->{cluster_status};
+			$self->{cluster_status} = $s->{status};
+
+			say Dumper $s;
+
+			if ($s->{status} ne $prev_status) {  # status has changed
+				$self->_find_leaders(sub {
+					$caller->();
+				});
+			} else {
+				$caller->();
+			}
+		});
+	};
+	$caller->();
+	weaken($caller);
+}
+
 sub _db_online {
 	my $self = shift;
 	my $srv  = shift;
-	
+
 	my $first = (
 		$self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) :
 		$self->{connected_mode} eq 'ro' ? ( !$srv->{rw} && (@{ $self->{rostores} } == 0) ) :
 		( @{ $self->{stores} } == 0 )
 	) || 0;
-	
+
 	#warn "online $srv->{node} for $self->{connected_mode}; first = $first";
-	
+
 	push @{ $self->{stores} }, $srv;
 	push @{ $self->{rwstores} }, $srv if $srv->{rw};
 	push @{ $self->{rostores} }, $srv if !$srv->{rw};
-	
+
 	my $key = $srv->{rw} ? 'rw' : 'ro';
 	my $event = "${key}_connected";
 	my @args = ( U($self,$srv->{c}), @{ $srv->{peer} }{qw(host port)} );
-	
+
 	$self->{change} and $self->{change}->($self,"connected",$srv->{rw} ? 'rw' : 'ro',@{ $srv->{peer} }{qw(host port)});
-	
+
 	$self->{$event} && $self->{$event}( @args );
 	$first and $self->{connected} and $self->{connected}( @args );
-	
+
 	if ( $self->{all_connected} and @{ $self->{servers} } == @{ $self->{stores} } ) {
 		$self->{all_connected}( $self, $self->{stores} );
 	}
@@ -150,27 +248,27 @@ sub _db_offline {
 	my $self = shift;
 	my $srv  = shift;
 	my $c = $srv->{c};
-	
+
 	$self->{stores}   = [ grep $_ != $srv, @{ $self->{stores} } ];
 	$self->{rwstores} = [ grep $_ != $srv, @{ $self->{rwstores} } ] if $srv->{rw};
 	$self->{rostores} = [ grep $_ != $srv, @{ $self->{rostores} } ] if !$srv->{rw};
-	
+
 	#my $last = ( $self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) : ( @{ $self->{stores} } == 0 ) ) || 0;
 	my $last = (
 		$self->{connected_mode} eq 'rw' ? ( $srv->{rw} && (@{ $self->{rwstores} } == 0) ) :
 		$self->{connected_mode} eq 'ro' ? ( !$srv->{rw} && (@{ $self->{rostores} } == 0) ) :
 		( @{ $self->{stores} } == 0 )
 	) || 0;
-	
+
 	my $key = $srv->{rw} ? 'rw' : 'ro';
 	my $event = "${key}_disconnected";
-	
+
 	$self->{change} and $self->{change}->($self,"disconnected",$srv->{rw} ? 'rw' : 'ro',@{ $srv->{peer} }{qw(host port)}, @_);
 	my @args = ( U($self,$srv->{c}), @_ );
 	$self->{$event} && $self->{$event}( @args );
-	
+
 	$last and $self->{disconnected} and $self->{disconnected}( @args );
-	
+
 	if( @{ $self->{stores} } == 0 and $self->{all_disconnected} ) {
 		$self->{all_disconnected}( $self );
 	}
@@ -213,7 +311,7 @@ sub _srv_by_mode {
 	else {
 		@{ $self->{stores} } or do { $_[-1]( undef, "Have no connected nodes for mode $mode" ), return };
 		$srv = $self->{stores}[ rand @{ $self->{stores} } ];
-		
+
 	}
 	return $srv->{c};
 }
@@ -223,9 +321,9 @@ sub ping : method {
 	$srv->ping(@_);
 }
 
-sub lua : method {
+sub eval : method {
 	my $srv  = &_srv_by_mode or return;
-	$srv->lua(@_);
+	$srv->eval(@_);
 }
 
 sub select : method {

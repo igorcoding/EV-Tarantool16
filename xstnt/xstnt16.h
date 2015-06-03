@@ -6,7 +6,6 @@
 #include <string.h>
 #include "xsmy.h"
 #include "msgpuck.h"
-#include "defines.h"
 #include "types.h"
 #include "encdec.h"
 #include "sha1.h"

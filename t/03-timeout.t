@@ -8,7 +8,7 @@ use EV;
 use Time::HiRes 'sleep','time';
 use Scalar::Util 'weaken';
 use Errno;
-use EV::Tarantool;
+use EV::Tarantool16;
 use Test::More;
 use Test::Deep;
 use Data::Dumper;
@@ -42,7 +42,7 @@ my $tnt = {
 my $SPACE_NAME = 'tester';
 
 
-my $c; $c = EV::Tarantool->new({
+my $c; $c = EV::Tarantool16->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
 	username => $tnt->{username},

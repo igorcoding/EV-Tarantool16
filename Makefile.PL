@@ -9,10 +9,10 @@ Requires: perl-EV
 =cut
 
 WriteMakefile(
-	NAME              => 'EV::Tarantool',
-	AUTHOR            => 'igorcoding <igorcoding@gmail.com>',
-	VERSION_FROM      => 'lib/EV/Tarantool.pm',
-	ABSTRACT_FROM     => 'lib/EV/Tarantool.pm',
+	NAME              => 'EV::Tarantool16',
+	AUTHOR            => 'Mons Anderson <mons@cpan.org>, igorcoding <igorcoding@gmail.com>',
+	VERSION_FROM      => 'lib/EV/Tarantool16.pm',
+	ABSTRACT_FROM     => 'lib/EV/Tarantool16.pm',
 	PREREQ_PM         => { EV => 4 },
 	LIBS              => ['-lcares'],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',
