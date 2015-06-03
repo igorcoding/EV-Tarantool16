@@ -73,6 +73,8 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	ENTER;SAVETMPS;
 	dSP;
 
+	(void) hv_delete( self->reqs, (char *) &ctx->id, sizeof(ctx->id),0);
+
 	// ev_timer_stop(self->cnn.loop, &ctx->t);
 	// do_disable_rw_timer(&self->cnn);
 	SvREFCNT_dec(ctx->wbuf);
@@ -98,8 +100,6 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 
 		FREETMPS; LEAVE;
 	}
-
-	(void) hv_delete( self->reqs, (char *) &ctx->id, sizeof(ctx->id),0);
 
 	--self->pending;
 
