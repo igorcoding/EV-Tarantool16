@@ -10,10 +10,17 @@ Requires: perl-EV
 
 WriteMakefile(
 	NAME              => 'EV::Tarantool16',
-	AUTHOR            => 'Mons Anderson <mons@cpan.org>, igorcoding <igorcoding@gmail.com>',
+	AUTHOR            => ['Mons Anderson <mons@cpan.org>', 'igorcoding <igorcoding@gmail.com>'],
 	VERSION_FROM      => 'lib/EV/Tarantool16.pm',
 	ABSTRACT_FROM     => 'lib/EV/Tarantool16.pm',
-	PREREQ_PM         => { EV => 4 },
+	PREREQ_PM         => {
+		'EV' => 4,
+		'Types::Serialiser' => 0
+	},
+	BUILD_REQUIRES     => {
+        'Test::More' => 0,
+        'AnyEvent' => 0,
+    },
 	LIBS              => ['-lcares'],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',
 	CONFIGURE => sub {
