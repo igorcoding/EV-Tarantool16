@@ -18,15 +18,15 @@ WriteMakefile(
 		'Types::Serialiser' => 0
 	},
 	BUILD_REQUIRES     => {
-        'Test::More' => 0,
-        'AnyEvent' => 0,
-    },
+		'Test::More' => 0,
+		'AnyEvent'   => 0,
+	},
 	LIBS              => ['-lcares'],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',
 	CONFIGURE => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(
-			INC               => '-I. -I./xstnt -I./xsmy -I/usr/include -I./libs/evcnn/src -I./libs/msgpuck -I./libs/crypto',
+			INC => '-I. -I./xstnt -I./xsmy -I/usr/include -I./libs/evcnn/src -I./libs/msgpuck -I./libs/crypto',
 		)};
 	},
 );
