@@ -14,6 +14,7 @@ use Test::Deep;
 use Data::Dumper;
 use Renewer;
 use Carp;
+use Test::Tarantool;
 # use Devel::Leak;
 # use AE;
 
@@ -31,12 +32,38 @@ my $cfs = 0;
 my $connected;
 my $disconnected;
 
+my $w = AnyEvent->signal (signal => "INT", cb => sub { exit 0 });
+
 my $tnt = {
+	name => 'tarantool_tester',
 	port => 3301,
 	host => '127.0.0.1',
 	username => 'test_user',
 	password => 'test_pass',
+	initlua => 'provision/init.lua'
 };
+
+$tnt = Test::Tarantool->new(
+	# cleanup => 0,
+	title   => $tnt->{name},
+	host    => $tnt->{host},
+	port    => $tnt->{port},
+	#logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
+	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	initlua => $tnt->{initlua},
+	#on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
+	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; },
+);
+# warn Dumper $tnt;
+# __END__
+
+$tnt->start(sub {
+	my ($status, $desc) = @_;
+	if ($status == 1) {
+		EV::unloop;
+	}
+});
+EV::loop;
 
 
 my $SPACE_NAME = 'tester';

@@ -1,5 +1,3 @@
-#! /usr/bin/env tarantool
-
 local username = 'test_user'
 local password = 'test_pass'
 

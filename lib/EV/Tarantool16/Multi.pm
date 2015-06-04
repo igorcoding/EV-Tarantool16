@@ -61,7 +61,7 @@ sub new {
 		if ($srv->{rw}) { $rws++ } else { $ros++; }
 		push @{$self->{servers}}, $srv;
 		my $warned;
-		$srv->{c} = EV::Tarantool->new({
+		$srv->{c} = EV::Tarantool16->new({
 			host => $srv->{host},
 			port => $srv->{port},
 			timeout => $self->{timeout},

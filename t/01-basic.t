@@ -14,6 +14,7 @@ use Test::Deep;
 use Data::Dumper;
 use Renewer;
 use Carp;
+use Test::Tarantool;
 # use Devel::Leak;
 # use AE;
 
@@ -26,51 +27,45 @@ my %test_exec = (
 	delete => 1,
 	update => 1,
 	RTREE => 1,
-	memtest => 1
+	memtest => 0
 );
 
-sub meminfo () {
-	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
-	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
-	my %s;
-	@s{qw(ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice threads itrealvalue starttime vsize rss rsslim )} = split /\s+/,substr($stat,pos($stat));
-	$s{rss} *= 4096;
-	return (@s{qw(rss vsize)});
-}
-
-sub memcheck ($$$$) {
-	my ($n,$obj,$method,$args) = @_;
-	my ($rss1,$vsz1) = meminfo();
-	my $cnt = 0;
-	my $start = time;
-	my $do;$do = sub {
-		#warn "[$cnt/$n] call $method(@$args): @_";
-		# diag Dumper \@_;
-		return EV::unloop if ++$cnt >= $n;
-		$obj->$method(@$args,$do);
-	};$do->();
-	EV::loop;
-	my ($rss2,$vsz2) = meminfo();
-	my $run = time - $start;
-	warn sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
-	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
-		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
-	}
-	is 1, 1;
-}
-
-# my $tnt = tnt_run();
 my $cfs = 0;
 my $connected;
 my $disconnected;
 
+my $w = AnyEvent->signal (signal => "INT", cb => sub { exit 0 });
+
 my $tnt = {
+	name => 'tarantool_tester',
 	port => 3301,
 	host => '127.0.0.1',
 	username => 'test_user',
 	password => 'test_pass',
+	initlua => 'provision/init.lua'
 };
 
+$tnt = Test::Tarantool->new(
+	# cleanup => 0,
+	title   => $tnt->{name},
+	host    => $tnt->{host},
+	port    => $tnt->{port},
+	#logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
+	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	initlua => $tnt->{initlua},
+	#on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
+	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; },
+);
+# warn Dumper $tnt;
+# __END__
+
+$tnt->start(sub {
+	my ($status, $desc) = @_;
+	if ($status == 1) {
+		EV::unloop;
+	}
+});
+EV::loop;
 
 my $SPACE_NAME = 'tester';
 
@@ -118,7 +113,7 @@ Renewer::renew_tnt($c, $SPACE_NAME, sub {
 });
 EV::loop;
 
-ok $connected > 0, "Connection is ok";
+ok $connected > 0, "Connection ok";
 croak "Not connected normally" unless $connected > 0;
 
 subtest 'Ping tests', sub {
@@ -566,6 +561,39 @@ subtest 'RTREE tests', sub {
 
 
 };
+
+
+
+sub meminfo () {
+	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
+	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
+	my %s;
+	@s{qw(ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice threads itrealvalue starttime vsize rss rsslim )} = split /\s+/,substr($stat,pos($stat));
+	$s{rss} *= 4096;
+	return (@s{qw(rss vsize)});
+}
+
+sub memcheck ($$$$) {
+	my ($n,$obj,$method,$args) = @_;
+	my ($rss1,$vsz1) = meminfo();
+	my $cnt = 0;
+	my $start = time;
+	my $do;$do = sub {
+		#warn "[$cnt/$n] call $method(@$args): @_";
+		# diag Dumper \@_;
+		return EV::unloop if ++$cnt >= $n;
+		$obj->$method(@$args,$do);
+	};$do->();
+	EV::loop;
+	my ($rss2,$vsz2) = meminfo();
+	my $run = time - $start;
+	warn sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
+	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
+		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
+	}
+	is 1, 1;
+}
+
 
 subtest 'Memory tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{memtest};

@@ -1,7 +1,4 @@
 .gitmodules
-.tarantool/00000000000000000001.snap
-.tarantool/init.lua
-.tarantool/test.conf
 evcnn/CMakeLists.txt
 evcnn/ex/sample.c
 evcnn/src/evconnection.h

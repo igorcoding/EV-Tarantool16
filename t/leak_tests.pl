@@ -24,7 +24,7 @@ my $connected;
 my $disconnected;
 
 my $tnt = {
-	port => 3302,
+	port => 3301,
 	host => '127.0.0.1',
 	# username => 'test_user',
 	# password => 'test_pass',
