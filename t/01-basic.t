@@ -27,7 +27,7 @@ my %test_exec = (
 	delete => 1,
 	update => 1,
 	RTREE => 1,
-	memtest => 0
+	memtest => 1
 );
 
 my $cfs = 0;
@@ -54,12 +54,12 @@ $tnt = Test::Tarantool->new(
 	logger  => sub { diag ( $tnt->{title},' ', @_ )},
 	initlua => $tnt->{initlua},
 	#on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; },
+	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 );
 # warn Dumper $tnt;
 # __END__
 
-$tnt->start(sub {
+$tnt->start(timeout => 10, sub {
 	my ($status, $desc) = @_;
 	if ($status == 1) {
 		EV::unloop;
