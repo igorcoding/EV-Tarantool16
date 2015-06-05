@@ -6,9 +6,9 @@ use warnings;
 use IO::Handle qw/autoflush/;
 use Scalar::Util 'weaken';
 use AnyEvent::Handle;
-use Data::Dumper;
 use File::Path;
 use File::Spec;
+use Data::Dumper;
 
 =head1 NAME
 
@@ -242,7 +242,6 @@ sub start {
 	if ($pid) {
 		close($_) for ($cr, $cw);
 		$self->{pid} = $pid;
-		warn Dumper $self->{pid};
 		$self->{rpipe} = $pr;
 		$self->{wpipe} = $pw;
 		$self->{nanny} = AnyEvent->child(
@@ -296,7 +295,6 @@ sub start {
 		open(STDERR, ">&", $cw) or die "Could not dup filehandle: $!";
 		# exec("tarantool /home/vagrant/EV-Tarantool1.6/provision/evtnt.lua");
 		my $file = File::Spec->rel2abs("./evtnt.lua");
-		warn Dumper $file;
 		exec("tarantool $file");
 		die "exec: $!";
 	}
