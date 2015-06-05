@@ -4,7 +4,6 @@ bench/lib/Selector.pm
 bench/lib/Util.pm
 bench/test.pl
 lib/EV/Tarantool16.pm
-lib/EV/Tarantool16/Multi.pm
 libs/crypto/base64.c
 libs/crypto/base64.h
 libs/crypto/sha1.c
