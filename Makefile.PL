@@ -9,7 +9,7 @@ Requires: perl-EV
 =cut
 
 my $ARES_CFLAGS=$ENV{ARES_CFLAGS}//'-I/usr/include';
-my $ARES_LDFLAGS=$ENV{ARES_LD_FLAGS}//'-lcares';
+my $ARES_LDFLAGS=$ENV{ARES_LDFLAGS}//'-lcares';
 WriteMakefile(
 	NAME              => 'EV::Tarantool16',
 	AUTHOR            => ['Mons Anderson <mons@cpan.org>', 'igorcoding <igorcoding@gmail.com>'],
@@ -21,9 +21,10 @@ WriteMakefile(
 	},
 	BUILD_REQUIRES     => {
 		'Test::More' => 0,
+		'Test::Deep' => 0,
 		'AnyEvent'   => 0,
 	},
-	LIBS              => [ $ARES_LD_FLAGS ],
+	LIBS              => [ $ARES_LDFLAGS ],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',
 	CONFIGURE => sub {
 		require EV::MakeMaker;
