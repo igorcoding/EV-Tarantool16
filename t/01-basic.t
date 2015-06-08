@@ -14,7 +14,8 @@ use Test::Deep;
 use Data::Dumper;
 use Renewer;
 use Carp;
-use Test::Tarantool;
+use Test::Tarantool16;
+use Cwd;
 # use Devel::Leak;
 # use AE;
 
@@ -42,10 +43,18 @@ my $tnt = {
 	host => '127.0.0.1',
 	username => 'test_user',
 	password => 'test_pass',
-	initlua => 'provision/init.lua'
+	initlua => do {
+		my $file = 'provision/init.lua';
+		local $/ = undef;
+		open my $f, "<", $file
+			or die "could not open $file: $!";
+		my $d = <$f>;
+		close $f;
+		$d;
+	}
 };
 
-$tnt = Test::Tarantool->new(
+$tnt = Test::Tarantool16->new(
 	# cleanup => 0,
 	title   => $tnt->{name},
 	host    => $tnt->{host},

@@ -38,7 +38,6 @@ t/01-basic.t
 t/02-auth.t
 t/03-timeout.t
 t/lib/Renewer.pm
-t/lib/Test/Tarantool.pm
 Tarantool16.xs
 xsmy/xsendian.h
 xsmy/xsmy.h

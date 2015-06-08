@@ -21,6 +21,13 @@ sudo make install
 
 cd -
 
+mkdir -p $HOME/temp
+cd $HOME/temp
+TestTarantool_VER=0.01
+TestTarantool_URL=https://github.com/igorcoding/Test-Tarantool16/releases/download/${TestTarantool_VER}/Test-Tarantool16-${TestTarantool_VER}.tar.gz
+wget ${TestTarantool_URL} -O $HOME/temp/test-tarantool16.tar.gz
+cd -
+
 PREV_HOME=${HOME}
 
 if [ ${TRAVIS} == true ]; then
@@ -29,6 +36,7 @@ if [ ${TRAVIS} == true ]; then
 	cpanm EV
 	cpanm AnyEvent
 	cpanm Test::Deep
+	cpanm $HOME/temp/test-tarantool16.tar.gz
 
 	# sudo ln -s ${TRAVIS_BUILD_DIR}/provision/evtnt.lua /etc/tarantool/instances.enabled/
 	# HOME=${TRAVIS_BUILD_DIR}/../ sudo tarantoolctl start evtnt
@@ -42,6 +50,7 @@ else
 	sudo cpanm Test::Deep
 	sudo cpanm Test::Valgrind
 	sudo cpanm List::BinarySearch
+	sudo cpanm $HOME/temp/test-tarantool16.tar.gz
 
 	# sudo ln -s ${HOME}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
 
