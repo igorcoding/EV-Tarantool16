@@ -82,7 +82,6 @@ my $c; $c = EV::Tarantool16->new({
 	port => $tnt->{port},
 	username => $tnt->{username},
 	password => $tnt->{password},
-	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];

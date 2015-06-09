@@ -1,23 +1,26 @@
---- #YAML:1.0
-name:               EV-Tarantool16
-version:            0.01
-abstract:           Perl extension for Tarantool 1.6
+---
+abstract: 'EV client for Tarantool 1.6'
 author:
-	- Mons Anderson <mons@cpan.org>
-    - igorcoding <igorcoding@gmail.com>
-license:            unknown
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
+  - 'Mons Anderson <mons@cpan.org>'
+  - 'igorcoding <igorcoding@gmail.com>'
 build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    EV:  4
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.55_02
+  AnyEvent: 0
+  Test::Deep: 0
+  Test::More: 0
+configure_requires:
+  ExtUtils::MakeMaker: 0
+dynamic_config: 0
+generated_by: 'ExtUtils::MakeMaker version 7.04, CPAN::Meta::Converter version 2.120351'
+license: open_source
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: EV-Tarantool16
+no_index:
+  directory:
+    - t
+    - inc
+requires:
+  EV: 4
+  Types::Serialiser: 0
+version: 1.00

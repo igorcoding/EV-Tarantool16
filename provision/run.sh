@@ -42,7 +42,7 @@ if [ ${TRAVIS} == true ]; then
 	# HOME=${TRAVIS_BUILD_DIR}/../ sudo tarantoolctl start evtnt
 	# export HOME=${PREV_HOME}
 else
-	sudo apt-get install -y valgrind
+	sudo apt-get install -y valgrind perl-doc
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
 	sudo cpanm Types::Serialiser
 	sudo cpanm EV

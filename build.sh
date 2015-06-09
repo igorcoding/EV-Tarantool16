@@ -1,5 +1,4 @@
 #! /bin/bash
 
 make clean
-perl Makefile.PL
-make
+perl Makefile.PL && make

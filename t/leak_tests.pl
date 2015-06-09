@@ -95,7 +95,7 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->call("status_wait", [], {timeout => 10}, sub {
+$c->call("status_wait1", [], {timeout => 10}, sub {
     say Dumper \@_;
     EV::unloop;
 });

@@ -13,6 +13,7 @@ box.cfg{
 	log_level = 5
 }
 box.schema.user.grant('guest','read,write,execute,create,drop','universe')
+require('console').listen('127.0.0.1:33010')
 
 -- local home = os.getenv("HOME")
 -- dofile(home .. '/EV-Tarantool1.6/provision/init.lua')

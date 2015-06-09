@@ -28,7 +28,7 @@ my %test_exec = (
 	delete => 1,
 	update => 1,
 	RTREE => 1,
-	memtest => 1
+	# memtest => 1
 );
 
 my $cfs = 0;
@@ -84,7 +84,6 @@ my $c; $c = EV::Tarantool16->new({
 	port => $tnt->{port},
 	username => $tnt->{username},
 	password => $tnt->{password},
-	# spaces => $realspaces,
 	reconnect => 0.2,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
