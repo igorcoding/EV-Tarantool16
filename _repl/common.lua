@@ -1,11 +1,48 @@
-tnt_pool = {
-	'localhost:3302',
-	'localhost:3303',
-}
-pool = nil
+package.path = package.path .. ";".. BASE .. "../../perl-projects/connection-pool/" .."?.lua"
+
+serv_pool = nil
 leader = nil
 status_channels = setmetatable({}, {__mode='kv'})
 LAG_THRESHOLD = 5
+
+p = require('pool')
+log = require('log')
+
+pool = p.new()
+pool.on_connected = function(self)
+    log.info('All connected')
+end
+
+pool.on_disconnect_one = function(self)
+	log.info('Disconnected one')
+	leader = nil
+	serv_pool = nil
+	for k, v in pairs(status_channels) do
+		v:put(true)
+	end
+end
+
+local cfg = {
+    pool_name = 'mypool';
+    servers = {
+        {
+            uri = 'localhost:3302',
+            login = 'test_user',
+            password = 'pwd',
+            zone = 'zone1'
+        },
+        {
+            uri = 'localhost:3303',
+            login = 'test_user',
+            password = 'pwd',
+            zone = 'zone1'
+        }
+    };
+    monitor = true;
+}
+
+-- start
+pool:init(cfg)
 
 
 local fiber = require('fiber')
@@ -21,10 +58,14 @@ end
 
 local function ping_all()
 	local ok = true
-	for i=1,#tnt_pool do
-		local s = tnt_pool[i]
-		local host, port = s:match("([^:]+):([^:]+)")
-		local conn = nbox:new(host, tonumber(port))
+	local servers = cfg['servers']
+	for i=1,#cfg['servers'] do
+		local s = servers[i]
+		local host, port = s['uri']:match("([^:]+):([^:]+)")
+		local conn = nbox:new(host, tonumber(port), {
+			user = s['login'],
+    		password = s['password']
+		})
 		if not conn or not conn:ping() then
 			ok = false
 			break
@@ -62,10 +103,14 @@ function init()
 	local pool = {}
 	local conn_pool = {}
 	local leader = get_uuid()
-	for i=1,#tnt_pool do
-		local s = _G.tnt_pool[i]
-		local host, port = s:match("([^:]+):([^:]+)")
-		local conn = nbox:new(host, tonumber(port))
+	local servers = cfg['servers']
+	for i=1,#cfg['servers'] do
+		local s = servers[i]
+		local host, port = s['uri']:match("([^:]+):([^:]+)")
+		local conn = nbox:new(host, tonumber(port), {
+			user = s['login'],
+    		password = s['password']
+		})
 		if conn and conn:ping() then
 			local uuid = conn:call('get_uuid')[1][1]
 			pool[uuid] = s
@@ -76,22 +121,22 @@ function init()
 		conn:close()
 	end
 
-	_G.pool = pool
+	_G.serv_pool = pool
 	_G.leader = leader
 end
 
 function get_leader()
-	if leader == nil then
-		init()
-	end
-	return {leader, pool[leader]}
+	-- if leader == nil then
+	init()
+	-- end
+	return {leader, serv_pool[leader]}
 end
 
 function get_pool()
-	if pool == nil then
+	if serv_pool == nil then
 		init()
 	end
-	return pool
+	return serv_pool
 end
 
 function on_connected()
@@ -105,13 +150,13 @@ function on_disconnected()
 	local m = 'Disconnection. user=' .. box.session.user() .. ' id=' .. box.session.id()
 	log.info(m)
 
-	if box.session.user() == replicator_user then
-		leader = nil
-		pool = nil
-		for k, v in pairs(status_channels) do
-			v:put(true)
-		end
-	end
+	-- if box.session.user() == replicator_user then
+	-- 	leader = nil
+	-- 	serv_pool = nil
+	-- 	for k, v in pairs(status_channels) do
+	-- 		v:put(true)
+	-- 	end
+	-- end
 end
 box.session.on_connect(on_connected)
 box.session.on_disconnect(on_disconnected)

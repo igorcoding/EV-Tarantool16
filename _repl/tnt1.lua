@@ -18,6 +18,11 @@ if #box.space._user.index.name:select({replicator_user}) == 0 then
 	box.schema.user.grant('guest','read,write,execute','universe')
 end
 
+if #box.space._user.index.name:select({'test_user'}) == 0 then
+	box.schema.user.create('test_user', {password = 'pwd'})
+	box.schema.user.grant('test_user','read,write,execute','universe')
+end
+
 box.cfg{
 	replication_source = 'replicator:pwd@localhost:3303',
 	-- replication_source = 'replicator:pwd@localhost:3304',
