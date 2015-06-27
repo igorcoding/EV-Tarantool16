@@ -340,7 +340,7 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	return OP_UPD_UNKNOWN;
 }
 
-static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char const *salt_begin, const char const *salt_end, SV *cb) {
+static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char * const salt_begin, const char * const salt_end, SV *cb) {
 	char scramble[SCRAMBLE_SIZE];
 
 	const size_t salt_size = 64;
@@ -1126,7 +1126,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	return SvREFCNT_inc(rv);
 }
 
-static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_t *id) {
+static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32_t *id) {
 	const char *p = data;
 	const char *test = p;
 
@@ -1172,7 +1172,7 @@ static int parse_reply_hdr(HV *ret, const char const *data, STRLEN size, uint32_
 }
 
 
-static inline int parse_reply_body_data(HV *ret, const char const *data_begin, const char const *data_end, const unpack_format const * format, AV *fields) {
+static inline int parse_reply_body_data(HV *ret, const char * const data_begin, const char * const data_end, const unpack_format * const format, AV *fields) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1251,7 +1251,7 @@ static inline int parse_reply_body_data(HV *ret, const char const *data_begin, c
 	return 0;
 }
 
-static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, const char const *data_end) {
+static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end) {
 	const uint32_t VALID_TUPLE_SIZE = 7;
 
 	STRLEN data_size = data_end - data_begin;
@@ -1405,7 +1405,7 @@ static inline int parse_spaces_body_data(HV *ret, const char const *data_begin, 
 	return 0;
 }
 
-static inline int parse_index_body_data(HV *spaces, const char const *data_begin, const char const *data_end) {
+static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1526,7 +1526,7 @@ static inline int parse_index_body_data(HV *spaces, const char const *data_begin
 	return 0;
 }
 
-static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const unpack_format const * format, AV *fields) {
+static int parse_reply_body(HV *ret, const char * const data, STRLEN size, const unpack_format * const format, AV *fields) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1570,7 +1570,7 @@ static int parse_reply_body(HV *ret, const char const *data, STRLEN size, const 
 }
 
 
-static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
+static int parse_spaces_body(HV *ret, const char * const data, STRLEN size) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1613,7 +1613,7 @@ static int parse_spaces_body(HV *ret, const char const *data, STRLEN size) {
 	return p - data;
 }
 
-static int parse_index_body(HV *spaces, HV *err_ret, const char const *data, STRLEN size) {
+static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size) {
 	const char *p = data;
 	const char *test = p;
 	// body
