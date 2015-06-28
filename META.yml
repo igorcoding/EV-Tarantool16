@@ -23,4 +23,4 @@ no_index:
 requires:
   EV: 4
   Types::Serialiser: 0
-version: 1.00
+version: v1.1.0

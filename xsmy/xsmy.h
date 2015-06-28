@@ -2,6 +2,7 @@
 #define XSMY_H
 
 #include "xsendian.h"
+#include "log.h"
 #include <stdio.h>
 
 #ifndef I64

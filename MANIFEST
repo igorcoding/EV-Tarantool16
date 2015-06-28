@@ -45,5 +45,6 @@ Tarantool16.xs
 xsmy/xsendian.h
 xsmy/xsmy.h
 xstnt/encdec.h
+xstnt/log.h
 xstnt/types.h
 xstnt/xstnt16.h

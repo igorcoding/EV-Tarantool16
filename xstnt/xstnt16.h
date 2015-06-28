@@ -10,6 +10,7 @@
 #include "encdec.h"
 #include "sha1.h"
 #include "base64.h"
+#include "log.h"
 
 static const uint32_t SCRAMBLE_SIZE = 20;
 static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
@@ -62,7 +63,7 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 
 }
 
-static TntSpace * evt_find_space(SV *space, HV *spaces, SV *cb) {
+static TntSpace * evt_find_space(SV *space, HV *spaces, short log_level, SV *cb) {
 	U32 ns;
 	SV **key;
 	if (SvIOK( space )) {
@@ -71,7 +72,7 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, SV *cb) {
 			return (TntSpace*) SvPVX(*key);
 		}
 		else {
-			warn("No space %d config. Creating dummy space",ns);
+			log_info(log_level, "No space %d config. Creating dummy space",ns);
 			dSVX(spcf, spc, TntSpace);
 
 			spc->id = ns;
@@ -245,8 +246,6 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	SV **f;
 	HE *fl;
 
-	// cwarn("still ok. fields = %p", fields);
-
 	for (k = 0; k <= av_len( fields );k++) {
 		f = av_fetch( fields,k,0 );
 		if (unlikely(!f)) {
@@ -294,7 +293,7 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 } STMT_END
 
 
-static inline U32 get_iterator(SV *iterator_str) {
+static inline U32 get_iterator(TntCtx* ctx, SV *iterator_str) {
 	const char *str = SvPVX(iterator_str);
 	U32 str_len = SvCUR(iterator_str);
 	COMP_STR(str, "EQ", 				str_len, 2,  TNT_IT_EQ);
@@ -309,7 +308,7 @@ static inline U32 get_iterator(SV *iterator_str) {
 	COMP_STR(str, "BITS_ALL_NOT_SET", 	str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
 	COMP_STR(str, "OVERLAPS", 			str_len, 8,  TNT_IT_OVERLAPS);
 	COMP_STR(str, "NEIGHBOR", 			str_len, 8,  TNT_IT_NEIGHBOR);
-	cwarn("Unknown iterator: %.*s", str_len, str);
+	log_error(ctx->log_level, "Unknown iterator: %.*s", str_len, str);
 	return -1;
 }
 
@@ -420,7 +419,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, cb ) )) {
+	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
@@ -435,7 +434,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
-		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key) && SvPOK(*key)) iterator = get_iterator(*key);
+		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key) && SvPOK(*key)) iterator = get_iterator(ctx, *key);
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	else {
@@ -545,7 +544,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	TntSpace *spc = 0;
 	// TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, cb ) )) {
+	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
 		SV * i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
@@ -775,7 +774,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, cb ) )) {
+	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
@@ -878,7 +877,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, cb ) )) {
+	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
 	}
 	else {
@@ -1143,7 +1142,6 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 			return -1;
 
 		uint32_t key = mp_decode_uint(&p);
-		// cwarn("key = %d", key);
 		switch (key) {
 			case TP_CODE:
 				if (mp_typeof(*p) != MP_UINT)
@@ -1172,7 +1170,7 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 }
 
 
-static inline int parse_reply_body_data(HV *ret, const char * const data_begin, const char * const data_end, const unpack_format * const format, AV *fields) {
+static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const data_begin, const char * const data_end, const unpack_format * const format, AV *fields) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1244,14 +1242,14 @@ static inline int parse_reply_body_data(HV *ret, const char * const data_begin, 
 		break;
 	}
 	default:
-		cwarn("unexpected response data type = %d", mp_typeof(*p));
+		log_warn(ctx->log_level, "unexpected response data type = %d", mp_typeof(*p));
 		break;
 	}
 
 	return 0;
 }
 
-static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end) {
+static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end, short log_level) {
 	const uint32_t VALID_TUPLE_SIZE = 7;
 
 	STRLEN data_size = data_end - data_begin;
@@ -1288,12 +1286,12 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 			// cwarn("tuple_size = %d", tuple_size);
 
 			if (tuple_size < 1) {
-				warn("Invalid tuple size. Should be %d. Got %d. Exiting", VALID_TUPLE_SIZE, tuple_size);
+				log_error(log_level, "Invalid tuple size. Should be %d. Got %d. Exiting", VALID_TUPLE_SIZE, tuple_size);
 				return 0;
 			}
 
 			if (tuple_size != VALID_TUPLE_SIZE) {
-				warn("Invalid tuple size. Should be %d. Got %d", VALID_TUPLE_SIZE, tuple_size);
+				log_error(log_level, "Invalid tuple size. Should be %d. Got %d", VALID_TUPLE_SIZE, tuple_size);
 			}
 
 			SV *sv_id = sv_2mortal(decode_obj(&p));
@@ -1371,13 +1369,13 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 							}
 							else {
 								spc->f.f[ix] = FMT_UNKNOWN;
-								cwarn("Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
+								log_warn(log_level, "Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 							}
 						}
 					}
 
 					if (field_name == NULL) {
-						cwarn("field_name is NULL. Unexpected.");
+						log_warn(log_level, "field_name is NULL. Unexpected.");
 						continue;
 					}
 
@@ -1398,14 +1396,14 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 		break;
 	}
 	default:
-		cwarn("unexpected response data type (%d)", mp_typeof(*p));
+		log_error(log_level, "unexpected response data type (%d)", mp_typeof(*p));
 		break;
 	}
 
 	return 0;
 }
 
-static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end) {
+static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end, short log_level) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1492,7 +1490,7 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 					}
 					else {
 						idx->f.f[part_i] = FMT_UNKNOWN;
-						cwarn("Unknown part type \'%.*s\' for index %d of space \'%.*s\'", str_len, str, index_id, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
+						log_info(log_level, "Unknown part type \'%.*s\' for index %d of space \'%.*s\'", str_len, str, index_id, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 					}
 
 					SV **f = av_fetch(spc->fields, ix, 0);
@@ -1503,7 +1501,7 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 							// idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
 						}
 					} else {
-						warn("The field %d of space %.*s is not in space format information", ix, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
+						log_info(log_level, "The field %d of space %.*s is not in space format information", ix, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
 					}
 				}
 
@@ -1512,21 +1510,21 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 				(void) hv_store(spc->indexes, SvPV_nolen(idx->name), SvCUR(idx->name), SvREFCNT_inc(idxcf), 0);
 
 			} else {
-				cwarn("Space definition not found for space %d", space_id);
+				log_info(log_level, "Space definition not found for space %d", space_id);
 			}
 		}
 
 		break;
 	}
 	default:
-		cwarn("unexpected response data type = %d", mp_typeof(*p));
+		log_warn(log_level, "unexpected response data type = %d", mp_typeof(*p));
 		break;
 	}
 
 	return 0;
 }
 
-static int parse_reply_body(HV *ret, const char * const data, STRLEN size, const unpack_format * const format, AV *fields) {
+static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLEN size, const unpack_format * const format, AV *fields) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1561,7 +1559,7 @@ static int parse_reply_body(HV *ret, const char * const data, STRLEN size, const
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
-			parse_reply_body_data(ret, data_begin, p, format, fields);
+			parse_reply_body_data(ctx, ret, data_begin, p, format, fields);
 			break;
 		}
 		}
@@ -1570,7 +1568,7 @@ static int parse_reply_body(HV *ret, const char * const data, STRLEN size, const
 }
 
 
-static int parse_spaces_body(HV *ret, const char * const data, STRLEN size) {
+static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, short log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1605,7 +1603,7 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size) {
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
-			parse_spaces_body_data(ret, data_begin, p);
+			parse_spaces_body_data(ret, data_begin, p, log_level);
 			break;
 		}
 		}
@@ -1613,7 +1611,7 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size) {
 	return p - data;
 }
 
-static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size) {
+static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size, short log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1646,7 +1644,7 @@ static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, ST
 
 			const char *data_begin = p;
 			mp_next(&p);
-			parse_index_body_data(spaces, data_begin, p);
+			parse_index_body_data(spaces, data_begin, p, log_level);
 
 
 			break;

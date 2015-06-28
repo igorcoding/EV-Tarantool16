@@ -18,7 +18,6 @@ use Devel::Peek;
 my $var;
 # Devel::Leak::NoteSV($var);
 
-# for (0..100) {
 my $cfs = 0;
 my $connected;
 my $disconnected;
@@ -29,6 +28,9 @@ my $tnt = {
 	# username => 'test_user',
 	# password => 'test_pass',
 };
+
+my $cnt = 0;
+my $max_cnt = 2000;
 
 Devel::Leak::NoteSV($var);
 
@@ -49,9 +51,13 @@ my $c; $c = EV::Tarantool16->new({
 		# 	undef $t;
 		# };
 		# EV::loop;
-		EV::unloop;
+		# EV::unloop;
+		$c->disconnect;
+		return EV::unloop if ++$cnt >= $max_cnt;
+		$c->connect;
 	},
 	connfail => sub {
+		warn "connfail: @_";
 		# my $err = 0+$!;
 		# is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
 		# $nc->(@_) if $cfs == 0;
@@ -60,20 +66,19 @@ my $c; $c = EV::Tarantool16->new({
 		EV::unloop;
 	},
 	disconnected => sub {
-		warn "discon: @_ / $!";
+		# warn "discon: @_ / $!";
 		# $disconnected++;
-		EV::unloop;
+		# EV::unloop;
 	},
 });
 
 # Dump($tnt);
 # Dump($c);
 
-
 $c->connect;
 EV::loop;
-
-# undef $c;
+undef $c;
+Devel::Leak::CheckSV($var);
 
 # }
 
@@ -95,11 +100,11 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->call("status_wait1", [], {timeout => 10}, sub {
-    say Dumper \@_;
-    EV::unloop;
-});
-EV::loop;
+# $c->call("status_wait1", [], {timeout => 10}, sub {
+#     say Dumper \@_;
+#     EV::unloop;
+# });
+# EV::loop;
 
 # $c->eval("return {box.space.tester:len{}}", [], sub {
 #     say 'here';
@@ -120,9 +125,9 @@ EV::loop;
 
 # }
 
-undef $c;
+# undef $c;
 
-Devel::Leak::CheckSV($var);
+# Devel::Leak::CheckSV($var);
 
 
 # $c->select('tester', [], {hash=>0}, sub {

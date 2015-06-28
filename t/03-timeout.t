@@ -56,14 +56,13 @@ $tnt = Test::Tarantool16->new(
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	#logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
+	# logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
+	# logger  => sub { },
 	logger  => sub { diag ( $tnt->{title},' ', @_ )},
 	initlua => $tnt->{initlua},
-	#on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
+	# on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 );
-# warn Dumper $tnt;
-# __END__
 
 $tnt->start(timeout => 10, sub {
 	my ($status, $desc) = @_;
@@ -83,6 +82,7 @@ my $c; $c = EV::Tarantool16->new({
 	username => $tnt->{username},
 	password => $tnt->{password},
 	reconnect => 0.2,
+	log_level => 4,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
 		warn "connected: @_";

@@ -10,6 +10,7 @@
 
 #define MYDEBUG
 
+#include "log.h"
 #include "xstnt16.h"
 
 #if __GNUC__ >= 3
@@ -45,6 +46,7 @@ typedef struct {
 	HV      *spaces;
 	SV      *username;
 	SV      *password;
+	short    log_level;
 } TntCnn;
 
 static const uint32_t _SPACE_SPACEID = 280;
@@ -69,7 +71,7 @@ static inline void force_disconnect(TntCnn *self, const char *reason) {
 static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TntCtx * ctx = (TntCtx *) t;
 	TntCnn * self = (TntCnn *) ctx->self;
-	cwarn("timer called on %p: %s", ctx, ctx->call);
+	log_warn(self->log_level, "timer called on %p: %s", ctx, ctx->call);
 	ENTER;SAVETMPS;
 	dSP;
 
@@ -143,6 +145,7 @@ INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
 	ctx->self = self;
 	ctx->call = "select";
 	ctx->use_hash = self->use_hash;
+	ctx->log_level = self->log_level;
 	uint32_t iid = ++self->seq;
 	ctx->id = iid;
 	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
@@ -199,7 +202,7 @@ static void on_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			cwarn("key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
 
 		} else {
@@ -214,7 +217,7 @@ static void on_read(ev_cnn * self, size_t len) {
 			/* body */
 
 			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-			length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+			length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
 			if (unlikely(length <= 0)) {
 				TNT_CROAK("Unexpected response body");
 				return;
@@ -328,7 +331,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			cwarn("key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
 
 		} else {
@@ -342,7 +345,7 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 			/* body */
 
-			length = parse_index_body(tnt->spaces, hv, rbuf, buf_len);
+			length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
 			if (unlikely(length <= 0)) {
 				TNT_CROAK("Unexpected response body");
 				return;
@@ -447,7 +450,7 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 			/* body */
 
-			length = parse_spaces_body(hv, rbuf, buf_len);
+			length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
 			if (unlikely(length <= 0)) {
 				TNT_CROAK("Unexpected response body");
 				return;
@@ -547,7 +550,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			cwarn("key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
 
 		} else {
@@ -562,7 +565,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 			/* body */
 
 			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-			length = parse_reply_body(hv, rbuf, buf_len, &ctx->f, fields);
+			length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
 			if (unlikely(length <= 0)) {
 				TNT_CROAK("Unexpected response body");
 				return;
@@ -625,7 +628,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	char *tnt_ver_begin = NULL, *tnt_ver_end = NULL;
 	char *salt_begin = NULL, *salt_end = NULL;
 	decode_greeting(rbuf, tnt_ver_begin, tnt_ver_end, salt_begin, salt_end);
-	warn("%.*s", (int) (tnt_ver_end - tnt_ver_begin), tnt_ver_begin);
+	log_info(tnt->log_level, "%.*s", (int) (tnt_ver_end - tnt_ver_begin), tnt_ver_begin);
 
 	self->ruse -= buf_len;
 	if (self->ruse > 0) {
@@ -639,6 +642,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		ctx->self = self;
 		ctx->call = "auth";
 		ctx->use_hash = tnt->use_hash;
+		ctx->log_level = tnt->log_level;
 		uint32_t iid = ++tnt->seq;
 		ctx->id = iid;
 		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, NULL);
@@ -763,7 +767,11 @@ void new(SV *pk, HV *conf)
 		if ((key = hv_fetchs(conf, "hash", 0)) ) self->use_hash = SvOK(*key) ? SvIV(*key) : 0;
 		if ((key = hv_fetchs(conf, "username", 0)) && SvPOK(*key)) SvREFCNT_inc(self->username = *key);
 		if ((key = hv_fetchs(conf, "password", 0)) && SvPOK(*key)) SvREFCNT_inc(self->password = *key);
-
+		if ((key = hv_fetchs(conf, "log_level", 0)) && (SvOK(*key) && SvIOK(*key))) {
+			self->log_level = SvIV(*key);
+		} else {
+			self->log_level = _LOG_INFO;
+		}
 		self->spaces = newHV();
 
 		XSRETURN(1);
@@ -816,6 +824,7 @@ void ping(SV *this, ... )
 		ctx->self = self;
 		ctx->call = "ping";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		SV *pkt = pkt_ping(iid);
@@ -839,6 +848,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 		ctx->self = self;
 		ctx->call = "select";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
@@ -861,6 +871,7 @@ void insert( SV *this, SV *space, SV * t, ... )
 		ctx->self = self;
 		ctx->call = "insert";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
@@ -883,6 +894,7 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		ctx->self = self;
 		ctx->call = "update";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 6 ? (HV *) SvRV(ST(4)) : 0;
@@ -905,6 +917,7 @@ void delete( SV *this, SV *space, SV * t, ... )
 		ctx->self = self;
 		ctx->call = "delete";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
@@ -928,6 +941,7 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		ctx->self = self;
 		ctx->call = "eval";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
@@ -951,6 +965,7 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		ctx->self = self;
 		ctx->call = "call";
 		ctx->use_hash = self->use_hash;
+		ctx->log_level = self->log_level;
 		uint32_t iid = ++self->seq;
 		ctx->id = iid;
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;

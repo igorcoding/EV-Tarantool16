@@ -79,6 +79,7 @@ typedef struct {
 	SV *cb;
 	SV *wbuf;
 	U32 use_hash;
+	short log_level;
 	TntSpace *space;
 	unpack_format *fmt;
 	unpack_format f;
