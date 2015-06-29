@@ -34,7 +34,7 @@ my %test_exec = (
 	delete => 1,
 	update => 1,
 	RTREE => 1,
-	# memtest => 1
+	memtest => 1
 );
 
 my $cfs = 0;

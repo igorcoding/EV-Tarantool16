@@ -63,7 +63,7 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 
 }
 
-static TntSpace * evt_find_space(SV *space, HV *spaces, short log_level, SV *cb) {
+static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *cb) {
 	U32 ns;
 	SV **key;
 	if (SvIOK( space )) {
@@ -900,7 +900,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 			idx = (TntIndex*) SvPVX(*key);
 		}
 		else {
-			warn("No index %d config. Using without formats", index);
+			log_warn(ctx->log_level, "No index %d config. Using without formats", index);
 		}
 	}
 
@@ -1249,7 +1249,7 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const
 	return 0;
 }
 
-static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end, short log_level) {
+static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end, uint8_t log_level) {
 	const uint32_t VALID_TUPLE_SIZE = 7;
 
 	STRLEN data_size = data_end - data_begin;
@@ -1403,7 +1403,7 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 	return 0;
 }
 
-static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end, short log_level) {
+static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end, uint8_t log_level) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1568,7 +1568,7 @@ static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLE
 }
 
 
-static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, short log_level) {
+static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint8_t log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1611,7 +1611,7 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, shor
 	return p - data;
 }
 
-static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size, short log_level) {
+static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size, uint8_t log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body

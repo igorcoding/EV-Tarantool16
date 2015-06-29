@@ -46,7 +46,7 @@ typedef struct {
 	HV      *spaces;
 	SV      *username;
 	SV      *password;
-	short    log_level;
+	uint8_t  log_level;
 } TntCnn;
 
 static const uint32_t _SPACE_SPACEID = 280;
@@ -108,14 +108,14 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	FREETMPS;LEAVE;
 }
 
-#define TIMEOUT_TIMER(self, iid, timeout) STMT_START {\
+#define TIMEOUT_TIMER(self, ctx, iid, timeout) STMT_START {\
 	if (timeout > 0) {\
 		ev_timer_init(&ctx->t, on_request_timer, timeout, 0.);\
 		ev_timer_start(self->cnn.loop, &ctx->t);\
 	}\
 } STMT_END
 
-#define INIT_TIMEOUT_TIMER(self, iid, opts) STMT_START {\
+#define INIT_TIMEOUT_TIMER(self, ctx, iid, opts) STMT_START {\
 	double timeout;\
 	SV **key;\
 	\
@@ -125,7 +125,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	} else {\
 		timeout = self->cnn.rw_timeout;\
 	}\
-	TIMEOUT_TIMER(self, iid, timeout);\
+	TIMEOUT_TIMER(self, ctx, iid, timeout);\
 } STMT_END
 
 #define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, _cb) STMT_START {\
@@ -139,18 +139,23 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	}\
 } STMT_END
 
+#define INIT_CTX(_self, ctx, method, iid) STMT_START { \
+	ctx->self = _self; \
+	ctx->call = method; \
+	ctx->use_hash = _self->use_hash; \
+	ctx->log_level = _self->log_level; \
+	iid = ++_self->seq; \
+	ctx->id = iid; \
+} STMT_END
+
 INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
-	ctx->self = self;
-	ctx->call = "select";
-	ctx->use_hash = self->use_hash;
-	ctx->log_level = self->log_level;
-	uint32_t iid = ++self->seq;
-	ctx->id = iid;
+	uint32_t iid;
+	INIT_CTX(self, ctx, "select", iid);
 	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
 	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
-	TIMEOUT_TIMER(self, iid, self->cnn.rw_timeout);
+	TIMEOUT_TIMER(self, ctx, iid, self->cnn.rw_timeout);
 }
 
 
@@ -639,17 +644,13 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	if (tnt->username && SvOK(tnt->username) && SvPOK(tnt->username) && tnt->password && SvOK(tnt->password) && SvPOK(tnt->password)) {
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "auth";
-		ctx->use_hash = tnt->use_hash;
-		ctx->log_level = tnt->log_level;
-		uint32_t iid = ++tnt->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(tnt, ctx, "auth", iid);
 		SV *pkt = pkt_authenticate(iid, tnt->username, tnt->password, salt_begin, salt_end, NULL);
 
 		self->on_read = (c_cb_read_t) on_auth_read;
 		EXEC_REQUEST(tnt, ctxsv, ctx, iid, pkt, NULL);
-		TIMEOUT_TIMER(tnt, iid, tnt->cnn.rw_timeout);
+		TIMEOUT_TIMER(tnt, ctx, iid, tnt->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
 		_execute_select(tnt, _SPACE_SPACEID);
@@ -821,16 +822,12 @@ void ping(SV *this, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "ping";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "ping", iid);
 		SV *pkt = pkt_ping(iid);
 		HV *opts = items == 3 ? (HV *) SvRV(ST( 1 )) : 0;
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -845,16 +842,12 @@ void select( SV *this, SV *space, SV * keys, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "select";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "select", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -868,16 +861,12 @@ void insert( SV *this, SV *space, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "insert";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "insert", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -891,16 +880,12 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "update";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "update", iid);
 		HV *opts = items == 6 ? (HV *) SvRV(ST(4)) : 0;
 		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -914,16 +899,12 @@ void delete( SV *this, SV *space, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "delete";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "delete", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -938,16 +919,12 @@ void eval( SV *this, SV *expression, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "eval";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "eval", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
 
@@ -962,15 +939,11 @@ void call( SV *this, SV *function_name, SV * t, ... )
 
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
-		ctx->self = self;
-		ctx->call = "call";
-		ctx->use_hash = self->use_hash;
-		ctx->log_level = self->log_level;
-		uint32_t iid = ++self->seq;
-		ctx->id = iid;
+		uint32_t iid;
+		INIT_CTX(self, ctx, "call", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, opts, cb );
 		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, iid, opts);
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
 
 		XSRETURN_UNDEF;
