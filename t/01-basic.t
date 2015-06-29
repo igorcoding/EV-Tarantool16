@@ -34,7 +34,7 @@ my %test_exec = (
 	delete => 1,
 	update => 1,
 	RTREE => 1,
-	memtest => 1
+	memtest => 0
 );
 
 my $cfs = 0;
@@ -576,86 +576,6 @@ subtest 'RTREE tests', sub {
 	}
 
 
-};
-
-
-
-sub meminfo () {
-	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
-	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
-	my %s;
-	@s{qw(ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice threads itrealvalue starttime vsize rss rsslim )} = split /\s+/,substr($stat,pos($stat));
-	$s{rss} *= 4096;
-	return (@s{qw(rss vsize)});
-}
-
-sub memcheck ($$$$) {
-	my ($n,$obj,$method,$args) = @_;
-	my ($rss1,$vsz1) = meminfo();
-	my $cnt = 0;
-	my $start = time;
-	my $do;$do = sub {
-		#warn "[$cnt/$n] call $method(@$args): @_";
-		# diag Dumper \@_;
-		return EV::unloop if ++$cnt >= $n;
-		$obj->$method(@$args,$do);
-	};$do->();
-	EV::loop;
-	my ($rss2,$vsz2) = meminfo();
-	my $run = time - $start;
-	warn sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
-	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
-		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
-	}
-	is 1, 1;
-}
-
-
-subtest 'Memory tests', sub {
-	plan( skip_all => 'skip') if !$test_exec{memtest};
-	diag '==== Memory tests ===';
-
-	# my ($cnt, $start);
-	# my $max_cnt = 20000;
-	# undef $c;
-	# $c = EV::Tarantool16->new({
-	# 	host => $tnt->{host},
-	# 	port => $tnt->{port},
-	# 	username => $tnt->{username},
-	# 	password => $tnt->{password},
-	# 	reconnect => 0.2,
-	# 	connected => sub {
-	# 		diag Dumper \@_ unless $_[0];
-	# 		$c->disconnect;
-	# 		return EV::unloop if ++$cnt >= $max_cnt;
-	# 		$c->connect;
-	# 	},
-	# 	connfail => sub {
-	# 		my $c = shift;
-	# 		warn "@_ / $!";
-	# 	},
-	# 	disconnected => sub {
-	# 		warn "discon: @_ / $!";
-	# 		# EV::unloop;
-	# 	},
-	# });
-	# my ($rss1,$vsz1) = meminfo();
-	# warn sprintf "%0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024;
-	#
-	# $c->connect;
-	# EV::loop;
-	# undef $c;
-	#
-	# my ($rss2,$vsz2) = meminfo();
-	# my $run = time - $start;
-	# warn sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
-	# warn sprintf "%0.2fM/%0.2fM", $rss2/1024/1024,$vsz2/1024/1024;
-
-	memcheck 50000, $c, "ping",[];
-	memcheck 50000, $c, "call",["string_function",[]];
-	memcheck 50000, $c, "select",[$SPACE_NAME,['t1']];
-	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
-	memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1, replace => 1 }];
 };
 
 done_testing()

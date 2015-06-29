@@ -25,23 +25,24 @@ my $disconnected;
 my $tnt = {
 	port => 3301,
 	host => '127.0.0.1',
-	# username => 'test_user',
-	# password => 'test_pass',
+	username => 'test_user',
+	password => 'test_pass',
 };
 
 my $cnt = 0;
-my $max_cnt = 2000;
+my $max_cnt = 1;
 
 Devel::Leak::NoteSV($var);
 
 my $c; $c = EV::Tarantool16->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
-	# username => $tnt->{username},
-	# password => $tnt->{password},
+	username => $tnt->{username},
+	password => $tnt->{password},
 
 	# spaces => $realspaces,
 	reconnect => 0.2,
+	log_level => 4,
 	connected => sub {
 		# warn "connected: @_";
 		# $connected++;
@@ -52,9 +53,10 @@ my $c; $c = EV::Tarantool16->new({
 		# };
 		# EV::loop;
 		# EV::unloop;
-		$c->disconnect;
-		return EV::unloop if ++$cnt >= $max_cnt;
-		$c->connect;
+		# $c->disconnect;
+		# return EV::unloop if ++$cnt >= $max_cnt;
+		# $c->connect;
+		EV::unloop;
 	},
 	connfail => sub {
 		warn "connfail: @_";
@@ -77,8 +79,22 @@ my $c; $c = EV::Tarantool16->new({
 
 $c->connect;
 EV::loop;
-undef $c;
-Devel::Leak::CheckSV($var);
+
+$c->select('_space', [], {hash => 0}, sub {
+	my ($a) = @_;
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
+$c->eval("return unpack(box.space._space:select{})", sub {
+    my $a = @_[0];
+    say Dumper \@_;
+    EV::unloop;
+});
+EV::loop;
+# undef $c;
+# Devel::Leak::CheckSV($var);
 
 # }
 

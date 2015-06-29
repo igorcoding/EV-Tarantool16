@@ -72,16 +72,21 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *c
 			return (TntSpace*) SvPVX(*key);
 		}
 		else {
-			log_info(log_level, "No space %d config. Creating dummy space",ns);
-			dSVX(spcf, spc, TntSpace);
+			if (spaces != NULL) {
+				log_info(log_level, "No space %d config. Creating dummy space.",ns);
+				dSVX(spcf, spc, TntSpace);
 
-			spc->id = ns;
-			spc->name = newSVpvf("%u", ns);
-			spc->f.def = FMT_UNKNOWN;
+				spc->id = ns;
+				spc->name = newSVpvf("%u", ns);
+				spc->f.def = FMT_UNKNOWN;
 
-			(void)hv_store( spaces, (char *)&ns,sizeof(U32),spcf,0 );
-			(void)hv_store( spaces, SvPV_nolen(spc->name),SvLEN(spc->name),SvREFCNT_inc(spcf),0 );
-			return spc;
+				(void)hv_store( spaces, (char *)&ns,sizeof(U32),spcf,0 );
+				(void)hv_store( spaces, SvPV_nolen(spc->name),SvLEN(spc->name),SvREFCNT_inc(spcf),0 );
+				return spc;
+			} else {
+				log_warn(log_level, "Spaces are not defined");
+				return NULL;
+			}
 		}
 	}
 	else if (SvPOK(space)) {
@@ -105,7 +110,7 @@ static void destroy_spaces(HV *spaces) {
 		TntSpace * spc = (TntSpace *) SvPVX( HeVAL(ent) );
 		HE *he;
 		if (spc->name) {
-			debug("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
+			// cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
 			SvREFCNT_dec(spc->name);
 			spc->name = NULL;
 		}
@@ -144,6 +149,13 @@ static void destroy_spaces(HV *spaces) {
 			spc->f.f = NULL;
 			spc->f.size = 0;
 		}
+		// } else {
+		// 	if (spc->f.f != NULL) {
+		// 		cwarn("no free format. %p. %-.*s", spc->f.f, 10, spc->f.f);
+		// 	} else {
+		// 		cwarn("no free format. %p. %-.*s", spc->f.f, 10, spc->f.f);
+		// 	}
+		// }
 		if (spc->owner) {
 			SvREFCNT_dec(spc->owner);
 			spc->owner = NULL;
@@ -1319,8 +1331,10 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 				uint32_t format_arr_size = mp_decode_array(&p);
 
 				spc->f.size = format_arr_size;
-				spc->f.f = safemalloc(spc->f.size + 1);
-				spc->f.f[spc->f.size] = 0;
+				if (spc->f.size) {
+					spc->f.f = safemalloc(spc->f.size + 1);
+					spc->f.f[spc->f.size] = 0;
+				}
 
 				uint32_t ix;
 				for (ix = 0; ix < format_arr_size; ++ix) {
@@ -1450,8 +1464,10 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 
 				idx->f.nofree = 1;
 				idx->f.size = parts_count;
-				idx->f.f = safemalloc(idx->f.size + 1);
-				idx->f.f[idx->f.size] = 0;
+				if (idx->f.size) {
+					idx->f.f = safemalloc(idx->f.size + 1);
+					idx->f.f[idx->f.size] = 0;
+				}
 				idx->f.def = FMT_UNKNOWN;
 				idx->fields = newAV();
 				av_extend(idx->fields, parts_count);
@@ -1576,6 +1592,11 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint
 		return size;
 	}
 
+	// FIXME
+	// mp_next(&p);
+	// return p - data;
+	// FIXME
+
 	test = p;
 	if (mp_check(&test, data + size))
 		return -1;
@@ -1618,6 +1639,11 @@ static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, ST
 	if (p == data + size) {
 		return size;
 	}
+
+	// FIXME
+	// mp_next(&p);
+	// return p - data;
+	// FIXME
 
 	test = p;
 	if (mp_check(&test, data + size))

@@ -52,6 +52,10 @@ typedef struct {
 static const uint32_t _SPACE_SPACEID = 280;
 static const uint32_t _INDEX_SPACEID = 288;
 
+static const char *_SPACE_SELECTOR = "return unpack(box.space._space:select{})";
+static const char *_INDEX_SELECTOR = "return unpack(box.space._index:select{})";
+static const size_t SELECTOR_STR_LENGTH = 40;
+
 void tnt_on_connected_cb(ev_cnn *cnn, struct sockaddr *peer) {
 	if (likely(peer != NULL)) {
 		TntCnn *self = (TntCnn *) cnn;
@@ -148,13 +152,19 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	ctx->id = iid; \
 } STMT_END
 
-INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
+INLINE void _execute_eval(TntCnn *self, const char* expr) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
 	uint32_t iid;
-	INIT_CTX(self, ctx, "select", iid);
-	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
+
+	INIT_CTX(self, ctx, "eval", iid);
+	SV *pkt = pkt_eval(ctx, iid, self->spaces, sv_2mortal(newSVpvn(expr, SELECTOR_STR_LENGTH)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL);
 	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
+
+
+	// INIT_CTX(self, ctx, "select", iid);
+	// SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
+	// EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
 	TIMEOUT_TIMER(self, ctx, iid, self->cnn.rw_timeout);
 }
 
@@ -474,12 +484,15 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 					}
 					tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
 
-					_execute_select(tnt, _INDEX_SPACEID);
+					_execute_eval(tnt, _INDEX_SELECTOR);
 					// self->on_read = (c_cb_read_t) on_read;
 				} else {
 					force_disconnect(tnt, "Couldn\'t retrieve space info.");
+					// call_connected(tnt);
 				}
 			}
+
+			// cwarn("tnt->spaces = %p", tnt->spaces);
 
 
 			--tnt->pending;
@@ -581,7 +594,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 			SV ** var = hv_fetchs(hv,"code",0);
 			if (var && SvIV (*var) == 0) {
 				self->on_read = (c_cb_read_t) on_spaces_info_read;
-				_execute_select(tnt, _SPACE_SPACEID);
+				_execute_eval(tnt, _SPACE_SELECTOR);
 			}
 			else {
 				var = hv_fetchs(hv,"errstr",0);
@@ -653,7 +666,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		TIMEOUT_TIMER(tnt, ctx, iid, tnt->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
-		_execute_select(tnt, _SPACE_SPACEID);
+		_execute_eval(tnt, _SPACE_SELECTOR);
 		// self->on_read = (c_cb_read_t) on_read;
 	}
 
@@ -716,6 +729,11 @@ static void on_disconnect (TntCnn * self, int err, const char *reason) {
 		free_reqs(self, SvPVX(msg));
 	}
 
+	if (self->spaces) {
+		destroy_spaces(self->spaces);
+		self->spaces = NULL;
+	}
+
 	self->cnn.on_read = (c_cb_read_t) on_greet_read;
 
 	FREETMPS;LEAVE;
@@ -730,12 +748,6 @@ INLINE SV *get_bool(const char *name) {
 	return sv;
 }
 
-
-MODULE = EV::Tarantool16      PACKAGE = EV::Tarantool16::DES
-
-void DESTROY(SV *this)
-	PPCODE:
-		cwarn("DESTROY %p -> %p (%d)",this,SvRV(this),SvREFCNT( SvRV(this) ));
 
 MODULE = EV::Tarantool16      PACKAGE = EV::Tarantool16
 PROTOTYPES: DISABLE
@@ -773,7 +785,7 @@ void new(SV *pk, HV *conf)
 		} else {
 			self->log_level = _LOG_INFO;
 		}
-		self->spaces = newHV();
+		self->spaces = NULL;
 
 		XSRETURN(1);
 

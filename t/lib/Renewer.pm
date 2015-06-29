@@ -17,7 +17,7 @@ sub renew_tnt {
 		# my $a = @_[0];
 		# $cb->();
 		$c->call("fill_$space", [], sub {
-			my $a = @_[0];
+			# my $a = $_[0];
 			# diag Dumper $a;
 			$cb->();
 		});
