@@ -7,7 +7,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.box = "ubuntu/precise64"
 
-  config.vm.synced_folder "./", "/home/vagrant/EV-Tarantool1.6/"
+  config.vm.synced_folder "./", "/home/vagrant/EV-Tarantool16/"
   config.vm.synced_folder "../", "/home/vagrant/perl-projects"
 
   config.vm.provision "shell",

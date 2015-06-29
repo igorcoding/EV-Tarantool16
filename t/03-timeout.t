@@ -82,7 +82,7 @@ my $c; $c = EV::Tarantool16->new({
 	username => $tnt->{username},
 	password => $tnt->{password},
 	reconnect => 0.2,
-	log_level => 4,
+	log_level => 3,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
 		warn "connected: @_";

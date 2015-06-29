@@ -37,6 +37,7 @@ ppport.h
 provision/init.lua
 README
 README.pod
+t/00-use.t
 t/01-basic.t
 t/02-auth.t
 t/03-timeout.t

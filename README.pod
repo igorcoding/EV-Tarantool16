@@ -71,6 +71,10 @@ Password.
 
 Reconnect timeout.
 
+=item log_level => $log_level
+
+Logging level. Values: (0: None), (1: Error), (2: Warning), (3: Info), (4: Debug)
+
 =item connected => $sub
 
 Called when connection to Tarantool 1.6 instance is established, authenticated successfully and retrieved spaces information from it.
