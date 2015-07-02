@@ -93,17 +93,13 @@ SUBROUTINES/METHODS
         Lua code that will be run in tarantool
 
     tuple_args
-        Tuple (ARRAYREF or HASHREF) that will be passed as argument in lua
-        code
+        Tuple (ARRAYREF) that will be passed as argument in lua code
 
     $opts
         HASHREF of additional options to the request
 
         timeout => $timeout
             Request execution timeout
-
-        hash => $hash
-            Use hash as result
 
   call $function_name, $tuple_args, $opts, $cb->($result)
     Execute eval request
@@ -112,17 +108,13 @@ SUBROUTINES/METHODS
         Lua function that will be called in tarantool
 
     tuple_args
-        Tuple (ARRAYREF or HASHREF) that will be passed as argument in lua
-        code
+        Tuple (ARRAYREF) that will be passed as argument in lua code
 
     $opts
         HASHREF of additional options to the request
 
         timeout => $timeout
             Request execution timeout
-
-        hash => $hash
-            Use hash as result
 
   select $space_name, $keys, $opts, $cb->($result)
     Execute select request

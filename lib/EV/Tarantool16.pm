@@ -155,7 +155,7 @@ Lua code that will be run in tarantool
 
 =item tuple_args
 
-Tuple (ARRAYREF or HASHREF) that will be passed as argument in lua code
+Tuple (ARRAYREF) that will be passed as argument in lua code
 
 =item $opts
 
@@ -166,10 +166,6 @@ HASHREF of additional options to the request
 =item timeout => $timeout
 
 Request execution timeout
-
-=item hash => $hash
-
-Use hash as result
 
 =back
 
@@ -189,7 +185,7 @@ Lua function that will be called in tarantool
 
 =item tuple_args
 
-Tuple (ARRAYREF or HASHREF) that will be passed as argument in lua code
+Tuple (ARRAYREF) that will be passed as argument in lua code
 
 =item $opts
 
@@ -200,10 +196,6 @@ HASHREF of additional options to the request
 =item timeout => $timeout
 
 Request execution timeout
-
-=item hash => $hash
-
-Use hash as result
 
 =back
 

@@ -81,19 +81,19 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
+# my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 
-for (1..100000) {
-$c->update('tester', $p->[0], $p->[1], $p->[2], sub {
-	my $a = @_[0];
-	EV::unloop;
-});
-EV::loop;
-}
-undef $p;
-undef $c;
+# for (1..100000) {
+# $c->update('tester', $p->[0], $p->[1], $p->[2], sub {
+# 	my $a = @_[0];
+# 	EV::unloop;
+# });
+# EV::loop;
+# }
+# undef $p;
+# undef $c;
 
-Devel::Leak::CheckSV($var);
+# Devel::Leak::CheckSV($var);
 
 # $c->select('_space', [], {hash => 0}, sub {
 # 	my ($a) = @_;
@@ -102,12 +102,18 @@ Devel::Leak::CheckSV($var);
 # });
 # EV::loop;
 
-# $c->eval("return {box.info}", {timeout => 0.0}, sub {
-#     my $a = @_[0];
-#     say Dumper \@_;
-#     EV::unloop;
-# });
-# EV::loop;
+my $finished = 0;
+$c->eval("return {box.info}", {}, sub {
+    my $a = @_[0];
+    say 'hello';
+    say Dumper \@_;
+    $finished = 1;
+    EV::unloop;
+});
+if (!$finished) {
+	EV::loop;
+}
+say 'unlooped'
 # undef $c;
 
 

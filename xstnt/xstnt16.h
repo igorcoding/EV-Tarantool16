@@ -428,8 +428,8 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	SV **key;
 
-	TntSpace *spc = 0;
-	TntIndex *idx = 0;
+	TntSpace *spc = NULL;
+	TntIndex *idx = NULL;
 
 	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
@@ -499,12 +499,8 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
-	}
-
-	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	keys_size = av_len(fields) + 1;
@@ -553,8 +549,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 	SV **key;
 
-	TntSpace *spc = 0;
-	// TntIndex *idx = 0;
+	TntSpace *spc = NULL;
 
 	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
@@ -619,7 +614,7 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 
 	if (unlikely( !tuple || !SvROK(tuple) || (SvTYPE(SvRV(tuple)) != SVt_PVAV))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"tuple must be ARRAYREF");
+		croak_cb(cb,"update tuple must be ARRAYREF");
 	}
 
 	AV *t = (AV *) SvRV(tuple);
@@ -842,12 +837,8 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
-	}
-
-	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	keys_size = av_len(fields) + 1;
@@ -944,12 +935,8 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
-	}
-
-	if (unlikely( !keys || !SvROK(keys) || ( (SvTYPE(SvRV(keys)) != SVt_PVAV) && (SvTYPE(SvRV(keys)) != SVt_PVHV) ) )) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"keys must be ARRAYREF or HASHREF");
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	keys_size = av_len(fields) + 1;
@@ -978,34 +965,21 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 }
 
 static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expression, SV *tuple, HV * opt, SV *cb) {
-	U32 index  = 0;
-
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
 	SV **key;
 
-	TntSpace *spc = 0;
-	TntIndex *idx = 0;
+	TntSpace *spc = NULL;
+	TntIndex *idx = NULL;
 
 	if (opt) {
-		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if(( idx = evt_find_index( spc, key ) ))
-				index = idx->id;
-		}
-		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+
 	}
 	else {
 		ctx->f.size = 0;
 	}
-	if (!idx) {
-		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			idx = (TntIndex*) SvPVX(*key);
-		}
-		else {
-			//warn("No index %d config. Using without formats",index);
-		}
-	}
+
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
@@ -1015,27 +989,18 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	uint32_t expression_size = SvCUR(expression);
 
 	size_t sz = HEADER_CONST_LEN
-				+ mp_sizeof_map(body_map_sz)
+				+ 1 // mp_sizeof_map(body_map_sz)
 				+ 1 // mp_sizeof_uint(TP_EXPRESSION)
 				+ mp_sizeof_str(expression_size)
 				+ 1 // mp_sizeof_uint(TP_TUPLE)
 				;
 
-	// counting fields in keys
-	SV *t = tuple;
-	AV *fields;
-	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
-		fields  = (AV *) SvRV(t);
-	} else {
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
+	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF");
 	}
 
-	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
-		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"tuple must be ARRAYREF or HASHREF");
-	}
+	AV *fields  = (AV *) SvRV(tuple);
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
@@ -1058,34 +1023,21 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 }
 
 static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function_name, SV *tuple, HV * opt, SV *cb) {
-	U32 index  = 0;
-
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
 	SV **key;
 
-	TntSpace *spc = 0;
-	TntIndex *idx = 0;
+	TntSpace *spc = NULL;
+	TntIndex *idx = NULL;
 
 	if (opt) {
-		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if(( idx = evt_find_index( spc, key ) ))
-				index = idx->id;
-		}
-		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+
 	}
 	else {
 		ctx->f.size = 0;
 	}
-	if (!idx) {
-		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			idx = (TntIndex*) SvPVX(*key);
-		}
-		else {
-			//warn("No index %d config. Using without formats",index);
-		}
-	}
+
 	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
@@ -1095,27 +1047,18 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	uint32_t function_name_size = SvCUR(function_name);
 
 	size_t sz = HEADER_CONST_LEN
-				+ mp_sizeof_map(body_map_sz)
+				+ 1 // mp_sizeof_map(body_map_sz)
 				+ 1 // mp_sizeof_uint(TP_FUNCTION)
 				+ mp_sizeof_str(function_name_size)
 				+ 1 // mp_sizeof_uint(TP_TUPLE)
 				;
 
-	// counting fields in keys
-	SV *t = tuple;
-	AV *fields;
-	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
-	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
-		fields  = (AV *) SvRV(t);
-	} else {
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
+	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF");
 	}
 
-	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) && (SvTYPE(SvRV(tuple)) != SVt_PVHV) ) )) {
-		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb, "tuple must be ARRAYREF or HASHREF");
-	}
+	AV *fields  = (AV *) SvRV(tuple);
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);

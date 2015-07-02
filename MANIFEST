@@ -29,7 +29,7 @@ libs/msgpuck/test/msgpuck.c
 libs/msgpuck/test/test.c
 libs/msgpuck/test/test.h
 Makefile.PL
-MANIFEST			This list of files
+MANIFEST
 MANIFEST.SKIP
 META.json
 META.yml

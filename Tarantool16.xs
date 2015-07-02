@@ -132,14 +132,23 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	TIMEOUT_TIMER(self, ctx, iid, timeout);\
 } STMT_END
 
+#define __EXEC_REQUEST(self, ctxsv, ctx, iid, _cb) STMT_START {\
+	SvREFCNT_inc(ctx->cb = (_cb));\
+	(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
+	++self->pending;\
+	do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
+} STMT_END
+
+#define EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, _cb) STMT_START {\
+	if ((ctx->wbuf = pkt)) {\
+		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb);\
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);\
+	}\
+} STMT_END
+
 #define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, _cb) STMT_START {\
 	if ((ctx->wbuf = pkt)) {\
-		SvREFCNT_inc(ctx->cb = (_cb));\
-		(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
-		++self->pending;\
-		do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
-	} else {\
-		return;\
+		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb);\
 	}\
 } STMT_END
 
@@ -839,8 +848,7 @@ void ping(SV *this, ... )
 		INIT_CTX(self, ctx, "ping", iid);
 		SV *pkt = pkt_ping(iid);
 		HV *opts = items == 3 ? (HV *) SvRV(ST( 1 )) : 0;
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -859,8 +867,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 		INIT_CTX(self, ctx, "select", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -878,8 +885,7 @@ void insert( SV *this, SV *space, SV * t, ... )
 		INIT_CTX(self, ctx, "insert", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -897,8 +903,7 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		INIT_CTX(self, ctx, "update", iid);
 		HV *opts = items == 6 ? (HV *) SvRV(ST(4)) : 0;
 		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -916,8 +921,7 @@ void delete( SV *this, SV *space, SV * t, ... )
 		INIT_CTX(self, ctx, "delete", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -936,8 +940,7 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		INIT_CTX(self, ctx, "eval", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
@@ -956,7 +959,6 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		INIT_CTX(self, ctx, "call", iid);
 		HV *opts = items == 5 ? (HV *) SvRV(ST( 3 )) : 0;
 		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, opts, cb );
-		EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, cb);
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;

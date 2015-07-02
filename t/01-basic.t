@@ -72,8 +72,6 @@ $tnt = Test::Tarantool16->new(
 	# on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 );
-# warn Dumper $tnt;
-# __END__
 
 $tnt->start(timeout => 10, sub {
 	my ($status, $desc) = @_;
