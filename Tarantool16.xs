@@ -202,14 +202,14 @@ static void on_read(ev_cnn * self, size_t len) {
 
 		/* header */
 		uint32_t id = 0;
-		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-		if (unlikely(length < 0)) {
+		uint32_t code = 0;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
 		if (unlikely(id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
-			rbuf += length;
 			return;
 		}
 
@@ -217,27 +217,28 @@ static void on_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
-
+			log_debug(tnt->log_level, "key %d not found", id);
 		} else {
+			rbuf += hdr_length;
+
 			ctx = (TntCtx *) SvPVX(key);
 			ev_timer_stop(self->loop, &ctx->t);
 			SvREFCNT_dec(ctx->wbuf);
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-			rbuf += length;
 
 			/* body */
 
 			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-			length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
-			if (unlikely(length <= 0)) {
-				TNT_CROAK("Unexpected response body");
-				return;
+			int body_length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
+			if (unlikely(body_length <= 0)) {
+				rbuf += (pkt_length - hdr_length);
+				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
+			} else {
+				rbuf += body_length;
 			}
-			rbuf += length;
 
 			dSP;
 
@@ -246,8 +247,8 @@ static void on_read(ev_cnn * self, size_t len) {
 
 				ENTER; SAVETMPS;
 
-				SV ** var = hv_fetchs(hv,"code",0);
-				if (var && SvIV (*var) == 0) {
+				SV ** var = NULL;
+				if (code == 0) {
 					PUSHMARK(SP);
 					EXTEND(SP, 1);
 					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
@@ -331,14 +332,14 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 
 		/* header */
 		uint32_t id = 0;
-		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-		if (unlikely(length < 0)) {
+		uint32_t code = 0;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
 		if (unlikely(id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
-			rbuf += length;
 			return;
 		}
 
@@ -346,35 +347,36 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
-
+			log_debug(tnt->log_level, "key %d not found", id);
 		} else {
+			rbuf += hdr_length;
+
 			ctx = (TntCtx *) SvPVX(key);
 			ev_timer_stop(self->loop, &ctx->t);
 			SvREFCNT_dec(ctx->wbuf);
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-			rbuf += length;
 
-			/* body */
-
-			length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
-			if (unlikely(length <= 0)) {
-				TNT_CROAK("Unexpected response body");
-				return;
-			}
-			rbuf += length;
-
-			self->on_read = (c_cb_read_t) on_read;
-
-
-			SV **key = hv_fetchs(hv, "code", 0);
-			if (key && *key && SvIOK(*key) && SvIV(*key) == 0) {
-				call_connected(tnt);
-			} else {
+			if (unlikely(code != 0)) {
+				log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) code);
 				force_disconnect(tnt, "Couldn\'t retrieve index info.");
+			} else {
+
+				/* body */
+
+				int body_length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
+				if (unlikely(body_length <= 0)) {
+					rbuf += (pkt_length - hdr_length);
+					log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
+					force_disconnect(tnt, "Couldn\'t retrieve index info.");
+				} else {
+					rbuf += body_length;
+
+					self->on_read = (c_cb_read_t) on_read;
+					call_connected(tnt);
+				}
 			}
 
 
@@ -436,14 +438,14 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 
 		/* header */
 		uint32_t id = 0;
-		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-		if (unlikely(length < 0)) {
+		uint32_t code = 0;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
 		if (unlikely(id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
-			rbuf += length;
 			return;
 		}
 
@@ -451,49 +453,49 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			cwarn("key %d not found", id);
 			rbuf += pkt_length;
-
+			log_debug(tnt->log_level, "key %d not found", id);
 		} else {
+			rbuf += hdr_length;
+
 			ctx = (TntCtx *) SvPVX(key);
 			ev_timer_stop(self->loop, &ctx->t);
 			SvREFCNT_dec(ctx->wbuf);
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-			rbuf += length;
 
-			/* body */
-
-			length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
-			if (unlikely(length <= 0)) {
-				TNT_CROAK("Unexpected response body");
-				return;
-			}
-			rbuf += length;
-
-			SV **key = hv_fetchs(hv, "code", 0);
-			if (unlikely(!key || !(*key) || !SvIOK(*key) || SvIV(*key) != 0)) {
-				force_disconnect(tnt, "Couldn\'t retrieve space info.");
+			SV **key = NULL;
+			if (unlikely(code != 0)) {
+				log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) code);
+				force_disconnect(tnt, "Couldn\'t retrieve space info");
 			} else {
-				if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
-					self->on_read = (c_cb_read_t) on_index_info_read;
 
-					if (tnt->spaces) {
-						destroy_spaces(tnt->spaces);
-					}
-					tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
+				/* body */
 
-					_execute_eval(tnt, _INDEX_SELECTOR);
-					// self->on_read = (c_cb_read_t) on_read;
-				} else {
+				int body_length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
+				if (unlikely(body_length <= 0)) {
+					rbuf += (pkt_length - hdr_length);
+					log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
 					force_disconnect(tnt, "Couldn\'t retrieve space info.");
-					// call_connected(tnt);
+				} else {
+					rbuf += body_length;
+
+					if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
+						if (tnt->spaces) {
+							destroy_spaces(tnt->spaces);
+						}
+						tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
+
+						self->on_read = (c_cb_read_t) on_index_info_read;
+						_execute_eval(tnt, _INDEX_SELECTOR);
+						// self->on_read = (c_cb_read_t) on_read;
+					} else {
+						log_error(tnt->log_level, "Couldn\'t retrieve space info. No data parsed");
+						force_disconnect(tnt, "Couldn\'t retrieve space info.");
+					}
 				}
 			}
-
-			// cwarn("tnt->spaces = %p", tnt->spaces);
-
 
 			--tnt->pending;
 
@@ -553,14 +555,14 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 
 		/* header */
 		uint32_t id = 0;
-		int length = parse_reply_hdr(hv, rbuf, buf_len, &id);
-		if (unlikely(length < 0)) {
+		uint32_t code = 0;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
 		if (unlikely(id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
-			rbuf += length;
 			return;
 		}
 
@@ -568,39 +570,39 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
 
 		if (!key) {
-			log_debug(tnt->log_level, "key %d not found", id);
 			rbuf += pkt_length;
-
+			log_debug(tnt->log_level, "key %d not found", id);
 		} else {
+			rbuf += hdr_length;
+
 			ctx = (TntCtx *) SvPVX(key);
 			ev_timer_stop(self->loop, &ctx->t);
 			SvREFCNT_dec(ctx->wbuf);
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-			rbuf += length;
 
 			/* body */
 
 			AV *fields = (ctx->space && ctx->use_hash) ? ctx->space->fields : NULL;
-			length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
-			if (unlikely(length <= 0)) {
-				TNT_CROAK("Unexpected response body");
-				return;
-			}
-			rbuf += length;
+			int body_length = parse_reply_body(ctx, hv, rbuf, buf_len, &ctx->f, fields);
+			if (unlikely(body_length <= 0)) {
+				rbuf += (pkt_length - hdr_length);
+				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
+				force_disconnect(tnt, "Couldn\'t authenticate.");
+			} else {
+				rbuf += body_length;
 
-
-			SV ** var = hv_fetchs(hv,"code",0);
-			if (var && SvIV (*var) == 0) {
-				self->on_read = (c_cb_read_t) on_spaces_info_read;
-				_execute_eval(tnt, _SPACE_SELECTOR);
+				SV ** var = NULL;
+				if (code == 0) {
+					self->on_read = (c_cb_read_t) on_spaces_info_read;
+					_execute_eval(tnt, _SPACE_SELECTOR);
+				}
+				else {
+					var = hv_fetchs(hv,"errstr",0);
+					force_disconnect(tnt, SvPVX(*var));
+				}
 			}
-			else {
-				var = hv_fetchs(hv,"errstr",0);
-				force_disconnect(tnt, SvPVX(*var));
-			}
-
 
 			--tnt->pending;
 
@@ -721,7 +723,6 @@ void free_reqs (TntCnn *self, const char * message) {
 static void on_disconnect (TntCnn * self, int err, const char *reason) {
 	ENTER;SAVETMPS;
 
-	//warn("disconnect: %s", strerror(err));
 	if (err == 0) {
 		free_reqs(self, "Connection closed");
 	} else {
@@ -743,7 +744,7 @@ INLINE SV *get_bool(const char *name) {
 	SV *sv = get_sv(name, 1);
 
 	SvREADONLY_on(sv);
-	SvREADONLY_on(SvRV (sv));
+	SvREADONLY_on(SvRV(sv));
 
 	return sv;
 }

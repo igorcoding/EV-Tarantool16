@@ -30,7 +30,7 @@ my $tnt = {
 };
 
 my $cnt = 0;
-my $max_cnt = 1;
+my $max_cnt = 100;
 
 Devel::Leak::NoteSV($var);
 
@@ -74,27 +74,42 @@ my $c; $c = EV::Tarantool16->new({
 	},
 });
 
-# Dump($tnt);
-# Dump($c);
+# undef $c;
 
+
+# __END__
 $c->connect;
 EV::loop;
 
-$c->select('_space', [], {hash => 0}, sub {
-	my ($a) = @_;
-	say Dumper \@_;
+my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
+
+for (1..100000) {
+$c->update('tester', $p->[0], $p->[1], $p->[2], sub {
+	my $a = @_[0];
 	EV::unloop;
 });
 EV::loop;
+}
+undef $p;
+undef $c;
 
-$c->eval("return unpack(box.space._space:select{})", sub {
-    my $a = @_[0];
-    say Dumper \@_;
-    EV::unloop;
-});
-EV::loop;
+Devel::Leak::CheckSV($var);
+
+# $c->select('_space', [], {hash => 0}, sub {
+# 	my ($a) = @_;
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+# $c->eval("return {box.info}", {timeout => 0.0}, sub {
+#     my $a = @_[0];
+#     say Dumper \@_;
+#     EV::unloop;
+# });
+# EV::loop;
 # undef $c;
-# Devel::Leak::CheckSV($var);
+
 
 # }
 

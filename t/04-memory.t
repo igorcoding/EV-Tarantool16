@@ -94,80 +94,87 @@ sub memcheck ($$$$) {
 }
 
 
-my $cnt = 0;
-my $start = time;
-my $max_cnt = 20000;
-undef $c;
+diag '==== Memory tests ====';
 
-my ($rss1,$vsz1) = meminfo();
+subtest 'connect/disconnect test', sub {
+	# plan( skip_all => 'skip');
+	my $cnt = 0;
+	my $start = time;
+	my $max_cnt = 20000;
+	undef $c;
 
-$c = EV::Tarantool16->new({
-	host => $tnt->{host},
-	port => $tnt->{port},
-	username => $tnt->{username},
-	password => $tnt->{password},
-	reconnect => 0.2,
-	log_level => 1,
-	connected => sub {
-		diag Dumper \@_ unless $_[0];
-		$c->disconnect;
-		return EV::unloop if ++$cnt >= $max_cnt;
-		$c->connect;
-	},
-	connfail => sub {
-		my $c = shift;
-		warn "@_ / $!";
-		EV::unloop;
-	},
-	disconnected => sub {
-		# warn "discon: @_ / $!";
-		# EV::unloop;
-	},
-});
+	my ($rss1,$vsz1) = meminfo();
 
-$c->connect;
-EV::loop;
-undef $c;
+	$c = EV::Tarantool16->new({
+		host => $tnt->{host},
+		port => $tnt->{port},
+		username => $tnt->{username},
+		password => $tnt->{password},
+		reconnect => 0.2,
+		log_level => 1,
+		connected => sub {
+			diag Dumper \@_ unless $_[0];
+			$c->disconnect;
+			return EV::unloop if ++$cnt >= $max_cnt;
+			$c->connect;
+		},
+		connfail => sub {
+			my $c = shift;
+			warn "@_ / $!";
+			EV::unloop;
+		},
+		disconnected => sub {
+			# warn "discon: @_ / $!";
+			# EV::unloop;
+		},
+	});
 
-my $run = time - $start;
-my ($rss2,$vsz2) = meminfo();
-warn sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
-if ($rss2 > $rss1 or $vsz2 > $vsz1) {
-	warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
-}
-is 1, 1;
+	$c->connect;
+	EV::loop;
+	undef $c;
+
+	my $run = time - $start;
+	my ($rss2,$vsz2) = meminfo();
+	warn sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
+	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
+		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
+	}
+	is 1, 1;
+};
+
+subtest 'basic memory test', sub {
+	$c = EV::Tarantool16->new({
+		host => $tnt->{host},
+		port => $tnt->{port},
+		username => $tnt->{username},
+		password => $tnt->{password},
+		reconnect => 0.2,
+		log_level => 1,
+		connected => sub {
+			EV::unloop;
+		},
+		connfail => sub {
+			my $c = shift;
+			warn "@_ / $!";
+			EV::unloop;
+		},
+		disconnected => sub {
+			warn "@_ / $!";
+			EV::unloop;
+		},
+	});
+
+	$c->connect;
+	EV::loop;
 
 
-$c = EV::Tarantool16->new({
-	host => $tnt->{host},
-	port => $tnt->{port},
-	username => $tnt->{username},
-	password => $tnt->{password},
-	reconnect => 0.2,
-	log_level => 1,
-	connected => sub {
-		EV::unloop;
-	},
-	connfail => sub {
-		my $c = shift;
-		warn "@_ / $!";
-		EV::unloop;
-	},
-	disconnected => sub {
-		EV::unloop;
-	},
-});
-
-$c->connect;
-EV::loop;
-
-
-memcheck 50000, $c, "ping",[];
-memcheck 50000, $c, "eval",["return {'hey'}", []];
-memcheck 50000, $c, "call",["string_function",[]];
-memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
-memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1, replace => 1 }];
-memcheck 50000, $c, "update",[$SPACE_NAME,{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 1] ], { hash => 1 }];
-
+	memcheck 50000, $c, "ping",[];
+	memcheck 50000, $c, "eval",["return {'hey'}", []];
+	memcheck 50000, $c, "call",["string_function",[]];
+	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
+	memcheck 50000, $c, "insert",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1, replace => 1 }];
+	memcheck 50000, $c, "update",[$SPACE_NAME,{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 1] ], { hash => 1 }];
+	memcheck 50000, $c, "eval",["return {box.info}", [], { timeout => 0.00001 }];
+};
 
 done_testing;

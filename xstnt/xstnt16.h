@@ -1137,7 +1137,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	return SvREFCNT_inc(rv);
 }
 
-static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32_t *id) {
+static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32_t *id, uint32_t *code) {
 	const char *p = data;
 	const char *test = p;
 
@@ -1148,7 +1148,6 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 		return -1;
 
 	uint32_t n = mp_decode_map(&p);
-	uint32_t code = 0;
 	while (n-- > 0) {
 		if (mp_typeof(*p) != MP_UINT)
 			return -1;
@@ -1159,7 +1158,7 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 				if (mp_typeof(*p) != MP_UINT)
 					return -1;
 
-				code = mp_decode_uint(&p);
+				*code = mp_decode_uint(&p);
 				break;
 
 			case TP_SYNC:
@@ -1171,12 +1170,9 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 				break;
 		}
 	}
-	SV *id_sv = newSVuv(*id);
 
-	// cwarn("code: %d; sync: %d", code, (uint32_t) SvUV(id_sv));
-
-	(void) hv_stores(ret, "code", newSVuv(code));
-	(void) hv_stores(ret, "sync", id_sv);
+	(void) hv_stores(ret, "code", newSVuv(*code));
+	(void) hv_stores(ret, "sync", newSVuv(*id));
 
 	return p - data;
 }
@@ -1592,11 +1588,6 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint
 		return size;
 	}
 
-	// FIXME
-	// mp_next(&p);
-	// return p - data;
-	// FIXME
-
 	test = p;
 	if (mp_check(&test, data + size))
 		return -1;
@@ -1639,11 +1630,6 @@ static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, ST
 	if (p == data + size) {
 		return size;
 	}
-
-	// FIXME
-	// mp_next(&p);
-	// return p - data;
-	// FIXME
 
 	test = p;
 	if (mp_check(&test, data + size))
