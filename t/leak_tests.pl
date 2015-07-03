@@ -68,9 +68,10 @@ my $c; $c = EV::Tarantool16->new({
 		EV::unloop;
 	},
 	disconnected => sub {
-		# warn "discon: @_ / $!";
+		warn "discon: @_ / $!";
 		# $disconnected++;
 		# EV::unloop;
+		EV::unloop;
 	},
 });
 
@@ -81,11 +82,11 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->ping({timeout => 0.0000001}, sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+# $c->ping({timeout => 0.0000001}, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 
@@ -100,6 +101,12 @@ EV::loop;
 # undef $c;
 
 # Devel::Leak::CheckSV($var);
+
+$c->call("string_function1", [], {timeout => 10}, sub {
+    say Dumper \@_;
+    EV::unloop;
+});
+EV::loop;
 
 # $c->select('_space', [], {hash => 0}, sub {
 # 	my ($a) = @_;

@@ -94,7 +94,6 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *c
 			return (TntSpace*) SvPVX(*key);
 		}
 		else {
-			//return NULL;
 			croak_cb(cb, "Unknown space %s",SvPV_nolen(space));
 		}
 	} else {
@@ -149,13 +148,7 @@ static void destroy_spaces(HV *spaces) {
 			spc->f.f = NULL;
 			spc->f.size = 0;
 		}
-		// } else {
-		// 	if (spc->f.f != NULL) {
-		// 		cwarn("no free format. %p. %-.*s", spc->f.f, 10, spc->f.f);
-		// 	} else {
-		// 		cwarn("no free format. %p. %-.*s", spc->f.f, 10, spc->f.f);
-		// 	}
-		// }
+
 		if (spc->owner) {
 			SvREFCNT_dec(spc->owner);
 			spc->owner = NULL;
@@ -486,7 +479,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	if (iterator != -1) {
 		sz += 1 // mp_sizeof_uint(TP_ITERATOR)
-			  + 1; // mp_sizeof_uint(iterator); // 1 is because of tmt_iterator_t
+			  + 1; // mp_sizeof_uint(iterator); // 1 is because of tnt_iterator_t
 	}
 
 	sz += 1; // mp_sizeof_uint(TP_KEY);
@@ -1110,6 +1103,7 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32
 					return -1;
 
 				*code = mp_decode_uint(&p);
+				*code &= 0x7FFF;
 				break;
 
 			case TP_SYNC:
@@ -1201,7 +1195,7 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const
 		break;
 	}
 	default:
-		log_warn(ctx->log_level, "unexpected response data type = %d", mp_typeof(*p));
+		log_error(ctx->log_level, "unexpected response data type = %d", mp_typeof(*p));
 		break;
 	}
 

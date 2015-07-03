@@ -53,7 +53,7 @@ void * safecpy(const void *src,register size_t len) {
 
 #define _croak_cb(cb,...) STMT_START {\
 		warn(__VA_ARGS__);\
-		if (cb) {\
+		if (likely(cb != NULL)) {\
 			dSP;\
 			ENTER;\
 			SAVETMPS;\
