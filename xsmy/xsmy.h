@@ -51,7 +51,7 @@ void * safecpy(const void *src,register size_t len) {
 	return new;
 }
 
-#define croak_cb(cb,...) STMT_START {\
+#define _croak_cb(cb,...) STMT_START {\
 		warn(__VA_ARGS__);\
 		if (cb) {\
 			dSP;\
@@ -68,7 +68,16 @@ void * safecpy(const void *src,register size_t len) {
 		} else {\
 			croak(__VA_ARGS__);\
 		}\
+} STMT_END
+
+#define croak_cb(cb,...) STMT_START {\
+		_croak_cb(cb, __VA_ARGS__);\
 		return NULL;\
+} STMT_END
+
+#define croak_cb_void(cb,...) STMT_START {\
+		_croak_cb(cb, __VA_ARGS__);\
+		return;\
 } STMT_END
 
 #endif

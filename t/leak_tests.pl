@@ -81,6 +81,12 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
+$c->ping({timeout => 0.0000001}, sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
 # my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 
 # for (1..100000) {
@@ -102,17 +108,17 @@ EV::loop;
 # });
 # EV::loop;
 
-my $finished = 0;
-$c->eval("return {box.info}", {}, sub {
-    my $a = @_[0];
-    say 'hello';
-    say Dumper \@_;
-    $finished = 1;
-    EV::unloop;
-});
-if (!$finished) {
-	EV::loop;
-}
+# my $finished = 0;
+# $c->eval("return {box.info}", {}, sub {
+#     my $a = @_[0];
+#     say 'hello';
+#     say Dumper \@_;
+#     $finished = 1;
+#     EV::unloop;
+# });
+# if (!$finished) {
+# 	EV::loop;
+# }
 say 'unlooped'
 # undef $c;
 

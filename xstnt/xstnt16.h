@@ -936,7 +936,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 		fields  = (AV *) SvRV(t);
 	} else {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
+		croak_cb(cb, "Keys are invalid. Expecting ARRAYREF or HASHREF");
 	}
 
 	keys_size = av_len(fields) + 1;
@@ -986,6 +986,10 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
 
+	if (unlikely(!SvPOK(expression))) {
+		croak_cb(cb, "Eval expression must be a string");
+	}
+
 	uint32_t expression_size = SvCUR(expression);
 
 	size_t sz = HEADER_CONST_LEN
@@ -997,7 +1001,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF");
+		croak_cb(cb, "Tuple is invalid. Expecting ARRAYREF");
 	}
 
 	AV *fields  = (AV *) SvRV(tuple);
@@ -1044,6 +1048,10 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
 
+	if (unlikely(!SvPOK(function_name))) {
+		croak_cb(cb, "Function name must be a string");
+	}
+
 	uint32_t function_name_size = SvCUR(function_name);
 
 	size_t sz = HEADER_CONST_LEN
@@ -1055,7 +1063,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF");
+		croak_cb(cb, "Tuple is invalid. Expecting ARRAYREF");
 	}
 
 	AV *fields  = (AV *) SvRV(tuple);
