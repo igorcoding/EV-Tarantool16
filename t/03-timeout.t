@@ -136,6 +136,10 @@ subtest 'Ping tests', sub {
 				code => 0
 			}
 		]],
+		[{timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
 		[{timeout => 0.1}, [
 			{
 				sync => ignore(),
@@ -145,7 +149,105 @@ subtest 'Ping tests', sub {
 	];
 
 	for my $p (@$plan) {
-		$f->($p->[0], $p->[1]);
+		$f->(@$p);
+	}
+
+};
+
+subtest 'Eval tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{eval};
+	diag '==== Eval timeout tests ===';
+
+	my $f = sub {
+		my ($opt, $cmp) = @_;
+		$c->eval("return {box.info.status}", [], $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+	];
+
+	for my $p (@$plan) {
+		$f->(@$p);
+	}
+
+};
+
+subtest 'Call tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{call};
+	diag '==== Call timeout tests ===';
+
+	my $f = sub {
+		my ($opt, $cmp) = @_;
+		$c->call("string_function", [], $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+	];
+
+	for my $p (@$plan) {
+		$f->(@$p);
 	}
 
 };
@@ -179,6 +281,10 @@ subtest 'Select tests', sub {
 				tuples => ignore()
 			}
 		]],
+		[[], {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
 		[{}, {timeout => 0.1}, [
 			{
 				sync => ignore(),
@@ -191,7 +297,155 @@ subtest 'Select tests', sub {
 	];
 
 	for my $p (@$plan) {
-		$f->($p->[0], $p->[1], $p->[2]);
+		$f->(@$p);
+	}
+
+};
+
+
+subtest 'Insert tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{insert};
+	diag '==== Insert timeout tests ===';
+
+	my $f = sub {
+		my ($args, $opt, $cmp) = @_;
+		$c->insert($SPACE_NAME, $args, $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 180, _t4 => '-100' }, {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 181, _t4 => '-100' }, {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 182, _t4 => '-100' }, {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 183, _t4 => '-100' }, {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+	];
+
+	for my $p (@$plan) {
+		$f->(@$p);
+	}
+
+};
+
+subtest 'Delete tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{delete};
+	diag '==== Delete timeout tests ===';
+
+	my $f = sub {
+		my ($args, $opt, $cmp) = @_;
+		$c->delete($SPACE_NAME, $args, $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 180 }, {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 181 }, {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 182 }, {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 183 }, {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+	];
+
+	for my $p (@$plan) {
+		$f->(@$p);
+	}
+
+};
+
+subtest 'Update tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{update};
+	diag '==== Update timeout tests ===';
+
+	my $f = sub {
+		my ($key, $tuples, $opt, $cmp) = @_;
+		$c->update($SPACE_NAME, $key, $tuples, $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {}, [
+			{
+				sync => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+	];
+
+	for my $p (@$plan) {
+		$f->(@$p);
 	}
 
 };
