@@ -4,7 +4,7 @@ use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
 use AE;
-use EV::Tarantool;
+use EV::Tarantool16;
 use Time::HiRes 'sleep','time';
 use Scalar::Util 'weaken';
 use Errno;
@@ -80,10 +80,9 @@ sub main() {
 		}
 	};
 
-	$c = EV::Tarantool->new({
+	$c = EV::Tarantool16->new({
 		host => $tnt->{host},
 		port => $tnt->{port},
-		# spaces => $realspaces,
 		reconnect => 0.2,
 		connected => sub {
 			warn "connected: @_";
