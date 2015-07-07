@@ -46,11 +46,6 @@ my $c; $c = EV::Tarantool16->new({
 	connected => sub {
 		# warn "connected: @_";
 		# $connected++;
-		# my $t; $t = EV::timer 1.0, 0, sub {
-		# 	# diag Dumper $c->spaces;
-		# 	EV::unloop;
-		# 	undef $t;
-		# };
 		# EV::loop;
 		# EV::unloop;
 		# $c->disconnect;
@@ -82,11 +77,11 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-# $c->ping({timeout => 0.0000001}, sub {
-# 	say Dumper \@_;
-# 	EV::unloop;
-# });
-# EV::loop;
+$c->ping("", sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
 
 # my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 
@@ -102,11 +97,11 @@ EV::loop;
 
 # Devel::Leak::CheckSV($var);
 
-$c->call("string_function1", [], {timeout => 10}, sub {
-    say Dumper \@_;
-    EV::unloop;
-});
-EV::loop;
+# $c->call("string_function1", [], {timeout => 10}, sub {
+#     say Dumper \@_;
+#     EV::unloop;
+# });
+# EV::loop;
 
 # $c->select('_space', [], {hash => 0}, sub {
 # 	my ($a) = @_;
@@ -114,6 +109,7 @@ EV::loop;
 # 	EV::unloop;
 # });
 # EV::loop;
+
 
 # my $finished = 0;
 # $c->eval("return {box.info}", {}, sub {

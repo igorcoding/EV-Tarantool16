@@ -130,16 +130,64 @@ EV::loop;
 ok $connected > 0, "Connection ok";
 croak "Not connected normally" unless $connected > 0;
 
+
+
 subtest 'Ping tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{ping};
 	diag '==== Ping tests ===';
-	$c->ping(sub {
-		my $a = @_[0];
-		diag Dumper \@_ if !$a;
-		is $a->{code}, 0;
-		EV::unloop;
-	});
-	EV::loop;
+
+	my $_plan = [
+		[{}, [
+			{
+				sync => ignore(),
+				code => 0
+			}
+		]],
+		[2, [
+			undef,
+			"Opts must be a HASHREF"
+		]],
+		[[], [
+			undef,
+			"Opts must be a HASHREF"
+		]],
+		["", [
+			undef,
+			"Opts must be a HASHREF"
+		]],
+	];
+
+	# my $plan_exec = sub {
+	# 	my ($plan) = @_;
+	# 	my $plan_exec_inner; $plan_exec_inner = sub {
+	# 		my ($i) = @_;
+	# 		return unless $i <= scalar @$plan;
+	# 		my $plan_exec_inner = $plan_exec_inner;
+	# 		my $p = $plan->[$i];
+	# 		$c->ping($p->[0], sub {
+	# 			my $a = @_[0];
+	# 			cmp_deeply \@_, $p->[1];
+	# 			$plan_exec_inner->($i + 1);
+	# 		});
+	# 	};
+	# 	$plan_exec_inner->(0);
+	# 	weaken($plan_exec_inner);
+	# };
+
+	for my $p (@$_plan) {
+		my $finished = 0;
+		$c->ping($p->[0], sub {
+			my $a = @_[0];
+			cmp_deeply \@_, $p->[1];
+			EV::unloop;
+			$finished = 1;
+		});
+		if (!$finished) {
+			EV::loop;
+		}
+	}
+
+
 };
 
 subtest 'Eval tests', sub {
