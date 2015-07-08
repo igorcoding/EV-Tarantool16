@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+TNTCARES=$DIR"/tnt-cares.sh"
 
-wget -q -O - http://tarantool.org/dist/public.key | sudo apt-key add -
-release=`lsb_release -c -s`
+echo ${TRAVIS_OS_NAME}
 
-sudo bash -c 'cat > /etc/apt/sources.list.d/tarantool.list <<- EOF
-deb http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
-deb-src http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
-EOF'
-
-sudo apt-get update
-sudo apt-get install -y tarantool libexpat1-dev
-
-USR_SRC=/usr/local/src
-wget http://c-ares.haxx.se/download/c-ares-1.9.1.tar.gz -O - | sudo tar -C ${USR_SRC} -xzvf -
-cd ${USR_SRC}/c-ares-1.9.1
-
-sudo ./configure
-sudo make
-sudo make install
+if [ -z "$TRAVIS_OS_NAME" ] || [ ${TRAVIS_OS_NAME} == 'linux' ]; then
+	source $TNTCARES
+elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
+	echo "Mac OS X detected"
+	brew update
+	brew install curl
+	brew search c-ares
+	brew install c-ares-1.9.1
+	./$DIR/tarantool.rb
+	exit 1
+fi
 
 cd -
 
