@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.1.2';
+our $VERSION = '1.1.3';
 
 use EV ();
 
@@ -16,13 +16,19 @@ XSLoader::load('EV::Tarantool16', $VERSION);
 
 1;
 
+=begin HTML
+
+<img src="https://api.travis-ci.org/igorcoding/EV-Tarantool16.svg" alt="Travis CI Build status" />
+
+=end HTML
+
 =head1 NAME
 
 EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.1.2
+Version 1.1.3
 
 =cut
 
