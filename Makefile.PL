@@ -9,7 +9,7 @@ Requires: perl-EV
 =cut
 
 my $preop =
-    'perldoc -uT $(VERSION_FROM) | tee $(DISTVNAME)/README.pod >> README.pod;' .
+    'perldoc -uT $(VERSION_FROM) | tee $(DISTVNAME)/README.pod > README.pod;' .
     'pod2text README.pod | tee $(DISTVNAME)/README > README';
 
 my $ARES_CFLAGS = $ENV{ARES_CFLAGS} // '-I/usr/include';
