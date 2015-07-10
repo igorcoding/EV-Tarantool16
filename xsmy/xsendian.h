@@ -1,16 +1,16 @@
 #ifndef XSENDIAN_H
 #define XSENDIAN_H
 
-#include <endian.h>
 #ifndef le64toh
 
 #ifdef __APPLE__
-#include <libkern/OSByteOrder.h>
+#  include <libkern/OSByteOrder.h>
 #  define bswap_16(x) OSSwapInt16(x)
 #  define bswap_32(x) OSSwapInt32(x)
 #  define bswap_64(x) OSSwapInt64(x)
 #else
-# include <byteswap.h>
+#  include <byteswap.h>
+#  include <endian.h>
 #endif
 
 # if __BYTE_ORDER == __LITTLE_ENDIAN
