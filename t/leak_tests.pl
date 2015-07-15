@@ -77,11 +77,29 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->ping("", sub {
+
+$c->call('get_test_tuple', [], {space => 'tester'}, sub {
 	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
+
+# $c->update('test', [
+# 	'a',
+# 	'b'
+# ], [
+# 	[4 => '=', 'T']
+# ], {index => 'ident'}, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+# $c->ping("", sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # my $p = [{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }];
 

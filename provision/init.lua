@@ -160,3 +160,9 @@ function truncate_all()
 	print "Truncating rtree space"
 	truncate_rtree()
 end
+
+
+function get_test_tuple()
+	local t = box.space.tester:select{}[1]
+	return t
+end

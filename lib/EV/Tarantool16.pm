@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.1.3';
+our $VERSION = '1.1.4';
 
 use EV ();
 
@@ -28,7 +28,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.1.3
+Version 1.1.4
 
 =cut
 
@@ -173,6 +173,10 @@ HASHREF of additional options to the request
 
 Request execution timeout
 
+=item space => $space
+
+This space definition will be used to decode response tuple
+
 =back
 
 =back
@@ -202,6 +206,10 @@ HASHREF of additional options to the request
 =item timeout => $timeout
 
 Request execution timeout
+
+=item space => $space
+
+This space definition will be used to decode response tuple
 
 =back
 

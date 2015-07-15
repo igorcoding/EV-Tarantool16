@@ -846,6 +846,9 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	if (index != -1) {
 		h = mp_encode_uint(h, TP_INDEX);
 		h = mp_encode_uint(h, index);
+		// cwarn("Writing index %d", index);
+	} else {
+		// cwarn("index not writing");
 	}
 
 	h = mp_encode_uint(h, TP_KEY);
@@ -967,9 +970,15 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	TntIndex *idx = NULL;
 
 	if (opt) {
-
-	}
-	else {
+		if ((key = hv_fetchs(opt, "space", 0)) ) {
+			if(( spc = evt_find_space( *key, spaces, ctx->log_level, cb ) )) {
+				ctx->space = spc;
+			} else {
+				ctx->use_hash = 0;
+				return NULL;
+			}
+		}
+	} else {
 		ctx->f.size = 0;
 	}
 
@@ -1029,9 +1038,15 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	TntIndex *idx = NULL;
 
 	if (opt) {
-
-	}
-	else {
+		if ((key = hv_fetchs(opt, "space", 0)) ) {
+			if(( spc = evt_find_space( *key, spaces, ctx->log_level, cb ) )) {
+				ctx->space = spc;
+			} else {
+				ctx->use_hash = 0;
+				return NULL;
+			}
+		}
+	} else {
 		ctx->f.size = 0;
 	}
 
