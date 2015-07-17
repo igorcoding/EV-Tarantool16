@@ -216,13 +216,9 @@ static void destroy_spaces(HV *spaces) {
 #define evt_opt_out(opt,ctx,spc) STMT_START {               \
 	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) {    \
 		dExtractFormatCopy( &ctx->f, *key );                \
-	}                                                       \
-	else                                                    \
-	if (spc) {                                              \
+	} else if (spc) {                                       \
 		memcpy(&ctx->f,&spc->f,sizeof(unpack_format));      \
-	}                                                       \
-	else                                                    \
-	{                                                       \
+	} else {                                                \
 		ctx->f.size = 0;                                    \
 	}                                                       \
 } STMT_END
@@ -231,13 +227,9 @@ static void destroy_spaces(HV *spaces) {
 	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) {     \
 		dExtractFormat2( format, *key );                    \
 		fmt = &format;                                      \
-	}                                                       \
-	else                                                    \
-	if (idx) {                                              \
+	} else if (idx) {                                       \
 		fmt = &idx->f;                                      \
-	}                                                       \
-	else                                                    \
-	{                                                       \
+	} else {                                                \
 		fmt = &format;                                      \
 	}                                                       \
 } STMT_END
@@ -453,7 +445,6 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			//warn("No index %d config. Using without formats",index);
 		}
 	}
-	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
 	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1) + (iterator != -1);
@@ -559,7 +550,6 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key) && SvIV(*key) != 0) op_code = TP_REPLACE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
-	evt_opt_out( opt, ctx, spc );
 	check_tuple(tuple, spc);
 	evt_opt_in( opt, ctx, spc );
 
@@ -802,7 +792,6 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 			//warn("No index %d config. Using without formats",index);
 		}
 	}
-	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
 	uint32_t body_map_sz = 3 + (index != -1);
@@ -902,8 +891,6 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 			log_warn(ctx->log_level, "No index %d config. Using without formats", index);
 		}
 	}
-
-	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
 
@@ -981,8 +968,6 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	} else {
 		ctx->f.size = 0;
 	}
-
-	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
 	uint32_t body_map_sz = 2;
@@ -1049,8 +1034,6 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	} else {
 		ctx->f.size = 0;
 	}
-
-	evt_opt_out( opt, ctx, spc );
 	evt_opt_in( opt, ctx, idx );
 
 	uint32_t body_map_sz = 2;

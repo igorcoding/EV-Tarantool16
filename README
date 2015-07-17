@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.1.4
+    Version 1.15
 
 SYNOPSIS
         use EV::Tarantool16;
@@ -104,6 +104,11 @@ SUBROUTINES/METHODS
         space => $space
             This space definition will be used to decode response tuple
 
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
+
   call $function_name, $tuple_args, $opts, $cb->($result)
     Execute eval request
 
@@ -121,6 +126,11 @@ SUBROUTINES/METHODS
 
         space => $space
             This space definition will be used to decode response tuple
+
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
 
   select $space_name, $keys, $opts, $cb->($result)
     Execute select request
@@ -140,8 +150,8 @@ SUBROUTINES/METHODS
         hash => $hash
             Use hash as result
 
-        index => $index_id
-            Index id to use
+        index => $index
+            Index name or id to use
 
         limit => $limit
             Select limit
@@ -153,6 +163,11 @@ SUBROUTINES/METHODS
             Select iterator type. Possible values: 'EQ', 'REQ', 'ALL', 'LT',
             'LE', 'GE', 'GT', 'BITS_ALL_SET', 'BITS_ANY_SET',
             'BITS_ALL_NOT_SET', 'OVERLAPS', 'NEIGHBOR'
+
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
 
   insert $space_name, $tuple, $opts, $cb->($result)
     Execute insert request
@@ -174,6 +189,11 @@ SUBROUTINES/METHODS
 
         replace => $replace
             Insert(0) or replace(1) a tuple
+
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
 
   update $space_name, $key, $operations, $opts, $cb->($result)
     Execute update request
@@ -198,8 +218,13 @@ SUBROUTINES/METHODS
         hash => $hash
             Use hash as result
 
-        index => $index_id
-            Index id to use
+        index => $index
+            Index name or id to use
+
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
 
   delete $space_name, $key, $opts, $cb->($result)
     Execute delete request
@@ -219,8 +244,13 @@ SUBROUTINES/METHODS
         hash => $hash
             Use hash as result
 
-        index => $index_id
-            Index id to use
+        index => $index
+            Index name or id to use
+
+        in => $in
+            Format for parsing input (string). One char is for one argument
+            ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
+            is determined automatically))
 
 RESULT
   Success result

@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.1.4';
+our $VERSION = '1.15';
 
 use EV ();
 
@@ -28,7 +28,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.1.4
+Version 1.15
 
 =cut
 
@@ -177,6 +177,10 @@ Request execution timeout
 
 This space definition will be used to decode response tuple
 
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
+
 =back
 
 =back
@@ -210,6 +214,10 @@ Request execution timeout
 =item space => $space
 
 This space definition will be used to decode response tuple
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
 
@@ -245,9 +253,9 @@ Request execution timeout
 
 Use hash as result
 
-=item index => $index_id
+=item index => $index
 
-Index id to use
+Index name or id to use
 
 =item limit => $limit
 
@@ -272,6 +280,10 @@ Select iterator type. Possible values:
 'BITS_ALL_NOT_SET',
 'OVERLAPS',
 'NEIGHBOR'
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
 
@@ -310,6 +322,10 @@ Use hash as result
 =item replace => $replace
 
 Insert(0) or replace(1) a tuple
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
 
@@ -351,9 +367,13 @@ Request execution timeout
 
 Use hash as result
 
-=item index => $index_id
+=item index => $index
 
-Index id to use
+Index name or id to use
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
 
@@ -389,9 +409,13 @@ Request execution timeout
 
 Use hash as result
 
-=item index => $index_id
+=item index => $index
 
-Index id to use
+Index name or id to use
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
 
