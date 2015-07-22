@@ -77,11 +77,17 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
-	say Dumper \@_;
+$c->stats(sub {
+	say Dumper $_[0];
 	EV::unloop;
 });
 EV::loop;
+
+# $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 
 # $c->call('get_test_tuple', [], {space => 'tester'}, sub {

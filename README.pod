@@ -10,7 +10,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.15
+Version 1.16
 
 
 =cut
@@ -410,6 +410,73 @@ Index name or id to use
 Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
 
 =back
+
+=back
+
+
+=cut
+
+=head2 stats $cb->($result)
+
+Get Tarantool stats
+
+=head3 Result
+
+Returns a HASHREF, consisting of the following data:
+
+=over 4
+
+=item arena
+
+=over 4
+
+=item size
+
+Arena allocated size
+
+=item used
+
+Arena used size
+
+=item slabs
+
+Slabs memory use
+
+=back
+
+=item info
+
+=over 4
+
+=item lsn
+
+Tarantool log sequence number
+
+=item lut
+
+Last update time (current_time - box_info.replication.idle)
+
+=item lag
+
+Replication lag
+
+=item pid
+
+Process pid
+
+=item uptime
+
+Server's uptime
+
+=back
+
+=item op
+
+Total operations count for each operation (select, insert, ...)
+
+=item space
+
+Tuples count in each space
 
 =back
 

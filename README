@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.15
+    Version 1.16
 
 SYNOPSIS
         use EV::Tarantool16;
@@ -251,6 +251,41 @@ SUBROUTINES/METHODS
             Format for parsing input (string). One char is for one argument
             ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
             is determined automatically))
+
+  stats $cb->($result)
+    Get Tarantool stats
+
+   Result
+    Returns a HASHREF, consisting of the following data:
+
+    arena
+
+        size
+            Arena allocated size
+
+        used
+            Arena used size
+
+        slabs
+            Slabs memory use
+
+    info
+
+        lsn Tarantool log sequence number
+
+        lut Last update time (current_time - box_info.replication.idle)
+
+        lag Replication lag
+
+        pid Process pid
+
+        uptime
+            Server's uptime
+
+    op  Total operations count for each operation (select, insert, ...)
+
+    space
+        Tuples count in each space
 
 RESULT
   Success result

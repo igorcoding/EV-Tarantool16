@@ -5,16 +5,12 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.15';
+our $VERSION = '1.16';
 
 use EV ();
 
 require XSLoader;
 XSLoader::load('EV::Tarantool16', $VERSION);
-
-# Preloaded methods go here.
-
-1;
 
 =begin HTML
 
@@ -28,7 +24,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.15
+Version 1.16
 
 =cut
 
@@ -424,6 +420,126 @@ Format for parsing input (string). One char is for one argument ('s' = string, '
 =cut
 
 
+=head2 stats $cb->($result)
+
+Get Tarantool stats
+
+=head3 Result
+
+Returns a HASHREF, consisting of the following data:
+
+=over 4
+
+=item arena
+
+=over 4
+
+=item size
+
+Arena allocated size
+
+=item used
+
+Arena used size
+
+=item slabs
+
+Slabs memory use
+
+=back
+
+=item info
+
+=over 4
+
+=item lsn
+
+Tarantool log sequence number
+
+=item lut
+
+Last update time (current_time - box_info.replication.idle)
+
+=item lag
+
+Replication lag
+
+=item pid
+
+Process pid
+
+=item uptime
+
+Server's uptime
+
+=back
+
+=item op
+
+Total operations count for each operation (select, insert, ...)
+
+=item space
+
+Tuples count in each space
+
+=back
+
+=cut
+sub stats {
+	my $self = shift;
+	my $cb   = pop;
+	$self->eval(qq{
+			local fiber = require('fiber')
+			local slab_info = box.slab.info()
+			local stat = {}
+			stat['arena'] = {}
+			stat['arena']['size'] = slab_info.arena_size
+			stat['arena']['used'] = slab_info.arena_used
+			stat['arena']['slabs'] = 0
+			for i,s in pairs(slab_info.slabs) do
+				stat['arena']['slabs'] = stat['arena']['slabs'] + s.slab_count * s.slab_size
+			end
+
+			stat['arena']['free'] = slab_info.arena_size - slab_info.arena_used
+
+			local box_info = box.info
+			stat['info'] = {}
+			stat['info']['lsn'] = box_info.server.lsn
+			if (box_info.replication.status ~= 'off') then
+				stat['info']['lut'] = fiber.time() - box_info.replication.idle
+				stat['info']['lag'] = box_info.replication.lag
+			end
+			stat['info']['pid'] = box_info.pid
+			stat['info']['uptime'] = box_info.uptime
+
+			local ops = box.stat()
+			stat['op'] = {}
+			for op,op_info in pairs(ops) do
+				stat['op'][string.lower(op)] = op_info.total
+			end
+
+			local spaces = box.space._space:select{}
+			stat['space'] = {}
+			for _,space in pairs(spaces) do
+				if (space[4] ~= 'sysview') then
+					local space_name = space[3]
+					stat['space'][space_name] = box.space[space_name]:len()
+				end
+			end
+
+			return {stat}
+		}, [], sub {
+			if (!$_[0]) {
+				my $error_msg = $_[1];
+				$cb->(undef, "Couldn\'t get stats. Error: $error_msg");
+			}
+			my $stat = $_[0]->{tuples}->[0]->[0];
+			$cb->($stat);
+	});
+}
+
+
+
 =head1 RESULT
 
 =head2 Success result
@@ -516,3 +632,5 @@ Copyright (C) 2015 by igorcoding
 This program is released under the following license: GPL
 
 =cut
+
+1;
