@@ -488,64 +488,66 @@ Tuples count in each space
 sub stats {
 	my $self = shift;
 	my $cb   = pop;
-    my $opts = shift;
-    my $expression = qq{
-        local fiber = require('fiber')
-        local slab_info = box.slab.info()
-        local stat = {}
-        stat['arena'] = {}
-        stat['arena']['size'] = slab_info.arena_size
-        stat['arena']['used'] = slab_info.arena_used
-        stat['arena']['slabs'] = 0
-        for i,s in pairs(slab_info.slabs) do
-            stat['arena']['slabs'] = stat['arena']['slabs'] + s.slab_count * s.slab_size
-        end
+	my $opts = shift;
+	my $expression = qq{
+		local fiber = require('fiber')
+		local slab_info = box.slab.info()
+		local stat = {}
+		stat['arena'] = {}
+		stat['arena']['size'] = slab_info.arena_size
+		stat['arena']['used'] = slab_info.arena_used
+		stat['arena']['slabs'] = 0
+		for i,s in pairs(slab_info.slabs) do
+			stat['arena']['slabs'] = stat['arena']['slabs'] + s.slab_count * s.slab_size
+		end
 
-        stat['arena']['free'] = slab_info.arena_size - slab_info.arena_used
+		stat['arena']['free'] = slab_info.arena_size - slab_info.arena_used
 
-        local box_info = box.info
-        stat['info'] = {}
-        stat['info']['lsn'] = box_info.server.lsn
-        if (box_info.replication.status ~= 'off') then
-            stat['info']['lut'] = fiber.time() - box_info.replication.idle
-            stat['info']['lag'] = box_info.replication.lag
-        end
-        stat['info']['pid'] = box_info.pid
-        stat['info']['uptime'] = box_info.uptime
+		local box_info = box.info
+		stat['info'] = {}
+		stat['info']['lsn'] = box_info.server.lsn
+		if (box_info.replication.status ~= 'off') then
+			stat['info']['lut'] = fiber.time() - box_info.replication.idle
+			stat['info']['lag'] = box_info.replication.lag
+		end
+		stat['info']['pid'] = box_info.pid
+		stat['info']['uptime'] = box_info.uptime
 
-        local ops = box.stat()
-        stat['op'] = {}
-        for op,op_info in pairs(ops) do
-            stat['op'][string.lower(op)] = op_info.total
-        end
+		local ops = box.stat()
+		stat['op'] = {}
+		for op,op_info in pairs(ops) do
+			stat['op'][string.lower(op)] = op_info.total
+		end
 
-        local spaces = box.space._space:select{}
-        stat['space'] = {}
-        for _,space in pairs(spaces) do
-            if (space[4] ~= 'sysview') then
-                local space_name = space[3]
-                stat['space'][space_name] = box.space[space_name]:len()
-            end
-        end
+		stat['space'] = {}
+		for space_name,v in pairs(box.space) do
+			if (not string.match(space_name, "[0-9]+")) then
+				if (v['engine'] ~= 'sysview') then
+					print(space_name, v)
+					stat['space'][space_name] = {}
+					stat['space'][space_name]['items'] = box.space[space_name]:len()
+				end
+			end
+		end
 
-        return {stat}
-    };
+		return {stat}
+	};
 
-    my $eval_cb = sub {
-        if (!$_[0]) {
-            my $error_msg = $_[1];
-            $cb->(undef, "Couldn\'t get stats. Error: $error_msg");
-            return;
-        }
-        my $stat = $_[0]->{tuples}->[0]->[0];
-        $cb->($stat);
-    };
+	my $eval_cb = sub {
+		if (!$_[0]) {
+			my $error_msg = $_[1];
+			$cb->(undef, "Couldn\'t get stats. Error: $error_msg");
+			return;
+		}
+		my $stat = $_[0]->{tuples}->[0]->[0];
+		$cb->($stat);
+	};
 
-    if ($opts) {
-        $self->eval($expression, [], $opts, $eval_cb);
-    } else {
-        $self->eval($expression, [], $eval_cb);
-    }
+	if ($opts) {
+		$self->eval($expression, [], $opts, $eval_cb);
+	} else {
+		$self->eval($expression, [], $eval_cb);
+	}
 }
 
 
