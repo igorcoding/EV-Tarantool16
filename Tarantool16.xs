@@ -166,13 +166,13 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	XSRETURN_UNDEF;\
 } STMT_END
 
-#define GET_OPTS(OPTS_NAME, opts_sv) STMT_START {\
+#define GET_OPTS(OPTS_NAME, opts_sv, cb) STMT_START {\
 	SV *_opts_sv = (opts_sv);\
 	OPTS_NAME = NULL;\
 	if (_opts_sv != NULL) {\
 		if (likely(SvROK(_opts_sv) && SvTYPE(SvRV(_opts_sv)) == SVt_PVHV)) {\
 			OPTS_NAME = (HV *) SvRV(_opts_sv);\
-		} else {\
+		} else if (_opts_sv != &PL_sv_undef) {\
 			croak_cb_xsundef(cb, "Opts must be a HASHREF");\
 		}\
 	}\
@@ -859,12 +859,12 @@ void ping(SV *this, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 3 ? ST( 1 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "ping", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 3 ? ST( 1 ) : 0);
 		SV *pkt = pkt_ping(iid);
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -879,12 +879,12 @@ void select( SV *this, SV *space, SV * keys, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "select", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0);
 		SV *pkt = pkt_select(ctx, iid, self->spaces, space, keys, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -898,12 +898,12 @@ void insert( SV *this, SV *space, SV * t, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "insert", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0);
 		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -917,12 +917,12 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 6 ? ST( 4 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "update", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 6 ? ST( 4 ) : 0);
 		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -936,12 +936,12 @@ void delete( SV *this, SV *space, SV * t, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "delete", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0);
 		SV *pkt = pkt_delete(ctx, iid, self->spaces, space, t, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -956,12 +956,12 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "eval", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0);
 		SV *pkt = pkt_eval(ctx, iid, self->spaces, expression, t, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
@@ -976,12 +976,12 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
 
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
 		dSVX(ctxsv, ctx, TntCtx);
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "call", iid);
-		HV *opts = NULL;
-		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0);
 		SV *pkt = pkt_call(ctx, iid, self->spaces, function_name, t, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
