@@ -1,9 +1,3 @@
-[submodule "ext"]
-	path = libs/ext
-	url = https://github.com/Mons/EV-Sock.git
-[submodule "evares"]
-	path = evares
-	url = https://github.com/Mons/libevares.git
 [submodule "evcnn"]
 	path = libs/evcnn
 	url = https://github.com/igorcoding/libevconnection.git

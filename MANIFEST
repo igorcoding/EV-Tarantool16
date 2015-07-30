@@ -13,10 +13,6 @@ libs/evcnn/ex/sample.c
 libs/evcnn/src/evconnection.h
 libs/evcnn/src/libevconnection.c
 libs/evcnn/src/xsevcnn.h
-libs/ext/ev_sock.c
-libs/ext/EVSock.h
-libs/ext/LICENSE
-libs/ext/README.md
 libs/msgpuck/AUTHORS
 libs/msgpuck/CMakeLists.txt
 libs/msgpuck/Doxyfile
