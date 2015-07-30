@@ -36,7 +36,6 @@ Tarantool16.o
 ^EV-Tarantool16-.*
 
 # Custom
-^_repl/
 ^.vagrant/
 \.gitignore
 \.gitmodules
@@ -44,6 +43,5 @@ build.sh
 ^provision/run.sh
 ^provision/evtnt.lua
 \.travis.yml
-t/leak_tests.pl
-t/tnt_multi_test.pl
+t/temp.pl
 Vagrantfile
