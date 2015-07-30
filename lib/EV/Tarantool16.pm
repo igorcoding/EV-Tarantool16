@@ -521,12 +521,8 @@ sub stats {
 
 		stat['space'] = {}
 		for space_name,v in pairs(box.space) do
-			if (not string.match(space_name, "[0-9]+")) then
-				if (v['engine'] ~= 'sysview') then
-					print(space_name, v)
-					stat['space'][space_name] = {}
-					stat['space'][space_name]['items'] = box.space[space_name]:len()
-				end
+			if (not string.match(space_name, "[0-9]+") and v['engine'] ~= 'sysview') then
+				stat['space'][space_name] = box.space[space_name]:len()
 			end
 		end
 
