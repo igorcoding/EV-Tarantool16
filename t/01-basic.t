@@ -29,6 +29,7 @@ my %test_exec = (
 	ping => 1,
 	eval => 1,
 	call => 1,
+	lua => 1,
 	select => 1,
 	insert => 1,
 	delete => 1,
@@ -212,6 +213,24 @@ subtest 'Call tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{call};
 	diag '==== Call tests ====';
 	$c->call('string_function', [], sub {
+		my $a = @_[0];
+		diag Dumper \@_ if !$a;
+		cmp_deeply $a, {
+			count => 1,
+			tuples => [ ['hello world'] ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		};
+		EV::unloop;
+	});
+	EV::loop;
+};
+
+subtest 'Lua tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{lua};
+	diag '==== Lua tests ====';
+	$c->lua('string_function', [], sub {
 		my $a = @_[0];
 		diag Dumper \@_ if !$a;
 		cmp_deeply $a, {

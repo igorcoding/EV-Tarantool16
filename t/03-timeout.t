@@ -208,8 +208,8 @@ subtest 'Call tests', sub {
 	diag '==== Call timeout tests ===';
 
 	my $f = sub {
-		my ($opt, $cmp) = @_;
-		$c->call("string_function", [], $opt, sub {
+		my ($timeout, $opt, $cmp) = @_;
+		$c->call("timeout_test", [$timeout], $opt, sub {
 			cmp_deeply \@_, $cmp;
 			EV::unloop;
 		});
@@ -218,11 +218,11 @@ subtest 'Call tests', sub {
 
 
 	my $plan = [
-		[{timeout => 0.00001}, [
+		[1.0, {timeout => 0.5}, [
 			undef,
 			"Request timed out"
 		]],
-		[{}, [
+		[0.5, {}, [
 			{
 				sync => ignore(),
 				code => 0,
@@ -231,11 +231,11 @@ subtest 'Call tests', sub {
 				tuples => ignore()
 			}
 		]],
-		[{timeout => 0.00001}, [
+		[0.5, {timeout => 0.2}, [
 			undef,
 			"Request timed out"
 		]],
-		[{}, [
+		[1.0, {timeout => 2.0}, [
 			{
 				sync => ignore(),
 				code => 0,

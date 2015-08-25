@@ -77,8 +77,8 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->stats(sub {
-	say Dumper $_[0];
+$c->lua('timeout_test', [2.0], {timeout => 3.0}, sub {
+	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;

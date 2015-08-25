@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.16';
+our $VERSION = '1.17';
 
 use EV ();
 
@@ -24,7 +24,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.16
+Version 1.17
 
 =cut
 
@@ -418,6 +418,17 @@ Format for parsing input (string). One char is for one argument ('s' = string, '
 =back
 
 =cut
+
+=head2 lua $function_name, $args, $opts, $cb->($result)
+
+Execute call request (added for backward compatibility with EV::Tarantool)
+
+=cut
+
+sub lua {
+	my $self = shift;
+	return $self->call(@_);
+}
 
 
 =head2 stats $cb->($result)

@@ -147,6 +147,13 @@ function string_function()
   return "hello world"
 end
 
+function timeout_test(timeout)
+	local fiber = require('fiber')
+	local ch = fiber.channel(1)
+	ch:get(timeout)
+	return 'ok'
+end
+
 function truncate_all()
 	print "Truncating tester space"
 	truncate_tester()
@@ -166,3 +173,5 @@ function get_test_tuple()
 	local t = box.space.tester:select{}[1]
 	return t
 end
+
+

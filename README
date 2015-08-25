@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.16
+    Version 1.17
 
 SYNOPSIS
         use EV::Tarantool16;
@@ -251,6 +251,10 @@ SUBROUTINES/METHODS
             Format for parsing input (string). One char is for one argument
             ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
             is determined automatically))
+
+  lua $function_name, $args, $opts, $cb->($result)
+    Execute call request (added for backward compatibility with
+    EV::Tarantool)
 
   stats $cb->($result)
     Get Tarantool stats
