@@ -425,11 +425,7 @@ Execute call request (added for backward compatibility with EV::Tarantool)
 
 =cut
 
-sub lua {
-	my $self = shift;
-	return $self->call(@_);
-}
-
+*lua = \&call;
 
 =head2 stats $cb->($result)
 
