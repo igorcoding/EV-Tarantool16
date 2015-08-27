@@ -77,7 +77,7 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->lua('timeout_test', [2.0], {timeout => 3.0}, sub {
+$c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
 	say Dumper \@_;
 	EV::unloop;
 });

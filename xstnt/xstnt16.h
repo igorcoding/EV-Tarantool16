@@ -137,6 +137,11 @@ static void destroy_spaces(HV *spaces) {
 						SvREFCNT_dec(idx->type);
 						idx->type = NULL;
 					}
+					
+					if (idx->opts) {
+						SvREFCNT_dec(idx->opts);
+						idx->opts = NULL;
+					}
 				}
 			}
 			SvREFCNT_dec( spc->indexes );
@@ -1392,14 +1397,18 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 
 				dSVX(idxcf, idx, TntIndex);
 				idx->id = index_id;
+				
+				if (mp_typeof(*p) != MP_STR) croak("index name has to be array");
 				idx->name = decode_obj(&p);
+				
+				if (mp_typeof(*p) != MP_STR) croak("index type has to be string");
 				idx->type = decode_obj(&p);
-				idx->unique = mp_decode_uint(&p);
+				
+				if (mp_typeof(*p) != MP_MAP) croak("index opts has to be array");
+				idx->opts = (HV *) decode_obj(&p);
 
-				if (mp_typeof(*p) != MP_UINT) {
-					croak("parts count has to be uint");
-				}
-				uint32_t parts_count = mp_decode_uint(&p);
+				if (mp_typeof(*p) != MP_ARRAY) croak("index parts has to be array");
+				uint32_t parts_count = mp_decode_array(&p);
 
 				idx->f.nofree = 1;
 				idx->f.size = parts_count;
@@ -1417,8 +1426,13 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 				uint32_t str_len;
 
 				for (part_i = 0; part_i < parts_count; ++part_i) {
+					uint32_t index_part_size = mp_decode_array(&p);
+					
 					ix = mp_decode_uint(&p);
 					str = mp_decode_str(&p, &str_len);
+					if (index_part_size == 3) {
+						mp_next(&p); // TODO: index part options
+					}
 
 					if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
 						idx->f.f[part_i] = FMT_NUM;

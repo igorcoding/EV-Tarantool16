@@ -623,6 +623,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 				if (code == 0) {
 					self->on_read = (c_cb_read_t) on_spaces_info_read;
 					_execute_eval(tnt, _SPACE_SELECTOR);
+					// self->on_read = (c_cb_read_t) on_read;
 				}
 				else {
 					var = hv_fetchs(hv,"errstr",0);

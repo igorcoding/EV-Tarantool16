@@ -52,7 +52,7 @@ typedef struct {
 	U32   id;
 	SV   *name;
 	SV   *type;
-	U32   unique;
+	HV   *opts;
 	AV   *fields;
 	unpack_format f;
 } TntIndex;
