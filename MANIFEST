@@ -31,7 +31,6 @@ META.json
 META.yml
 ppport.h
 provision/init.lua
-provision/tarantool.rb
 provision/tnt-cares.sh
 README
 README.pod
@@ -41,6 +40,7 @@ t/02-auth.t
 t/03-timeout.t
 t/04-memory.t
 t/lib/Renewer.pm
+Tarantool16.bs
 Tarantool16.xs
 xsmy/xsendian.h
 xsmy/xsmy.h
