@@ -14,7 +14,18 @@ XSLoader::load('EV::Tarantool16', $VERSION);
 
 =begin HTML
 
-<img src="https://api.travis-ci.org/igorcoding/EV-Tarantool16.svg" alt="Travis CI Build status" />
+=head4 Build Status
+
+<table>
+    <tr>
+        <td>master</td>
+        <td><img src="https://travis-ci.org/igorcoding/EV-Tarantool16.svg?branch=master" alt="Travis CI Build status (master)" /></td>
+    </tr>
+    <tr>
+        <td>dev</td>
+        <td><img src="https://travis-ci.org/igorcoding/EV-Tarantool16.svg?branch=dev" alt="Travis CI Build status (master)" /></td>
+    </tr>
+</table>
 
 =end HTML
 
