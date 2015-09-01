@@ -195,6 +195,10 @@ SUBROUTINES/METHODS
             ('s' = string, 'n' = number, 'a' = array, '*' = anything (type
             is determined automatically))
 
+  replace $space_name, $tuple, $opts, $cb->($result)
+    Execute replace request (same as insert, but replaces tuple if already
+    exists). ($opts->{replace} = 1)
+
   update $space_name, $key, $operations, $opts, $cb->($result)
     Execute update request
 
@@ -254,7 +258,7 @@ SUBROUTINES/METHODS
 
   lua $function_name, $args, $opts, $cb->($result)
     Execute call request (added for backward compatibility with
-    EV::Tarantool)
+    EV::Tarantool). See 'call' method.
 
   stats $cb->($result)
     Get Tarantool stats

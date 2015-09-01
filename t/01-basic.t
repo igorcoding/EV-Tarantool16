@@ -32,6 +32,7 @@ my %test_exec = (
 	lua => 1,
 	select => 1,
 	insert => 1,
+	replace => 1,
 	delete => 1,
 	update => 1,
 	# RTREE => 1,
@@ -341,6 +342,54 @@ subtest 'Insert tests', sub {
 	];
 	for my $p (@$_plan) {
 		$c->insert($SPACE_NAME, $p->[0], $p->[1], sub {
+			my $a = @_[0];
+			diag Dumper \@_ if !$a;
+			cmp_deeply $a, $p->[2];
+
+			Renewer::renew_tnt($c, $SPACE_NAME, sub {
+				EV::unloop;
+			});
+		});
+
+		EV::loop;
+	}
+};
+
+subtest 'Replace tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{replace};
+	diag '==== Replace tests ====';
+
+	my $_plan = [
+		[["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { hash => 0 }, {
+			count => 1,
+			tuples => [
+						['t1', 't2', 101, -100, { a => 11, b => 12, c => 13 }]
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		[["t1", "t2", 17, '-100', { a => 11, b => 12, c => 13 }], { hash => 0 }, {
+			count => 1,
+			tuples => [
+						['t1', 't2', 17, -100, { a => 11, b => 12, c => 13 }]
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { hash => 0 }, {
+			count => 1,
+			tuples => [
+						['t1', 't2', 18, -100]
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore()
+		}]
+	];
+	for my $p (@$_plan) {
+		$c->replace($SPACE_NAME, $p->[0], $p->[1], sub {
 			my $a = @_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];

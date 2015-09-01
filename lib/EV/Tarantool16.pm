@@ -340,6 +340,12 @@ Format for parsing input (string). One char is for one argument ('s' = string, '
 
 =cut
 
+=head2 replace $space_name, $tuple, $opts, $cb->($result)
+
+Execute replace request (same as insert, but replaces tuple if already exists). ($opts->{replace} = 1)
+
+=cut
+
 =head2 update $space_name, $key, $operations, $opts, $cb->($result)
 
 Execute update request
@@ -432,7 +438,7 @@ Format for parsing input (string). One char is for one argument ('s' = string, '
 
 =head2 lua $function_name, $args, $opts, $cb->($result)
 
-Execute call request (added for backward compatibility with EV::Tarantool)
+Execute call request (added for backward compatibility with EV::Tarantool). See 'call' method.
 
 =cut
 

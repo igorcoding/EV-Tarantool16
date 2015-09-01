@@ -909,6 +909,25 @@ void insert( SV *this, SV *space, SV * t, ... )
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
+		
+void replace( SV *this, SV *space, SV * t, ... )
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn(self,cb);
+
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		uint32_t iid;
+		INIT_CTX(self, ctx, "replace", iid);
+		(void) hv_stores(opts, "replace", newSVuv(1));
+		SV *pkt = pkt_insert(ctx, iid, self->spaces, space, t, opts, cb );
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
+
+		XSRETURN_UNDEF;
 
 
 void update( SV *this, SV *space, SV * key, SV * tuple, ... )
