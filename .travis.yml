@@ -1,6 +1,6 @@
 language: perl
 os:
-  - linux
+  # - linux
   - osx
 perl:
   - "5.20"
