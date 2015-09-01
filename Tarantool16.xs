@@ -13,6 +13,25 @@
 #include "log.h"
 #include "xstnt16.h"
 
+/* definition to expand macro then apply to pragma message */
+#define VALUE_TO_STRING(x) #x
+#define VALUE(x) VALUE_TO_STRING(x)
+#define VAR_NAME_VALUE(var) #var "="  VALUE(var)
+
+#pragma message(VAR_NAME_VALUE(CARES_SIZEOF_LONG))
+
+#define CareschkszEQ(t, s) sizeof(t) == s ? 1 : -1
+#define CareschkszGE(t1, t2) sizeof(t1) >= sizeof(t2) ? 1 : -1
+
+// typedef char __check02__[CareschkszEQ(long, 8)];
+// typedef char __check01__[CareschkszEQ(long, 4)];
+
+
+#undef CareschkszEQ
+#undef CareschkszGE
+
+
+
 #if __GNUC__ >= 3
 # define INLINE static inline
 #else
@@ -49,8 +68,8 @@ typedef struct {
 	uint8_t  log_level;
 } TntCnn;
 
-static const uint32_t _SPACE_SPACEID = 280;
-static const uint32_t _INDEX_SPACEID = 288;
+// static const uint32_t _SPACE_SPACEID = 280;
+// static const uint32_t _INDEX_SPACEID = 288;
 
 static const char *_SPACE_SELECTOR = "return unpack(box.space._space:select{})";
 static const char *_INDEX_SELECTOR = "return unpack(box.space._index:select{})";
