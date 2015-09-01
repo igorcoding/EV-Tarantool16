@@ -73,7 +73,7 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *c
 		}
 		else {
 			if (spaces != NULL) {
-				log_info(log_level, "No space %d config. Creating dummy space.",ns);
+				log_info(log_level, "No space %u config. Creating dummy space.", ns);
 				dSVX(spcf, spc, TntSpace);
 
 				spc->id = ns;
@@ -94,7 +94,7 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *c
 			return (TntSpace*) SvPVX(*key);
 		}
 		else {
-			croak_cb(cb, "Unknown space %s",SvPV_nolen(space));
+			croak_cb(cb, "Unknown space %s", SvPV_nolen(space));
 		}
 	} else {
 		croak_cb(cb, "Space must be either a string or a number");
@@ -310,7 +310,7 @@ static inline U32 get_iterator(TntCtx* ctx, SV *iterator_str) {
 	COMP_STR(str, "BITS_ALL_NOT_SET", 	str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
 	COMP_STR(str, "OVERLAPS", 			str_len, 8,  TNT_IT_OVERLAPS);
 	COMP_STR(str, "NEIGHBOR", 			str_len, 8,  TNT_IT_NEIGHBOR);
-	log_error(ctx->log_level, "Unknown iterator: %.*s", str_len, str);
+	log_error(ctx->log_level, "Unknown iterator: %.*s", (int) str_len, str);
 	return -1;
 }
 
@@ -650,7 +650,7 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 				field_no = fld->id;
 			}
 			else {
-				croak_cb(cb,"Unknown field name: '%s' in space %d",SvPV_nolen( *key ), spc->id);
+				croak_cb(cb,"Unknown field name: '%s' in space %u", SvPV_nolen( *key ), spc->id);
 			}
 		}
 

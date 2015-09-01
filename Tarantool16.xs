@@ -49,8 +49,8 @@ typedef struct {
 	uint8_t  log_level;
 } TntCnn;
 
-static const uint32_t _SPACE_SPACEID = 280;
-static const uint32_t _INDEX_SPACEID = 288;
+// static const uint32_t _SPACE_SPACEID = 280;
+// static const uint32_t _INDEX_SPACEID = 288;
 
 static const char *_SPACE_SELECTOR = "return unpack(box.space._space:select{})";
 static const char *_INDEX_SELECTOR = "return unpack(box.space._index:select{})";

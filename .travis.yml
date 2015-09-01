@@ -9,9 +9,9 @@ perl:
   - "5.14"
   - "5.12"
   - "5.10"
-# matrix:
-#   allow_failures:
-#     - os: osx
+matrix:
+  allow_failures:
+    - os: osx
 install:
   - provision/run.sh
 notifications:
