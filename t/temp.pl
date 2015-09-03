@@ -77,23 +77,17 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-# $c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
+$c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
+# $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;
 # 	EV::unloop;
 # });
 # EV::loop;
-
-$c->replace('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
-
-$c->replace('memier', [7, {a => 100, b => 200}], { in => 's*' }, sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
 
 
 # $c->call('get_test_tuple', [], {space => 'tester'}, sub {
