@@ -47,6 +47,7 @@ $tnt = Test::Tarantool16->new(
 	logger  => sub { diag ( $tnt->{title},' ', @_ )},
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
+	# tarantool_cmd => "/opt/mailru/tarantool16/root/usr/bin/tarantool %{args}"
 );
 # warn Dumper $tnt;
 # __END__

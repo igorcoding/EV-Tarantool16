@@ -4,8 +4,8 @@ wget -q -O - http://tarantool.org/dist/public.key | sudo apt-key add -
 release=`lsb_release -c -s`
 
 sudo bash -c 'cat > /etc/apt/sources.list.d/tarantool.list <<- EOF
-deb http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
-deb-src http://tarantool.org/dist/master/ubuntu/ `lsb_release -c -s` main
+deb http://tarantool.org/dist/1.6/ubuntu/ `lsb_release -c -s` main
+deb-src http://tarantool.org/dist/1.6/ubuntu/ `lsb_release -c -s` main
 EOF'
 
 sudo apt-get update

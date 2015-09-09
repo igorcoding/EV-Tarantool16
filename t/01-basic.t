@@ -73,6 +73,7 @@ $tnt = Test::Tarantool16->new(
 	initlua => $tnt->{initlua},
 	# on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
+	# tarantool_cmd => "/opt/mailru/tarantool16/root/usr/bin/tarantool %{args}",
 );
 
 $tnt->start(timeout => 10, sub {
