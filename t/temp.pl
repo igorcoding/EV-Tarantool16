@@ -30,9 +30,43 @@ my $tnt = {
 };
 
 my $cnt = 0;
-my $max_cnt = 100;
+my $max_cnt = 30000;
+
 
 Devel::Leak::NoteSV($var);
+
+my $c; $c = EV::Tarantool16->new({
+	host => $tnt->{host},
+	port => $tnt->{port},
+	username => $tnt->{username},
+	password => $tnt->{password},
+	reconnect => 0.2,
+	log_level => 1,
+	connected => sub {
+		# diag Dumper \@_ unless $_[0];
+		$c->disconnect;
+		return EV::unloop if ++$cnt >= $max_cnt;
+		$c->connect;
+	},
+	connfail => sub {
+		my $c = shift;
+		warn "@_ / $!";
+		EV::unloop;
+	},
+	disconnected => sub {
+		# warn "discon: @_ / $!";
+		# EV::unloop;
+	},
+});
+
+$c->connect;
+EV::loop;
+undef $c;
+
+
+Devel::Leak::CheckSV($var);
+
+__END__
 
 my $c; $c = EV::Tarantool16->new({
 	host => $tnt->{host},
@@ -51,6 +85,7 @@ my $c; $c = EV::Tarantool16->new({
 		# $c->disconnect;
 		# return EV::unloop if ++$cnt >= $max_cnt;
 		# $c->connect;
+		$c->disconnect;
 		EV::unloop;
 	},
 	connfail => sub {
@@ -70,18 +105,21 @@ my $c; $c = EV::Tarantool16->new({
 	},
 });
 
-# undef $c;
 
 
-# __END__
+
 $c->connect;
 EV::loop;
 
-$c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+undef $c;
+
+Devel::Leak::CheckSV($var);
+
+# $c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;

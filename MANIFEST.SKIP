@@ -23,6 +23,7 @@
 _bak$
 Tarantool16.c
 Tarantool16.o
+Tarantool16.bs
 
 # Avoid Devel::Cover files.
 \bcover_db\b

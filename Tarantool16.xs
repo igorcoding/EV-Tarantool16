@@ -697,6 +697,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
 		_execute_eval(tnt, _SPACE_SELECTOR);
 		// self->on_read = (c_cb_read_t) on_read;
+		// call_connected(tnt);
 	}
 
 	FREETMPS;
@@ -814,6 +815,7 @@ void new(SV *pk, HV *conf)
 		} else {
 			self->log_level = _LOG_INFO;
 		}
+		if ((key = hv_fetchs(conf, "cnntrace", 0))) self->cnn.trace = SvOK(*key) && SvIOK(*key) ? SvIV(*key) : 1;
 		self->spaces = NULL;
 
 		XSRETURN(1);

@@ -73,7 +73,7 @@ $tnt->start(timeout => 10, sub {
 });
 EV::loop;
 
-
+$tnt->{cnntrace} = 0;
 my $SPACE_NAME = 'tester';
 
 
@@ -84,6 +84,7 @@ my $c; $c = EV::Tarantool16->new({
 	password => $tnt->{password},
 	reconnect => 0.2,
 	log_level => 3,
+	cnntrace => $tnt->{cnntrace},
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
 		warn "connected: @_";

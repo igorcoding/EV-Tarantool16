@@ -26,15 +26,15 @@ $EV::DIED = sub {
 };
 
 my %test_exec = (
-	# ping => 1,
-	# eval => 1,
-	# call => 1,
-	# lua => 1,
-	# select => 1,
-	# insert => 1,
-	# replace => 1,
-	# delete => 1,
-	# update => 1,
+	ping => 1,
+	eval => 1,
+	call => 1,
+	lua => 1,
+	select => 1,
+	insert => 1,
+	replace => 1,
+	delete => 1,
+	update => 1,
 	# RTREE => 1,
 	# memtest => 0
 );
@@ -84,6 +84,7 @@ $tnt->start(timeout => 10, sub {
 });
 EV::loop;
 
+$tnt->{cnntrace} = 0;
 my $SPACE_NAME = 'tester';
 
 
@@ -92,6 +93,7 @@ my $c; $c = EV::Tarantool16->new({
 	port => $tnt->{port},
 	username => $tnt->{username},
 	password => $tnt->{password},
+	cnntrace => $tnt->{cnntrace},
 	reconnect => 0.2,
 	log_level => 4,
 	connected => sub {
