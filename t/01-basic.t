@@ -26,15 +26,15 @@ $EV::DIED = sub {
 };
 
 my %test_exec = (
-	ping => 1,
-	eval => 1,
-	call => 1,
-	lua => 1,
-	select => 1,
-	insert => 1,
-	replace => 1,
-	delete => 1,
-	update => 1,
+	# ping => 1,
+	# eval => 1,
+	# call => 1,
+	# lua => 1,
+	# select => 1,
+	# insert => 1,
+	# replace => 1,
+	# delete => 1,
+	# update => 1,
 	# RTREE => 1,
 	# memtest => 0
 );

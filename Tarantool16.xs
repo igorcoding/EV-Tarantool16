@@ -704,6 +704,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 }
 
 void free_reqs (TntCnn *self, const char * message) {
+	if (unlikely(!self->reqs)) return;
 
 	ENTER;SAVETMPS;
 
@@ -827,9 +828,11 @@ void DESTROY(SV *this)
 			if (self->reqs) {
 				free_reqs(self, "Destroyed");
 				SvREFCNT_dec(self->reqs);
+				self->reqs = NULL;
 			}
 			if (self->spaces) {
 				destroy_spaces(self->spaces);
+				self->spaces = NULL;
 			}
 		}
 		if (self->username) SvREFCNT_dec(self->username);
