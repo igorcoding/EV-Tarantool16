@@ -80,6 +80,8 @@ $tnt->start(timeout => 10, sub {
 	my ($status, $desc) = @_;
 	if ($status == 1) {
 		EV::unloop;
+	} else {
+		diag Dumper \@_;
 	}
 });
 EV::loop;
@@ -170,7 +172,7 @@ subtest 'Ping tests', sub {
 	# 		my $plan_exec_inner = $plan_exec_inner;
 	# 		my $p = $plan->[$i];
 	# 		$c->ping($p->[0], sub {
-	# 			my $a = @_[0];
+	# 			my $a = $_[0];
 	# 			cmp_deeply \@_, $p->[1];
 	# 			$plan_exec_inner->($i + 1);
 	# 		});
@@ -182,7 +184,7 @@ subtest 'Ping tests', sub {
 	for my $p (@$_plan) {
 		my $finished = 0;
 		$c->ping($p->[0], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			cmp_deeply \@_, $p->[1];
 			EV::unloop;
 			$finished = 1;
@@ -199,7 +201,7 @@ subtest 'Eval tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{eval};
 	diag '==== Eval tests ====';
 	$c->eval("return {'hey'}", [], sub {
-		my $a = @_[0];
+		my $a = $_[0];
 		diag Dumper \@_ if !$a;
 		cmp_deeply $a, {
 			count => 1,
@@ -217,7 +219,7 @@ subtest 'Call tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{call};
 	diag '==== Call tests ====';
 	$c->call('string_function', [], sub {
-		my $a = @_[0];
+		my $a = $_[0];
 		diag Dumper \@_ if !$a;
 		cmp_deeply $a, {
 			count => 1,
@@ -235,7 +237,7 @@ subtest 'Lua tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{lua};
 	diag '==== Lua tests ====';
 	$c->lua('string_function', [], sub {
-		my $a = @_[0];
+		my $a = $_[0];
 		diag Dumper \@_ if !$a;
 		cmp_deeply $a, {
 			count => 1,
@@ -300,7 +302,7 @@ subtest 'Select tests', sub {
 
 	for my $p (@$_plan) {
 		$c->select($SPACE_NAME, $p->[0], $p->[1], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 			EV::unloop;
@@ -345,7 +347,7 @@ subtest 'Insert tests', sub {
 	];
 	for my $p (@$_plan) {
 		$c->insert($SPACE_NAME, $p->[0], $p->[1], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 
@@ -393,7 +395,7 @@ subtest 'Replace tests', sub {
 	];
 	for my $p (@$_plan) {
 		$c->replace($SPACE_NAME, $p->[0], $p->[1], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 
@@ -430,7 +432,7 @@ subtest 'Delete tests', sub {
 
 	for my $p (@$_plan) {
 		$c->delete($SPACE_NAME, $p->[0], $p->[1], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[2];
 
@@ -556,7 +558,7 @@ subtest 'Update tests', sub {
 
 	for my $p (@$_plan) {
 		$c->update($SPACE_NAME, $p->[0], $p->[1], $p->[2], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 
 			cmp_deeply($a, $p->[3]);
@@ -684,7 +686,7 @@ subtest 'RTREE tests', sub {
 	for my $p (@$_plan) {
 		my $op = $p->[0];
 		$c->$op($space, $p->[1], $p->[2], sub {
-			my $a = @_[0];
+			my $a = $_[0];
 			diag Dumper \@_ if !$a;
 			cmp_deeply $a, $p->[3];
 			EV::unloop;
