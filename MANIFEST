@@ -31,6 +31,7 @@ META.json
 META.yml
 ppport.h
 provision/init.lua
+provision/macos_ares_rules.h
 provision/tnt-cares.sh
 README
 README.pod
