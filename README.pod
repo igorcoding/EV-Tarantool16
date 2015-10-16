@@ -21,7 +21,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.19
+Version 1.20
 
 
 =cut
@@ -91,6 +91,14 @@ Reconnect timeout.
 =item log_level => $log_level
 
 Logging level. Values: (0: None), (1: Error), (2: Warning), (3: Info), (4: Debug)
+
+=item cnntrace => $cnntrace
+
+Enable (1) or disable(0) evcnn tracing.
+
+=item wbuf_limit => $wbuf_limit
+
+Write vector buffer length limit. Defaults to 16384. Set wbuf_limit = 0 to disable write buffer length check on every request.
 
 =item connected => $sub
 

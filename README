@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.19
+    Version 1.20
 
 SYNOPSIS
         use EV::Tarantool16;
@@ -58,6 +58,13 @@ SUBROUTINES/METHODS
     log_level => $log_level
         Logging level. Values: (0: None), (1: Error), (2: Warning), (3:
         Info), (4: Debug)
+
+    cnntrace => $cnntrace
+        Enable (1) or disable(0) evcnn tracing.
+
+    wbuf_limit => $wbuf_limit
+        Write vector buffer length limit. Defaults to 16384. Set wbuf_limit
+        = 0 to disable write buffer length check on every request.
 
     connected => $sub
         Called when connection to Tarantool 1.6 instance is established,

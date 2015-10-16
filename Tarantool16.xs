@@ -27,6 +27,10 @@
 	croak("[Programming Error] %s", msg); 	\
 } STMT_END
 
+#ifndef TNT_WBUF_LIMIT
+#  define TNT_WBUF_LIMIT 16384
+#endif
+
 typedef struct {
 	xs_ev_cnn_struct;
 
@@ -47,6 +51,7 @@ typedef struct {
 	SV      *username;
 	SV      *password;
 	uint8_t  log_level;
+	uint32_t wbuf_limit;
 } TntCnn;
 
 // static const uint32_t _SPACE_SPACEID = 280;
@@ -802,11 +807,11 @@ void new(SV *pk, HV *conf)
 		self->on_disconnect_before = (c_cb_discon_t) on_disconnect;
 		self->cnn.on_read = (c_cb_read_t) on_greet_read;
 
-		SV **key;
-
 		self->reqs = newHV();
-
 		self->use_hash = 1;
+		self->spaces = NULL;
+		
+		SV **key;
 		if ((key = hv_fetchs(conf, "hash", 0)) ) self->use_hash = SvOK(*key) ? SvIV(*key) : 0;
 		if ((key = hv_fetchs(conf, "username", 0)) && SvPOK(*key)) SvREFCNT_inc(self->username = *key);
 		if ((key = hv_fetchs(conf, "password", 0)) && SvPOK(*key)) SvREFCNT_inc(self->password = *key);
@@ -816,7 +821,14 @@ void new(SV *pk, HV *conf)
 			self->log_level = _LOG_INFO;
 		}
 		if ((key = hv_fetchs(conf, "cnntrace", 0))) self->cnn.trace = SvOK(*key) && SvIOK(*key) ? SvIV(*key) : 1;
-		self->spaces = NULL;
+		if ((key = hv_fetchs(conf, "wbuf_limit", 0))) {
+			if (SvOK(*key) && SvIOK(*key)) {
+				IV wbuf_limit = SvIV(*key);
+				self->wbuf_limit = wbuf_limit > 0 ? wbuf_limit : 0;
+			} else {
+				self->wbuf_limit = TNT_WBUF_LIMIT;
+			}
+		}
 
 		XSRETURN(1);
 
@@ -864,6 +876,7 @@ void ping(SV *this, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 3 ? ST( 1 ) : 0, cb);
@@ -884,6 +897,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
@@ -903,6 +917,7 @@ void insert( SV *this, SV *space, SV * t, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
@@ -921,6 +936,7 @@ void replace( SV *this, SV *space, SV * t, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
@@ -941,6 +957,7 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 6 ? ST( 4 ) : 0, cb);
@@ -960,6 +977,7 @@ void delete( SV *this, SV *space, SV * t, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
@@ -980,6 +998,7 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
@@ -1000,6 +1019,7 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
 		xs_ev_cnn_checkconn(self,cb);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
 		GET_OPTS(opts, items == 5 ? ST( 3 ) : 0, cb);
