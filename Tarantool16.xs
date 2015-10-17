@@ -169,6 +169,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 #define croak_cb_xsundef(cb, ...) STMT_START {\
 	_croak_cb(cb, __VA_ARGS__);\
 	XSRETURN_UNDEF;\
+	return;\
 } STMT_END
 
 #define GET_OPTS(OPTS_NAME, opts_sv, cb) STMT_START {\
@@ -875,7 +876,6 @@ void ping(SV *this, ... )
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -896,7 +896,6 @@ void select( SV *this, SV *space, SV * keys, ... )
 		// TODO: croak cleanup may be solved with refcnt+mortal
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -916,7 +915,6 @@ void insert( SV *this, SV *space, SV * t, ... )
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -935,7 +933,6 @@ void replace( SV *this, SV *space, SV * t, ... )
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -956,7 +953,6 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -976,7 +972,6 @@ void delete( SV *this, SV *space, SV * t, ... )
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -997,7 +992,6 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		// TODO: croak cleanup may be solved with refcnt+mortal
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
@@ -1018,7 +1012,6 @@ void call( SV *this, SV *function_name, SV * t, ... )
 		// TODO: croak cleanup may be solved with refcnt+mortal
 		xs_ev_cnn_self(TntCnn);
 		SV *cb = ST(items-1);
-		xs_ev_cnn_checkconn(self,cb);
 		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
 
 		HV *opts = NULL;
