@@ -821,9 +821,8 @@ void new(SV *pk, HV *conf)
 		} else {
 			self->log_level = _LOG_INFO;
 		}
-		if ((key = hv_fetchs(conf, "cnntrace", 0))) self->cnn.trace = SvOK(*key) && SvIOK(*key) ? SvIV(*key) : 1;
 		if ((key = hv_fetchs(conf, "wbuf_limit", 0))) {
-			if (SvOK(*key) && SvIOK(*key)) {
+			if (SvOK(*key)) {
 				IV wbuf_limit = SvIV(*key);
 				self->wbuf_limit = wbuf_limit > 0 ? wbuf_limit : 0;
 			} else {

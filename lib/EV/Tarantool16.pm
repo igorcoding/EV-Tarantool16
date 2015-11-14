@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.20';
+our $VERSION = '1.21';
 
 use EV ();
 
@@ -108,6 +108,10 @@ Logging level. Values: (0: None), (1: Error), (2: Warning), (3: Info), (4: Debug
 =item cnntrace => $cnntrace
 
 Enable (1) or disable(0) evcnn tracing.
+
+=item ares_reuse => $ares_reuse
+
+Enable (1) or disable(0) c-ares connection reuse (default = 0).
 
 =item wbuf_limit => $wbuf_limit
 

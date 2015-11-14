@@ -62,6 +62,9 @@ SUBROUTINES/METHODS
     cnntrace => $cnntrace
         Enable (1) or disable(0) evcnn tracing.
 
+    ares_reuse => $ares_reuse
+        Enable (1) or disable(0) c-ares connection reuse (default = 0).
+
     wbuf_limit => $wbuf_limit
         Write vector buffer length limit. Defaults to 16384. Set wbuf_limit
         = 0 to disable write buffer length check on every request.
