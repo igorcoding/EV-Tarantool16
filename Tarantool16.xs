@@ -233,24 +233,23 @@ static void on_read(ev_cnn * self, size_t len) {
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
 		/* header */
-		uint32_t id = 0;
-		uint32_t code = 0;
-		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		tnt_header_t hdr;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &hdr, tnt->log_level);
 		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
-		if (unlikely(id <= 0)) {
+		if (unlikely(hdr.id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
 			return;
 		}
 
 		TntCtx *ctx;
-		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+		SV *key = hv_delete(tnt->reqs, (char *) &hdr.id, sizeof(hdr.id), 0);
 
 		if (!key) {
 			rbuf += pkt_length;
-			log_debug(tnt->log_level, "key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", hdr.id);
 		} else {
 			rbuf += hdr_length;
 
@@ -280,7 +279,7 @@ static void on_read(ev_cnn * self, size_t len) {
 				ENTER; SAVETMPS;
 
 				SV ** var = NULL;
-				if (code == 0) {
+				if (hdr.code == 0) {
 					PUSHMARK(SP);
 					EXTEND(SP, 1);
 					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
@@ -363,24 +362,23 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
 		/* header */
-		uint32_t id = 0;
-		uint32_t code = 0;
-		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		tnt_header_t hdr;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &hdr, tnt->log_level);
 		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
-		if (unlikely(id <= 0)) {
+		if (unlikely(hdr.id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
 			return;
 		}
 
 		TntCtx *ctx;
-		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+		SV *key = hv_delete(tnt->reqs, (char *) &hdr.id, sizeof(hdr.id), 0);
 
 		if (!key) {
 			rbuf += pkt_length;
-			log_debug(tnt->log_level, "key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", hdr.id);
 		} else {
 			rbuf += hdr_length;
 
@@ -391,8 +389,8 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 				safefree(ctx->f.f);
 			}
 
-			if (unlikely(code != 0)) {
-				log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) code);
+			if (unlikely(hdr.code != 0)) {
+				log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) hdr.code);
 				force_disconnect(tnt, "Couldn\'t retrieve index info.");
 			} else {
 
@@ -469,24 +467,23 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
 		/* header */
-		uint32_t id = 0;
-		uint32_t code = 0;
-		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		tnt_header_t hdr;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &hdr, tnt->log_level);
 		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
-		if (unlikely(id <= 0)) {
+		if (unlikely(hdr.id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
 			return;
 		}
 
 		TntCtx *ctx;
-		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+		SV *key = hv_delete(tnt->reqs, (char *) &hdr.id, sizeof(hdr.id), 0);
 
 		if (!key) {
 			rbuf += pkt_length;
-			log_debug(tnt->log_level, "key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", hdr.id);
 		} else {
 			rbuf += hdr_length;
 
@@ -498,13 +495,13 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 			}
 
 			SV **key = NULL;
-			if (unlikely(code != 0)) {
-				log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) code);
+			if (unlikely(hdr.code != 0)) {
+				log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) hdr.code);
 				force_disconnect(tnt, "Couldn\'t retrieve space info");
 			} else {
 
 				/* body */
-
+				
 				int body_length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
 				if (unlikely(body_length <= 0)) {
 					rbuf += (pkt_length - hdr_length);
@@ -586,24 +583,23 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 		HV *hv = (HV *) sv_2mortal((SV *) newHV());
 
 		/* header */
-		uint32_t id = 0;
-		uint32_t code = 0;
-		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &id, &code);
+		tnt_header_t hdr;
+		int hdr_length = parse_reply_hdr(hv, rbuf, buf_len, &hdr, tnt->log_level);
 		if (unlikely(hdr_length < 0)) {
 			TNT_CROAK("Unexpected response header");
 			return;
 		}
-		if (unlikely(id <= 0)) {
+		if (unlikely(hdr.id <= 0)) {
 			PE_CROAK("Wrong sync id (id <= 0)");
 			return;
 		}
 
 		TntCtx *ctx;
-		SV *key = hv_delete(tnt->reqs, (char *) &id, sizeof(id), 0);
+		SV *key = hv_delete(tnt->reqs, (char *) &hdr.id, sizeof(hdr.id), 0);
 
 		if (!key) {
 			rbuf += pkt_length;
-			log_debug(tnt->log_level, "key %d not found", id);
+			log_debug(tnt->log_level, "key %d not found", hdr.id);
 		} else {
 			rbuf += hdr_length;
 
@@ -626,7 +622,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 				rbuf += body_length;
 
 				SV ** var = NULL;
-				if (code == 0) {
+				if (hdr.code == 0) {
 					self->on_read = (c_cb_read_t) on_spaces_info_read;
 					_execute_eval(tnt, _SPACE_SELECTOR);
 					// self->on_read = (c_cb_read_t) on_read;

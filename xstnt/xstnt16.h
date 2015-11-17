@@ -1084,43 +1084,68 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	return SvREFCNT_inc(rv);
 }
 
-static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, uint32_t *id, uint32_t *code) {
+static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, tnt_header_t *hdr, uint8_t log_level) {
+	tnt_header_init(hdr);
 	const char *p = data;
 	const char *test = p;
 
 	test = p;
-	if (mp_check(&test, data + size))
+	if (unlikely(mp_check(&test, data + size))) {
+		cwarn("mp_check failed. mp_check(&test, data + size)");
 		return -1;
-	if (mp_typeof(*p) != MP_MAP)
+	}
+	if (unlikely(mp_typeof(*p) != MP_MAP)) {
+		cwarn("typeof(*p) is not MP_MAP. It is %d", mp_typeof(*p));
 		return -1;
+	}
 
 	uint32_t n = mp_decode_map(&p);
 	while (n-- > 0) {
-		if (mp_typeof(*p) != MP_UINT)
+		if (unlikely(mp_typeof(*p) != MP_UINT)) {
+			cwarn("typeof(*p) is not MP_UINT. It is %d", mp_typeof(*p));
 			return -1;
+		}
 
 		uint32_t key = mp_decode_uint(&p);
 		switch (key) {
 			case TP_CODE:
-				if (mp_typeof(*p) != MP_UINT)
+				if (unlikely(mp_typeof(*p) != MP_UINT)) {
+					cwarn("typeof(*p) is not MP_UINT. It is %d", mp_typeof(*p));
 					return -1;
+				}
 
-				*code = mp_decode_uint(&p);
-				*code &= 0x7FFF;
+				hdr->code = mp_decode_uint(&p);
+				hdr->code &= 0x7FFF;
 				break;
 
 			case TP_SYNC:
-				if (mp_typeof(*p) != MP_UINT)
+				if (unlikely(mp_typeof(*p) != MP_UINT)) {
+					cwarn("typeof(*p) is not MP_UINT. It is %d", mp_typeof(*p));
 					return -1;
+				}
 
+				hdr->id = mp_decode_uint(&p);
+				break;
+			case TP_SCHEMA_ID:
+				if (unlikely(mp_typeof(*p) != MP_UINT)) {
+					cwarn("typeof(*p) is not MP_UINT. It is %d", mp_typeof(*p));
+					return -1;
+				}
 
-				*id = mp_decode_uint(&p);
+				hdr->schema_id = mp_decode_uint(&p);
+				break;
+			default:
+				log_info(log_level, "Got unknown tnt header key: %u. Skipping its value", key);
+				mp_next(&p);
 				break;
 		}
 	}
 
-	(void) hv_stores(ret, "code", newSVuv(*code));
-	(void) hv_stores(ret, "sync", newSVuv(*id));
+	(void) hv_stores(ret, "code", newSViv(hdr->code));
+	(void) hv_stores(ret, "sync", newSViv(hdr->id));
+	if (hdr->schema_id > 0) {
+		(void) hv_stores(ret, "schema_id", newSViv(hdr->schema_id));
+	}
 
 	return p - data;
 }
@@ -1502,17 +1527,23 @@ static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLE
 	}
 
 	test = p;
-	if (mp_check(&test, data + size))
+	if (unlikely(mp_check(&test, data + size))) {
+		cwarn("mp_check failed: mp_check(&test, data + size).");
 		return -1;
-	if (mp_typeof(*p) != MP_MAP)
+	}
+	if (unlikely(mp_typeof(*p) != MP_MAP)) {
+		cwarn("typeof(*p) is not MP_MAP. It is %d", mp_typeof(*p));
 		return -1;
+	}
 	int n = mp_decode_map(&p);
 	while (n-- > 0) {
 		uint32_t key = mp_decode_uint(&p);
 		switch (key) {
 		case TP_ERROR: {
-			if (mp_typeof(*p) != MP_STR)
+			if (unlikely(mp_typeof(*p) != MP_STR)) {
+				cwarn("typeof(*p) is not MP_STR in TP_ERROR");
 				return -1;
+			}
 			uint32_t elen = 0;
 			const char *err_str = mp_decode_str(&p, &elen);
 
@@ -1522,13 +1553,20 @@ static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLE
 		}
 
 		case TP_DATA: {
-			if (mp_typeof(*p) != MP_ARRAY)
+			if (unlikely(mp_typeof(*p) != MP_ARRAY)) {
+				cwarn("typeof(*p) is not MP_ARRAY in TP_DATA");
 				return -1;
+			}
 
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_reply_body_data(ctx, ret, data_begin, p, format, fields);
+			break;
+		}
+		
+		default: {
+			cwarn("Got unknown tnt reply body key: %u. Skipping its value", key);
 			break;
 		}
 		}
@@ -1546,17 +1584,23 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint
 	}
 
 	test = p;
-	if (mp_check(&test, data + size))
+	if (unlikely(mp_check(&test, data + size))) {
+		cwarn("mp_check failed: mp_check(&test, data + size).");
 		return -1;
-	if (mp_typeof(*p) != MP_MAP)
+	}
+	if (unlikely(mp_typeof(*p) != MP_MAP)) {
+		cwarn("typeof(*p) is not MP_MAP. It is %d", mp_typeof(*p));
 		return -1;
+	}
 	int n = mp_decode_map(&p);
 	while (n-- > 0) {
 		uint32_t key = mp_decode_uint(&p);
 		switch (key) {
 		case TP_ERROR: {
-			if (mp_typeof(*p) != MP_STR)
+			if (unlikely(mp_typeof(*p) != MP_STR)) {
+				cwarn("typeof(*p) is not MP_STR in TP_ERROR");
 				return -1;
+			}
 			uint32_t elen = 0;
 			const char *err_str = mp_decode_str(&p, &elen);
 
@@ -1566,13 +1610,19 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint
 		}
 
 		case TP_DATA: {
-			if (mp_typeof(*p) != MP_ARRAY)
+			if (unlikely(mp_typeof(*p) != MP_ARRAY)) {
+				cwarn("typeof(*p) is not MP_ARRAY in TP_DATA");
 				return -1;
+			}
 
 			(void) hv_stores(ret, "status", newSVpvs("ok"));
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_spaces_body_data(ret, data_begin, p, log_level);
+			break;
+		}
+		default: {
+			cwarn("Got unknown tnt reply body key: %u. Skipping its value", key);
 			break;
 		}
 		}
@@ -1589,17 +1639,23 @@ static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, ST
 	}
 
 	test = p;
-	if (mp_check(&test, data + size))
+	if (unlikely(mp_check(&test, data + size))) {
+		cwarn("mp_check failed: mp_check(&test, data + size).");
 		return -1;
-	if (mp_typeof(*p) != MP_MAP)
+	}
+	if (unlikely(mp_typeof(*p) != MP_MAP)) {
+		cwarn("typeof(*p) is not MP_MAP. It is %d", mp_typeof(*p));
 		return -1;
+	}
 	int n = mp_decode_map(&p);
 	while (n-- > 0) {
 		uint32_t key = mp_decode_uint(&p);
 		switch (key) {
 		case TP_ERROR: {
-			if (mp_typeof(*p) != MP_STR)
+			if (unlikely(mp_typeof(*p) != MP_STR)) {
+				cwarn("typeof(*p) is not MP_STR in TP_ERROR");
 				return -1;
+			}
 			uint32_t elen = 0;
 			const char *err_str = mp_decode_str(&p, &elen);
 			(void) hv_stores(err_ret, "status", newSVpvs("error"));
@@ -1608,14 +1664,20 @@ static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, ST
 		}
 
 		case TP_DATA: {
-			if (mp_typeof(*p) != MP_ARRAY)
+			if (unlikely(mp_typeof(*p) != MP_ARRAY)) {
+				cwarn("typeof(*p) is not MP_ARRAY in TP_DATA");
 				return -1;
+			}
 
 			const char *data_begin = p;
 			mp_next(&p);
 			parse_index_body_data(spaces, data_begin, p, log_level);
 
 
+			break;
+		}
+		default: {
+			cwarn("Got unknown tnt reply body key: %u. Skipping its value", key);
 			break;
 		}
 		}

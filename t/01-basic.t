@@ -146,6 +146,7 @@ subtest 'Ping tests', sub {
 	my $_plan = [
 		[{}, [
 			{
+				schema_id => ignore(),
 				sync => ignore(),
 				code => 0
 			}
@@ -208,7 +209,8 @@ subtest 'Eval tests', sub {
 			tuples => [ ['hey'] ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		};
 		EV::unloop;
 	});
@@ -226,7 +228,8 @@ subtest 'Call tests', sub {
 			tuples => [ ['hello world'] ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		};
 		EV::unloop;
 	});
@@ -244,7 +247,8 @@ subtest 'Lua tests', sub {
 			tuples => [ ['hello world'] ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		};
 		EV::unloop;
 	});
@@ -267,7 +271,8 @@ subtest 'Select tests', sub {
 						],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 
 		[{_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, {
@@ -296,7 +301,8 @@ subtest 'Select tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}]
 	];
 
@@ -324,7 +330,8 @@ subtest 'Insert tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[["t1", "t2", 17, '-100', { a => 11, b => 12, c => 13 }], { replace => 1, hash => 0 }, {
 			count => 1,
@@ -333,7 +340,8 @@ subtest 'Insert tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { replace => 0, hash => 0 }, {
 			count => 1,
@@ -342,7 +350,8 @@ subtest 'Insert tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}]
 	];
 	for my $p (@$_plan) {
@@ -372,7 +381,8 @@ subtest 'Replace tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[["t1", "t2", 17, '-100', { a => 11, b => 12, c => 13 }], { hash => 0 }, {
 			count => 1,
@@ -381,7 +391,8 @@ subtest 'Replace tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { hash => 0 }, {
 			count => 1,
@@ -390,7 +401,8 @@ subtest 'Replace tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}]
 	];
 	for my $p (@$_plan) {
@@ -426,7 +438,8 @@ subtest 'Delete tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}]
 	];
 
@@ -465,42 +478,48 @@ subtest 'Update tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', -50] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['t1', 't2', 17, -795, 'heyo']],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '&', 4] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['tt1', 'tt2', 456, 4]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '^', 4] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['tt1', 'tt2', 456, 1]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '|', 3] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['tt1', 'tt2', 456, 7]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '#', 2] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['tt1', 'tt2', 456]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 12] ],  { hash => 1 }, {
 			count => 1,
@@ -515,7 +534,8 @@ subtest 'Update tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => '!', {a => 1, b => 2, c => 3}] ],  { hash => 1 }, {
 			count => 1,
@@ -530,7 +550,8 @@ subtest 'Update tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [4 => ':', 0, 3, 'romy'] ],  { hash => 1 }, {
 			count => 1,
@@ -545,14 +566,16 @@ subtest 'Update tests', sub {
 					  ],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', -50], [4 => '=', 'another_heyo'] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['t1', 't2', 17, -795, 'another_heyo']],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
  		}]
 	];
 
@@ -588,98 +611,112 @@ subtest 'RTREE tests', sub {
 			tuples => [],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["insert", ['a1', [1,2]], {hash=>0}, {
 			count => 1,
 			tuples => [['a1', [1,2]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["insert", ['a2', [5,6,7,8]], {hash=>0}, {
 			count => 1,
 			tuples => [['a2', [5,6,7,8]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["insert", ['a3', [9,10,11,12]], {hash=>0}, {
 			count => 1,
 			tuples => [['a3', [9,10,11,12]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["insert", ['a4', [5,6,10,15]], {hash=>0}, {
 			count => 1,
 			tuples => [['a4', [5,6,10,15]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", ['a1'], {hash=>0}, {
 			count => 1,
 			tuples => [['a1', [1,2]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", ['a2'], {hash=>0}, {
 			count => 1,
 			tuples => [['a2', [5,6,7,8]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", ['a3'], {hash=>0}, {
 			count => 1,
 			tuples => [['a3', [9,10,11,12]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", ['a4'], {hash=>0}, {
 			count => 1,
 			tuples => [['a4', [5,6,10,15]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'EQ'}, {
 			count => 1,
 			tuples => [['a2', [5,6,7,8]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'OVERLAPS'}, {
 			count => 2,
 			tuples => [['a2', [5,6,7,8]], ['a4', [5,6,10,15]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'GT'}, {
 			count => 0,
 			tuples => [],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'GE'}, {
 			count => 2,
 			tuples => [['a2', [5,6,7,8]], ['a4', [5, 6, 10, 15]]],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'LT'}, {
 			count => 0,
 			tuples => [],
 			status => 'ok',
 			code => 0,
-			sync => ignore()
+			sync => ignore(),
+			schema_id => ignore(),
 		}],
 	];
 

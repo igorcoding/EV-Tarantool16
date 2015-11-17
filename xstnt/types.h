@@ -4,7 +4,11 @@
 /* header */
 enum tp_header_key_t {
 	TP_CODE = 0x00,
-	TP_SYNC = 0x01
+	TP_SYNC = 0x01,
+	TP_SERVER_ID = 0x02,
+	TP_LSN = 0x03,
+	TP_TIMESTAMP = 0x04,
+	TP_SCHEMA_ID = 0x05,
 };
 
 /* request body */
@@ -39,6 +43,18 @@ enum tp_request_type {
 	TP_EVAL = 0x08,
 	TP_PING = 0x40
 };
+
+typedef struct {
+	int code;
+	int id;
+	int schema_id;
+} tnt_header_t;
+
+void tnt_header_init(tnt_header_t *hdr) {
+	hdr->code = -1;
+	hdr->id = -1;
+	hdr->schema_id = -1;
+}
 
 typedef struct {
 	size_t  size;

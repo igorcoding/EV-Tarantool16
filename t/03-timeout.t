@@ -134,8 +134,9 @@ subtest 'Ping tests', sub {
 		]],
 		[{}, [
 			{
+				code => 0,
 				sync => ignore(),
-				code => 0
+				schema_id => ignore(),
 			}
 		]],
 		[{timeout => 0.00001}, [
@@ -144,8 +145,9 @@ subtest 'Ping tests', sub {
 		]],
 		[{timeout => 0.1}, [
 			{
+				code => 0,
 				sync => ignore(),
-				code => 0
+				schema_id => ignore(),
 			}
 		]],
 	];
@@ -178,6 +180,7 @@ subtest 'Eval tests', sub {
 		[{}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -191,6 +194,7 @@ subtest 'Eval tests', sub {
 		[{}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -227,6 +231,7 @@ subtest 'Call tests', sub {
 		[0.5, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -240,6 +245,7 @@ subtest 'Call tests', sub {
 		[1.0, {timeout => 2.0}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -277,6 +283,7 @@ subtest 'Select tests', sub {
 		[{}, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -290,6 +297,7 @@ subtest 'Select tests', sub {
 		[{}, {timeout => 0.1}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -327,6 +335,7 @@ subtest 'Insert tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 181, _t4 => '-100' }, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -340,6 +349,7 @@ subtest 'Insert tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 183, _t4 => '-100' }, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -376,6 +386,7 @@ subtest 'Delete tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 181 }, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -389,6 +400,7 @@ subtest 'Delete tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 183 }, {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -425,6 +437,7 @@ subtest 'Update tests', sub {
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
@@ -438,10 +451,11 @@ subtest 'Update tests', sub {
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {}, [
 			{
 				sync => ignore(),
+				schema_id => ignore(),
 				code => 0,
 				status => "ok",
 				count => ignore(),
-				tuples => ignore()
+				tuples => ignore(),
 			}
 		]],
 	];
