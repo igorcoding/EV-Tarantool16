@@ -1423,16 +1423,16 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 				dSVX(idxcf, idx, TntIndex);
 				idx->id = index_id;
 				
-				if (mp_typeof(*p) != MP_STR) croak("index name has to be array");
+				if (mp_typeof(*p) != MP_STR) croak("[parse_index_body_data] index name has to be string");
 				idx->name = decode_obj(&p);
 				
-				if (mp_typeof(*p) != MP_STR) croak("index type has to be string");
+				if (mp_typeof(*p) != MP_STR) croak("[parse_index_body_data] index type has to be string");
 				idx->type = decode_obj(&p);
 				
-				if (mp_typeof(*p) != MP_MAP) croak("index opts has to be array");
+				if (mp_typeof(*p) != MP_MAP) croak("[parse_index_body_data] index opts has to be map");
 				idx->opts = (HV *) decode_obj(&p);
 
-				if (mp_typeof(*p) != MP_ARRAY) croak("index parts has to be array");
+				if (mp_typeof(*p) != MP_ARRAY) croak("[parse_index_body_data] index parts has to be array");
 				uint32_t parts_count = mp_decode_array(&p);
 
 				idx->f.nofree = 1;
