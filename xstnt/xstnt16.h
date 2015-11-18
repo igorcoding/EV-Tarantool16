@@ -14,11 +14,11 @@
 
 static const uint32_t SCRAMBLE_SIZE = 20;
 static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
-										 1 + // mp_sizeof_map(2) +
-										 1 + // mp_sizeof_uint(TP_CODE) +
-										 1 + // mp_sizeof_uint(TP COMMAND) +
-										 1 + // mp_sizeof_uint(TP_SYNC) +
-										 5;  // sync len
+                                         1 + // mp_sizeof_map(2) +
+                                         1 + // mp_sizeof_uint(TP_CODE) +
+                                         1 + // mp_sizeof_uint(TP COMMAND) +
+                                         1 + // mp_sizeof_uint(TP_SYNC) +
+                                         5;  // sync len
 
 
 #define check_tuple(tuple, allow_hash) STMT_START { \
@@ -174,69 +174,68 @@ static void destroy_spaces(HV *spaces) {
 	SvREFCNT_dec(spaces);
 }
 
-#define CHECK_PACK_FORMAT(src)                                                  \
-	STMT_START {                                                                \
-				char *p = src;                                                  \
-				while(*p) {                                                     \
-					switch(*p) {                                                \
-						case FMT_UNKNOWN:                                       \
-						case FMT_NUM:                                           \
-						case FMT_STR:                                           \
-						case FMT_NUMBER:                                        \
-						case FMT_INT:                                           \
-						case FMT_ARRAY:                                         \
-							p++; break;                                         \
-						default:                                                \
-							croak_cb(cb,"Unknown pattern in format: %c", *p);   \
-					}                                                           \
-				}                                                               \
-	} STMT_END
+#define CHECK_PACK_FORMAT(src) STMT_START { \
+	char *p = src; \
+	while(*p) { \
+		switch(*p) { \
+			case FMT_UNKNOWN: \
+			case FMT_NUM: \
+			case FMT_STR: \
+			case FMT_NUMBER: \
+			case FMT_INT: \
+			case FMT_ARRAY: \
+				p++; break; \
+			default: \
+				croak_cb(cb,"Unknown pattern in format: %c", *p); \
+		} \
+	} \
+} STMT_END
 
-#define dExtractFormat2(fvar,src) STMT_START {                                      \
-		if ( SvOK(src) && SvPOK(src) ) {                                            \
-			fvar.f = SvPVbyte(src, fvar.size);                                      \
-			CHECK_PACK_FORMAT( fvar.f );                                            \
-		}                                                                           \
-		else if (!SvOK( src )) {}                                                   \
-		else {                                                                      \
-			croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
-		}                                                                           \
+#define dExtractFormat2(fvar,src) STMT_START { \
+	if ( SvOK(src) && SvPOK(src) ) { \
+		fvar.f = SvPVbyte(src, fvar.size); \
+		CHECK_PACK_FORMAT( fvar.f ); \
+	} \
+	else if (!SvOK( src )) {} \
+	else { \
+		croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }"); \
+	} \
 } STMT_END
 
 
 
-#define dExtractFormatCopy(fvar,src) STMT_START {                                   \
-		if ( SvOK(src) && SvPOK(src) ) {                                            \
-			(fvar)->f = SvPVbyte(src, (fvar)->size);                                \
-			CHECK_PACK_FORMAT( (fvar)->f );                                         \
-			(fvar)->f = safecpy((fvar)->f,(fvar)->size);                            \
-			(fvar)->nofree = 0;                                                     \
-		}                                                                           \
-		else if (!SvOK( src )) {}                                                   \
-		else {                                                                      \
-			croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }");   \
-		}                                                                           \
+#define dExtractFormatCopy(fvar,src) STMT_START { \
+	if ( SvOK(src) && SvPOK(src) ) { \
+		(fvar)->f = SvPVbyte(src, (fvar)->size); \
+		CHECK_PACK_FORMAT( (fvar)->f ); \
+		(fvar)->f = safecpy((fvar)->f,(fvar)->size); \
+		(fvar)->nofree = 0; \
+	} \
+	else if (!SvOK( src )) {} \
+	else { \
+		croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }"); \
+	} \
 } STMT_END
 
-#define evt_opt_out(opt,ctx,spc) STMT_START {               \
-	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) {    \
-		dExtractFormatCopy( &ctx->f, *key );                \
-	} else if (spc) {                                       \
-		memcpy(&ctx->f,&spc->f,sizeof(unpack_format));      \
-	} else {                                                \
-		ctx->f.size = 0;                                    \
-	}                                                       \
+#define evt_opt_out(opt,ctx,spc) STMT_START { \
+	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) { \
+		dExtractFormatCopy( &ctx->f, *key ); \
+	} else if (spc) { \
+		memcpy(&ctx->f,&spc->f,sizeof(unpack_format)); \
+	} else { \
+		ctx->f.size = 0; \
+	} \
 } STMT_END
 
 #define evt_opt_in(opt,ctx,idx) STMT_START { \
-	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) {     \
-		dExtractFormat2( format, *key );                    \
-		fmt = &format;                                      \
-	} else if (idx) {                                       \
-		fmt = &idx->f;                                      \
-	} else {                                                \
-		fmt = &format;                                      \
-	}                                                       \
+	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) { \
+		dExtractFormat2( format, *key ); \
+		fmt = &format; \
+	} else if (idx) { \
+		fmt = &idx->f; \
+	} else { \
+		fmt = &format; \
+	} \
 } STMT_END
 
 
@@ -288,10 +287,10 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 	return rv;
 }
 
-#define COMP_STR(lhs, rhs, lhs_len, rhs_len, res) STMT_START {                \
-	if ((lhs_len) == (rhs_len) && strncasecmp((lhs), (rhs), rhs_len) == 0) {  \
-		return (res);                                                         \
-	}                                                                         \
+#define COMP_STR(lhs, rhs, lhs_len, rhs_len, res) STMT_START { \
+	if ((lhs_len) == (rhs_len) && strncasecmp((lhs), (rhs), rhs_len) == 0) { \
+		return (res); \
+	} \
 } STMT_END
 
 
@@ -1261,7 +1260,7 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 		uint32_t i = 0, k;
 
 		for (i = 0; i < cont_size; ++i) {
-			k = 1;
+			k = 0;
 
 			tuple_size = mp_decode_array(&p);
 			// cwarn("tuple_size = %d", tuple_size);
@@ -1289,12 +1288,12 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 			spc->f.nofree = 1;
 			spc->f.def = FMT_UNKNOWN;
 
-			++k; if (k <= tuple_size) spc->owner = decode_obj(&p);
-			++k; if (k <= tuple_size) spc->name = decode_obj(&p);
-			++k; if (k <= tuple_size) spc->engine = decode_obj(&p);
-			++k; if (k <= tuple_size) spc->fields_count = decode_obj(&p);
-			++k; if (k <= tuple_size) spc->flags = decode_obj(&p);
-			++k; if (k <= tuple_size) { // format
+			++k; if (k < tuple_size) spc->owner = decode_obj(&p);
+			++k; if (k < tuple_size) spc->name = decode_obj(&p);
+			++k; if (k < tuple_size) spc->engine = decode_obj(&p);
+			++k; if (k < tuple_size) spc->fields_count = decode_obj(&p);
+			++k; if (k < tuple_size) spc->flags = decode_obj(&p);
+			++k; if (k < tuple_size) { // format
 
 				uint32_t str_len = 0;
 				uint32_t format_arr_size = mp_decode_array(&p);

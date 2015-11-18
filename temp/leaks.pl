@@ -13,7 +13,7 @@ use Scalar::Util 'weaken';
 use Renewer;
 use Devel::Leak;
 use Devel::Peek;
-# use AE;
+use AE;
 
 my $var;
 # Devel::Leak::NoteSV($var);
@@ -63,63 +63,8 @@ $c->connect;
 EV::loop;
 undef $c;
 
-
 Devel::Leak::CheckSV($var);
 
-__END__
-
-my $c; $c = EV::Tarantool16->new({
-	host => $tnt->{host},
-	port => $tnt->{port},
-	username => $tnt->{username},
-	password => $tnt->{password},
-
-	# spaces => $realspaces,
-	reconnect => 0.2,
-	log_level => 4,
-	connected => sub {
-		# warn "connected: @_";
-		# $connected++;
-		# EV::loop;
-		# EV::unloop;
-		# $c->disconnect;
-		# return EV::unloop if ++$cnt >= $max_cnt;
-		# $c->connect;
-		$c->disconnect;
-		EV::unloop;
-	},
-	connfail => sub {
-		warn "connfail: @_";
-		# my $err = 0+$!;
-		# is $err, Errno::ECONNREFUSED, 'connfail - refused' or diag "$!, $_[1]";
-		# $nc->(@_) if $cfs == 0;
-		# $cfs++;
-		# and
-		EV::unloop;
-	},
-	disconnected => sub {
-		warn "discon: @_ / $!";
-		# $disconnected++;
-		# EV::unloop;
-		EV::unloop;
-	},
-});
-
-
-
-
-$c->connect;
-EV::loop;
-
-undef $c;
-
-Devel::Leak::CheckSV($var);
-
-# $c->select('rtree', [1,2], {index=>'spatial', timeout => 3.0}, sub {
-# 	say Dumper \@_;
-# 	EV::unloop;
-# });
-# EV::loop;
 
 # $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;
@@ -190,7 +135,6 @@ Devel::Leak::CheckSV($var);
 # if (!$finished) {
 # 	EV::loop;
 # }
-say 'unlooped'
 # undef $c;
 
 

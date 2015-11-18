@@ -11,131 +11,130 @@
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
 
-#define write_length(h, size) STMT_START {  \
-	*h = 0xce;								\
-	*((uint32_t *)(h+1)) = htobe32(size);	\
+#define write_length(h, size) STMT_START { \
+	*h = 0xce; \
+	*((uint32_t *)(h+1)) = htobe32(size); \
 } STMT_END
 
-#define write_iid(h, iid) STMT_START {  \
-	*h = 0xce;                          \
+#define write_iid(h, iid) STMT_START { \
+	*h = 0xce; \
 	*(uint32_t*)(h + 1) = htobe32(iid); \
-	h += 5;                             \
+	h += 5; \
 } STMT_END
 
 
-#define create_buffer(NAME, P_NAME, sz, tp_operation, iid)              \
-	SV *NAME = sv_2mortal(newSV((sz)));                                 \
-	SvUPGRADE(NAME, SVt_PV);                                            \
-	SvPOK_on(NAME);                                                     \
-																		\
-	char *P_NAME = (char *) SvPVX(NAME);                                \
-	P_NAME = mp_encode_map(P_NAME + 5, 2);                              \
-	P_NAME = mp_encode_uint(P_NAME, TP_CODE);                           \
-	P_NAME = mp_encode_uint(P_NAME, (tp_operation));                    \
-	P_NAME = mp_encode_uint(P_NAME, TP_SYNC);                           \
-	write_iid(P_NAME, (iid));                                           \
+#define create_buffer(NAME, P_NAME, sz, tp_operation, iid) \
+	SV *NAME = sv_2mortal(newSV((sz))); \
+	SvUPGRADE(NAME, SVt_PV); \
+	SvPOK_on(NAME); \
+	\
+	char *P_NAME = (char *) SvPVX(NAME); \
+	P_NAME = mp_encode_map(P_NAME + 5, 2); \
+	P_NAME = mp_encode_uint(P_NAME, TP_CODE); \
+	P_NAME = mp_encode_uint(P_NAME, (tp_operation)); \
+	P_NAME = mp_encode_uint(P_NAME, TP_SYNC); \
+	write_iid(P_NAME, (iid)); \
 
-#define sv_size_check(svx, svx_end, totalneed)      \
-	STMT_START {                                    \
-		if ( totalneed < SvLEN(svx) )  {            \
-		}                                           \
-		else {                                      \
-			STRLEN used = svx_end - SvPVX(svx);     \
-			svx_end = sv_grow(svx, totalneed);      \
-			svx_end += used;                        \
-		}                                           \
-	} STMT_END
-
-#define encode_keys(h, sz, fields, keys_size, fmt, key) STMT_START {    \
-	uint32_t k;															\
-	for (k = 0; k < keys_size; k++) {                                   \
-		key = av_fetch( fields, k, 0 );                                 \
-		if (key && *key && SvOK(*key) && sv_len(*key)) {                \
-			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def;           \
-			h = encode_obj(*key, h, rv, &sz, _fmt);                     \
-		} else {                                                        \
-			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN);		\
-			cwarn("Passed key is invalid. Consider revising.");			\
-		}                                                               \
-	}                                                                   \
+#define sv_size_check(svx, svx_end, totalneed) STMT_START { \
+	if ( totalneed < SvLEN(svx) ) { \
+	} \
+	else { \
+		STRLEN used = svx_end - SvPVX(svx); \
+		svx_end = sv_grow(svx, totalneed); \
+		svx_end += used; \
+	} \
 } STMT_END
 
-#define encode_str(dest, sz, rv, str, str_len) STMT_START { 	\
-	*sz += mp_sizeof_str(str_len);								\
-	sv_size_check(rv, dest, *sz);								\
-	dest = mp_encode_str(dest, str, str_len);					\
+#define encode_keys(h, sz, fields, keys_size, fmt, key) STMT_START { \
+	uint32_t k; \
+	for (k = 0; k < keys_size; k++) { \
+		key = av_fetch( fields, k, 0 ); \
+		if (key && *key && SvOK(*key) && sv_len(*key)) { \
+			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def; \
+			h = encode_obj(*key, h, rv, &sz, _fmt); \
+		} else { \
+			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN); \
+			cwarn("Passed key is invalid. Consider revising."); \
+		} \
+	} \
 } STMT_END
 
-#define encode_double(dest, sz, rv, v) STMT_START { 	\
-	*sz += mp_sizeof_double(v);							\
-	sv_size_check(rv, dest, *sz);						\
-	dest = mp_encode_double(dest, v);					\
+#define encode_str(dest, sz, rv, str, str_len) STMT_START { \
+	*sz += mp_sizeof_str(str_len); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_str(dest, str, str_len); \
 } STMT_END
 
-#define encode_uint(dest, sz, rv, v) STMT_START { 	\
-	*sz += mp_sizeof_uint(v);						\
-	sv_size_check(rv, dest, *sz);					\
-	dest = mp_encode_uint(dest, v);					\
+#define encode_double(dest, sz, rv, v) STMT_START { \
+	*sz += mp_sizeof_double(v); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_double(dest, v); \
 } STMT_END
 
-#define encode_int(dest, sz, rv, v) STMT_START { 	\
-	*sz += mp_sizeof_int(v);						\
-	sv_size_check(rv, dest, *sz);					\
-	dest = mp_encode_int(dest, v);					\
+#define encode_uint(dest, sz, rv, v) STMT_START { \
+	*sz += mp_sizeof_uint(v); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_uint(dest, v); \
 } STMT_END
 
-#define encode_bool(dest, sz, rv, v) STMT_START { 	\
-	*sz += 1; 										\
-	sv_size_check(rv, dest, *sz);					\
-	dest = mp_encode_bool(dest, v);					\
+#define encode_int(dest, sz, rv, v) STMT_START { \
+	*sz += mp_sizeof_int(v); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_int(dest, v); \
 } STMT_END
 
-#define encode_nil(dest, sz, rv) STMT_START {	 	\
-	*sz += 1; 										\
-	sv_size_check(rv, dest, *sz);					\
-	dest = mp_encode_nil(dest);						\
+#define encode_bool(dest, sz, rv, v) STMT_START { \
+	*sz += 1; \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_bool(dest, v); \
 } STMT_END
 
-#define encode_array(dest, sz, rv, arr_size) STMT_START {	\
-	*sz += mp_sizeof_array(arr_size);						\
-	sv_size_check(rv, dest, *sz);							\
-	dest = mp_encode_array(dest, arr_size);					\
+#define encode_nil(dest, sz, rv) STMT_START { \
+	*sz += 1; \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_nil(dest); \
 } STMT_END
 
-#define encode_map(dest, sz, rv, keys_size) STMT_START {	\
-	*sz += mp_sizeof_map(keys_size);						\
-	sv_size_check(rv, dest, *sz);							\
-	dest = mp_encode_map(dest, keys_size);					\
+#define encode_array(dest, sz, rv, arr_size) STMT_START { \
+	*sz += mp_sizeof_array(arr_size); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_array(dest, arr_size); \
 } STMT_END
 
-#define REAL_SV(sv, real_sv, stash)\
-	HV *stash = NULL;\
-	SV *real_sv = NULL;\
-	if (SvROK(sv)) {\
-		real_sv = SvRV(sv);\
-		if (SvOBJECT(real_sv)) {\
-			stash = SvSTASH(real_sv);\
-		}\
-	} else {\
-		real_sv = sv;\
+#define encode_map(dest, sz, rv, keys_size) STMT_START { \
+	*sz += mp_sizeof_map(keys_size); \
+	sv_size_check(rv, dest, *sz); \
+	dest = mp_encode_map(dest, keys_size); \
+} STMT_END
+
+#define REAL_SV(sv, real_sv, stash) \
+	HV *stash = NULL; \
+	SV *real_sv = NULL; \
+	if (SvROK(sv)) { \
+		real_sv = SvRV(sv); \
+		if (SvOBJECT(real_sv)) { \
+			stash = SvSTASH(real_sv); \
+		} \
+	} else { \
+		real_sv = sv; \
 	}
 
 
 #define encode_AV(src, rv, dest, sz) STMT_START {\
-	AV *arr = (AV *) src;\
-	uint32_t arr_size = av_len(arr) + 1;\
-	uint32_t i = 0;\
-	encode_array(dest, sz, rv, arr_size);\
+	AV *arr = (AV *) src; \
+	uint32_t arr_size = av_len(arr) + 1; \
+	uint32_t i = 0; \
+	encode_array(dest, sz, rv, arr_size); \
 	\
-	SV **elem;\
-	for (i = 0; i < arr_size; ++i) {\
-		elem = av_fetch(arr, i, 0);\
-		if (elem && *elem && SvTYPE(*elem) != SVt_NULL) {\
-			dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN);\
-		} else {\
-			encode_nil(dest, sz, rv);\
-		}\
-	}\
+	SV **elem; \
+	for (i = 0; i < arr_size; ++i) { \
+		elem = av_fetch(arr, i, 0); \
+		if (elem && *elem && SvTYPE(*elem) != SVt_NULL) { \
+			dest = encode_obj(*elem, dest, rv, sz, FMT_UNKNOWN); \
+		} else { \
+			encode_nil(dest, sz, rv); \
+		} \
+	} \
 } STMT_END
 
 
@@ -285,22 +284,22 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 
 
 #define decode_greeting(data, tnt_ver_begin, tnt_ver_end, salt_begin, salt_end) STMT_START {\
-	char *p = data;\
-	tnt_ver_begin = p;\
-	p += TNT_VER_LENGTH;\
-	tnt_ver_end = p;\
+	char *p = data; \
+	tnt_ver_begin = p; \
+	p += TNT_VER_LENGTH; \
+	tnt_ver_end = p; \
 	\
-	salt_begin = p;\
-	p += TNT_SALT_LENGTH;\
-	salt_end = p;\
+	salt_begin = p; \
+	p += TNT_SALT_LENGTH; \
+	salt_end = p; \
 	\
-	p += TNT_PAD_LENGTH;\
+	p += TNT_PAD_LENGTH; \
 } STMT_END
 
-#define decode_pkt_len_(h, out) STMT_START {\
-	char *p = *h;\
-	uint32_t l = *((uint32_t *)(p+1));\
-	out = be32toh(l);\
+#define decode_pkt_len_(h, out) STMT_START { \
+	char *p = *h; \
+	uint32_t l = *((uint32_t *)(p+1)); \
+	out = be32toh(l); \
 } STMT_END
 
 static inline uint32_t decode_pkt_len(char **h) {

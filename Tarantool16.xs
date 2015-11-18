@@ -117,44 +117,44 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	FREETMPS;LEAVE;
 }
 
-#define TIMEOUT_TIMER(self, ctx, iid, timeout) STMT_START {\
-	if (timeout > 0) {\
-		ev_timer_init(&ctx->t, on_request_timer, timeout, 0.);\
-		ev_timer_start(self->cnn.loop, &ctx->t);\
-	}\
+#define TIMEOUT_TIMER(self, ctx, iid, timeout) STMT_START { \
+	if (timeout > 0) { \
+		ev_timer_init(&ctx->t, on_request_timer, timeout, 0.); \
+		ev_timer_start(self->cnn.loop, &ctx->t); \
+	} \
 } STMT_END
 
-#define INIT_TIMEOUT_TIMER(self, ctx, iid, opts) STMT_START {\
-	double timeout;\
-	SV **key;\
+#define INIT_TIMEOUT_TIMER(self, ctx, iid, opts) STMT_START { \
+	double timeout; \
+	SV **key; \
 	\
-	if ( opts && (key = hv_fetchs( opts, "timeout", 0 ))) {\
-		timeout = SvNV( *key );\
+	if ( opts && (key = hv_fetchs( opts, "timeout", 0 ))) { \
+		timeout = SvNV( *key ); \
 		/*cwarn("timeout set: %f",timeout);*/\
-	} else {\
-		timeout = self->cnn.rw_timeout;\
-	}\
-	TIMEOUT_TIMER(self, ctx, iid, timeout);\
+	} else { \
+		timeout = self->cnn.rw_timeout; \
+	} \
+	TIMEOUT_TIMER(self, ctx, iid, timeout); \
 } STMT_END
 
-#define __EXEC_REQUEST(self, ctxsv, ctx, iid, _cb) STMT_START {\
-	SvREFCNT_inc(ctx->cb = (_cb));\
-	(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 );\
-	++self->pending;\
-	do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf));\
+#define __EXEC_REQUEST(self, ctxsv, ctx, iid, _cb) STMT_START { \
+	SvREFCNT_inc(ctx->cb = (_cb)); \
+	(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 ); \
+	++self->pending; \
+	do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf)); \
 } STMT_END
 
-#define EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, _cb) STMT_START {\
-	if ((ctx->wbuf = pkt)) {\
-		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb);\
-		INIT_TIMEOUT_TIMER(self, ctx, iid, opts);\
-	}\
+#define EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, _cb) STMT_START { \
+	if ((ctx->wbuf = pkt)) { \
+		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb); \
+		INIT_TIMEOUT_TIMER(self, ctx, iid, opts); \
+	} \
 } STMT_END
 
-#define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, _cb) STMT_START {\
-	if ((ctx->wbuf = pkt)) {\
-		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb);\
-	}\
+#define EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, _cb) STMT_START { \
+	if ((ctx->wbuf = pkt)) { \
+		__EXEC_REQUEST(self, ctxsv, ctx, iid, _cb); \
+	} \
 } STMT_END
 
 #define INIT_CTX(_self, ctx, method, iid) STMT_START { \
@@ -166,22 +166,22 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	ctx->id = iid; \
 } STMT_END
 
-#define croak_cb_xsundef(cb, ...) STMT_START {\
-	_croak_cb(cb, __VA_ARGS__);\
-	XSRETURN_UNDEF;\
-	return;\
+#define croak_cb_xsundef(cb, ...) STMT_START { \
+	_croak_cb(cb, __VA_ARGS__); \
+	XSRETURN_UNDEF; \
+	return; \
 } STMT_END
 
-#define GET_OPTS(OPTS_NAME, opts_sv, cb) STMT_START {\
-	SV *_opts_sv = (opts_sv);\
-	OPTS_NAME = NULL;\
-	if (_opts_sv != NULL) {\
-		if (likely(SvROK(_opts_sv) && SvTYPE(SvRV(_opts_sv)) == SVt_PVHV)) {\
-			OPTS_NAME = (HV *) SvRV(_opts_sv);\
-		} else if (_opts_sv != &PL_sv_undef) {\
-			croak_cb_xsundef(cb, "Opts must be a HASHREF");\
-		}\
-	}\
+#define GET_OPTS(OPTS_NAME, opts_sv, cb) STMT_START { \
+	SV *_opts_sv = (opts_sv); \
+	OPTS_NAME = NULL; \
+	if (_opts_sv != NULL) { \
+		if (likely(SvROK(_opts_sv) && SvTYPE(SvRV(_opts_sv)) == SVt_PVHV)) { \
+			OPTS_NAME = (HV *) SvRV(_opts_sv); \
+		} else if (_opts_sv != &PL_sv_undef) { \
+			croak_cb_xsundef(cb, "Opts must be a HASHREF"); \
+		} \
+	} \
 } STMT_END
 
 INLINE void _execute_eval(TntCnn *self, const char* expr) {
