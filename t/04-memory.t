@@ -16,6 +16,22 @@ use Renewer;
 use Carp;
 use Test::Tarantool16;
 use Cwd;
+use Proc::ProcessTable;
+
+sub find_self_proc {
+	my $t = Proc::ProcessTable->new();
+	my $proc;
+	for my $p ( @{$t->table} ){
+		if ($p->pid == $$) {
+			$proc = $p;
+			last;
+		}
+	}
+	if (!$proc) {
+		die "Couldn't find self process in ProcessTable";
+	}
+	return $proc;
+};
 
 
 my $w = AnyEvent->signal (signal => "INT", cb => sub { exit 0 });
@@ -66,11 +82,11 @@ my $SPACE_NAME = 'tester';
 my $c;
 
 sub meminfo () {
-	my $stat = do { open my $f,'<:raw',"/proc/$$/stat"; local $/; <$f> };
-	$stat =~ m{ ^ \d+ \s+ \((.+?)\) \s+ ([RSDZTW]) \s+}gcx;
-	my %s;
-	@s{qw(ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime priority nice threads itrealvalue starttime vsize rss rsslim )} = split /\s+/,substr($stat,pos($stat));
-	$s{rss} *= 4096;
+	my $proc = find_self_proc();
+	my %s = (
+		vsize => $proc->size,
+		rss => $proc->rss,
+	);
 	return (@s{qw(rss vsize)});
 }
 

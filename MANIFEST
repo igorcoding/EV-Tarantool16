@@ -42,6 +42,8 @@ t/03-timeout.t
 t/04-memory.t
 t/lib/Renewer.pm
 Tarantool16.xs
+temp/demo.pl
+temp/leaks.pl
 xsmy/xsendian.h
 xsmy/xsmy.h
 xstnt/encdec.h
