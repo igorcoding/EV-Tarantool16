@@ -5,8 +5,14 @@ author:
   - 'igorcoding <igorcoding@gmail.com>'
 build_requires:
   AnyEvent: 0
+  Carp: 0
+  Data::Dumper: 0
+  Proc::ProcessTable: 0
+  Scalar::Util: 0
   Test::Deep: 0
   Test::More: 0
+  Test::Tarantool16: 0
+  Time::HiRes: 0
 configure_requires:
   ExtUtils::MakeMaker: 0
 dynamic_config: 0

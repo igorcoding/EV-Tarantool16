@@ -15,7 +15,6 @@ use Data::Dumper;
 use Renewer;
 use Carp;
 use Test::Tarantool16;
-use Cwd;
 # use Devel::Leak;
 # use AE;
 

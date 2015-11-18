@@ -20,13 +20,19 @@ WriteMakefile(
 	VERSION_FROM      => 'lib/EV/Tarantool16.pm',
 	ABSTRACT_FROM     => 'lib/EV/Tarantool16.pm',
 	PREREQ_PM         => {
-		'EV' => 4,
+		'EV'                => 4,
 		'Types::Serialiser' => 0
 	},
 	BUILD_REQUIRES    => {
-		'Test::More' => 0,
-		'Test::Deep' => 0,
-		'AnyEvent'   => 0,
+		'Test::Tarantool16'  => 0,
+		'Test::More'         => 0,
+		'Test::Deep'         => 0,
+		'AnyEvent'           => 0,
+		'Proc::ProcessTable' => 0,
+		'Time::HiRes'        => 0,
+		'Scalar::Util'       => 0,
+		'Data::Dumper'       => 0,
+		'Carp'               => 0,
 	},
 	LIBS              => [ $ARES_LDFLAGS ],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',

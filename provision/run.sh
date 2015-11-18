@@ -16,8 +16,15 @@ if [ -z "$TRAVIS_OS_NAME" ] || [ ${TRAVIS_OS_NAME} == 'linux' ]; then
 	
 	cpanm Types::Serialiser
 	cpanm EV
-	cpanm AnyEvent
+	
+	cpanm Test::More
 	cpanm Test::Deep
+	cpanm AnyEvent
+	cpanm Proc::ProcessTable
+	cpanm Time::HiRes
+	cpanm Scalar::Util
+	cpanm Data::Dumper
+	cpanm Carp
 	cpanm $HOME/temp/test-tarantool16.tar.gz
 elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	echo "Mac OS X detected"
@@ -47,8 +54,15 @@ elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	
 	cpanm --sudo Types::Serialiser
 	cpanm --sudo EV
-	cpanm --sudo AnyEvent
+	
+	cpanm --sudo Test::More
 	cpanm --sudo Test::Deep
+	cpanm --sudo AnyEvent
+	cpanm --sudo Proc::ProcessTable
+	cpanm --sudo Time::HiRes
+	cpanm --sudo Scalar::Util
+	cpanm --sudo Data::Dumper
+	cpanm --sudo Carp
 	cpanm --sudo $HOME/temp/test-tarantool16.tar.gz
 	
 	cat ~/.cpanm/work/**/*.log
@@ -69,13 +83,22 @@ if [ ${TRAVIS} == true ]; then
 else
 	sudo apt-get install -y valgrind perl-doc
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
+    
 	sudo cpanm Types::Serialiser
 	sudo cpanm EV
-	sudo cpanm AnyEvent
+	
+	sudo cpanm Test::More
 	sudo cpanm Test::Deep
+	sudo cpanm AnyEvent
+	sudo cpanm Proc::ProcessTable
+	sudo cpanm Time::HiRes
+	sudo cpanm Scalar::Util
+	sudo cpanm Data::Dumper
+	sudo cpanm Carp
+	sudo cpanm $HOME/temp/test-tarantool16.tar.gz
+	
 	sudo cpanm Test::Valgrind
 	sudo cpanm List::BinarySearch
-	sudo cpanm $HOME/temp/test-tarantool16.tar.gz
 
 	# sudo ln -s ${HOME}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
 
