@@ -40,7 +40,7 @@ static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
 
 #define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def = FMT_UNKNOWN
 
-static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
+static TntIndex *evt_find_index(TntSpace *spc, SV **key) {
 	if (SvIOK( *key )) {
 		int iid = SvUV(*key);
 		if ((key = hv_fetch( spc->indexes,(char *)&iid,sizeof(U32),0 )) && *key) {
@@ -53,7 +53,7 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 	}
 	else {
 		if ((key = hv_fetch( spc->indexes,SvPV_nolen(*key),SvCUR(*key),0 )) && *key) {
-			return (TntIndex*) SvPVX(*key);
+			return (TntIndex *) SvPVX(*key);
 		}
 		else {
 			return NULL;
@@ -63,13 +63,13 @@ static TntIndex * evt_find_index(TntSpace * spc, SV **key) {
 
 }
 
-static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *cb) {
+static TntSpace *evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *cb) {
 	U32 ns;
 	SV **key;
 	if (SvIOK( space )) {
 		ns = SvUV(space);
 		if ((key = hv_fetch( spaces,(char *)&ns,sizeof(U32),0 )) && *key) {
-			return (TntSpace*) SvPVX(*key);
+			return (TntSpace *) SvPVX(*key);
 		}
 		else {
 			if (spaces != NULL) {
@@ -91,7 +91,7 @@ static TntSpace * evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *c
 	}
 	else if (SvPOK(space)) {
 		if ((key = hv_fetch( spaces,SvPV_nolen(space),SvCUR(space),0 )) && *key) {
-			return (TntSpace*) SvPVX(*key);
+			return (TntSpace *) SvPVX(*key);
 		}
 		else {
 			croak_cb(cb, "Unknown space %s", SvPV_nolen(space));
@@ -106,7 +106,7 @@ static void destroy_spaces(HV *spaces) {
 	HE *ent;
 	(void) hv_iterinit( spaces );
 	while ((ent = hv_iternext( spaces ))) {
-		TntSpace * spc = (TntSpace *) SvPVX( HeVAL(ent) );
+		TntSpace *spc = (TntSpace *) SvPVX( HeVAL(ent) );
 		HE *he;
 		if (spc->name) {
 			// cwarn("destroy space %d:%s",spc->id,SvPV_nolen(spc->name));
@@ -126,7 +126,7 @@ static void destroy_spaces(HV *spaces) {
 			//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
 			(void) hv_iterinit( spc->indexes );
 			while ((he = hv_iternext( spc->indexes ))) {
-				TntIndex * idx = (TntIndex *) SvPVX( HeVAL(he) );
+				TntIndex *idx = (TntIndex *) SvPVX( HeVAL(he) );
 				if (idx->name) {
 					//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
 					if (idx->f.size > 0) safefree(idx->f.f);
@@ -239,7 +239,7 @@ static void destroy_spaces(HV *spaces) {
 } STMT_END
 
 
-static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
+static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
 	AV *rv = (AV *) sv_2mortal((SV *)newAV());
 	int fcnt = HvTOTALKEYS(hf);
 	int k;
@@ -264,7 +264,7 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 		}
 	}
 	if (unlikely(fcnt != 0)) {
-		HV *used = (HV*)sv_2mortal((SV*)newHV());
+		HV *used = (HV *)sv_2mortal((SV *)newHV());
 		for (k = 0; k <= av_len( fields );k++) {
 			f = av_fetch( fields,k,0 );
 			fl = hv_fetch_ent(hf,*f,0,0);
@@ -294,21 +294,21 @@ static AV * hash_to_array_fields(HV * hf, AV *fields, SV * cb) {
 } STMT_END
 
 
-static inline U32 get_iterator(TntCtx* ctx, SV *iterator_str) {
+static inline U32 get_iterator(TntCtx *ctx, SV *iterator_str) {
 	const char *str = SvPVX(iterator_str);
 	U32 str_len = SvCUR(iterator_str);
-	COMP_STR(str, "EQ", 				str_len, 2,  TNT_IT_EQ);
-	COMP_STR(str, "REQ", 				str_len, 3,  TNT_IT_REQ);
-	COMP_STR(str, "ALL", 				str_len, 3,  TNT_IT_ALL);
-	COMP_STR(str, "LT", 				str_len, 2,  TNT_IT_LT);
-	COMP_STR(str, "LE", 				str_len, 2,  TNT_IT_LE);
-	COMP_STR(str, "GE", 				str_len, 2,  TNT_IT_GE);
-	COMP_STR(str, "GT", 				str_len, 2,  TNT_IT_GT);
-	COMP_STR(str, "BITS_ALL_SET", 		str_len, 12, TNT_IT_BITS_ALL_SET);
-	COMP_STR(str, "BITS_ANY_SET", 		str_len, 12, TNT_IT_BITS_ANY_SET);
-	COMP_STR(str, "BITS_ALL_NOT_SET", 	str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
-	COMP_STR(str, "OVERLAPS", 			str_len, 8,  TNT_IT_OVERLAPS);
-	COMP_STR(str, "NEIGHBOR", 			str_len, 8,  TNT_IT_NEIGHBOR);
+	COMP_STR(str, "EQ",               str_len, 2,  TNT_IT_EQ);
+	COMP_STR(str, "REQ",              str_len, 3,  TNT_IT_REQ);
+	COMP_STR(str, "ALL",              str_len, 3,  TNT_IT_ALL);
+	COMP_STR(str, "LT",               str_len, 2,  TNT_IT_LT);
+	COMP_STR(str, "LE",               str_len, 2,  TNT_IT_LE);
+	COMP_STR(str, "GE",               str_len, 2,  TNT_IT_GE);
+	COMP_STR(str, "GT",               str_len, 2,  TNT_IT_GT);
+	COMP_STR(str, "BITS_ALL_SET",     str_len, 12, TNT_IT_BITS_ALL_SET);
+	COMP_STR(str, "BITS_ANY_SET",     str_len, 12, TNT_IT_BITS_ANY_SET);
+	COMP_STR(str, "BITS_ALL_NOT_SET", str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
+	COMP_STR(str, "OVERLAPS",         str_len, 8,  TNT_IT_OVERLAPS);
+	COMP_STR(str, "NEIGHBOR",         str_len, 8,  TNT_IT_NEIGHBOR);
 	log_error(ctx->log_level, "Unknown iterator: %.*s", (int) str_len, str);
 	return -1;
 }
@@ -340,7 +340,7 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	return OP_UPD_UNKNOWN;
 }
 
-static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char * const salt_begin, const char * const salt_end, SV *cb) {
+static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char *const salt_begin, const char *const salt_end, SV *cb) {
 	char scramble[SCRAMBLE_SIZE];
 
 	const size_t salt_size = 64;
@@ -369,14 +369,14 @@ static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, con
 	}
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1  // mp_sizeof_map(2)
-				+ 1  // mp_sizeof_uint(TP_USERNAME)
-				+ mp_sizeof_str(SvCUR(username))
-				+ 1  // mp_sizeof_uint(TP_TUPLE)
-				+ 1  // mp_sizeof_array(2)
-				+ 1 + 9  // mp_sizeof_str(9)
-				+ 1 + SCRAMBLE_SIZE // mp_sizeof_str(SCRAMBLE_SIZE)
-				;
+	            + 1  // mp_sizeof_map(2)
+	            + 1  // mp_sizeof_uint(TP_USERNAME)
+	            + mp_sizeof_str(SvCUR(username))
+	            + 1  // mp_sizeof_uint(TP_TUPLE)
+	            + 1  // mp_sizeof_array(2)
+	            + 1 + 9  // mp_sizeof_str(9)
+	            + 1 + SCRAMBLE_SIZE // mp_sizeof_str(SCRAMBLE_SIZE)
+	            ;
 	create_buffer(rv, h, sz, TP_AUTH, iid);
 
 	h = mp_encode_map(h, 2);
@@ -394,7 +394,7 @@ static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, con
 }
 
 
-static inline SV * pkt_ping(uint32_t iid) {
+static inline SV *pkt_ping(uint32_t iid) {
 	size_t sz = HEADER_CONST_LEN;
 
 	create_buffer(rv, h, sz, TP_PING, iid);
@@ -405,7 +405,7 @@ static inline SV * pkt_ping(uint32_t iid) {
 	return SvREFCNT_inc(rv);
 }
 
-static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, HV * opt, SV *cb) {
+static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, HV *opt, SV *cb) {
 	U32 limit  = 0xffffffff;
 	U32 offset = -1;
 	U32 index  = 0;
@@ -443,7 +443,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	}
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			idx = (TntIndex*) SvPVX(*key);
+			idx = (TntIndex *) SvPVX(*key);
 		}
 		else {
 			//warn("No index %d config. Using without formats",index);
@@ -456,25 +456,25 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(body_map_sz)
-				+ 1 // mp_sizeof_uint(TP_SPACE)
-				+ 9 // mp_sizeof_uint(spc->id)
-				+ 1 // mp_sizeof_uint(TP_LIMIT)
-				+ 9; // mp_sizeof_uint(limit);
+	            + 1 // mp_sizeof_map(body_map_sz)
+	            + 1 // mp_sizeof_uint(TP_SPACE)
+	            + 9 // mp_sizeof_uint(spc->id)
+	            + 1 // mp_sizeof_uint(TP_LIMIT)
+	            + 9; // mp_sizeof_uint(limit);
 
 	if (index != -1) {
 		sz += 1 // mp_sizeof_uint(TP_INDEX)
-			  + 9; // mp_sizeof_uint(index);
+	        + 9; // mp_sizeof_uint(index);
 	}
 
 	if (offset != -1) {
 		sz += 1 // mp_sizeof_uint(TP_OFFSET)
-			  + 9; // mp_sizeof_uint(offset);
+		    + 9; // mp_sizeof_uint(offset);
 	}
 
 	if (iterator != -1) {
 		sz += 1 // mp_sizeof_uint(TP_ITERATOR)
-			  + 1; // mp_sizeof_uint(iterator); // 1 is because of tnt_iterator_t
+		    + 1; // mp_sizeof_uint(iterator); // 1 is because of tnt_iterator_t
 	}
 
 	sz += 1; // mp_sizeof_uint(TP_KEY);
@@ -529,7 +529,7 @@ static inline SV * pkt_select(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 	return SvREFCNT_inc(rv);
 }
 
-static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, HV * opt, SV * cb) {
+static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, HV *opt, SV *cb) {
 	uint32_t op_code = TP_INSERT;
 
 	unpack_format *fmt;
@@ -541,7 +541,7 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
-		SV * i0 = sv_2mortal(newSVuv(0));
+		SV *i0 = sv_2mortal(newSVuv(0));
 		key = &i0;
 		// idx = evt_find_index( spc, key );
 	}
@@ -559,10 +559,10 @@ static inline SV * pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(2)
-				+ 1 // mp_sizeof_uint(TP_SPACE)
-				+ mp_sizeof_uint(spc->id)
-				+ 1; // mp_sizeof_uint(TP_TUPLE);
+	            + 1 // mp_sizeof_map(2)
+	            + 1 // mp_sizeof_uint(TP_SPACE)
+	            + mp_sizeof_uint(spc->id)
+	            + 1; // mp_sizeof_uint(TP_TUPLE);
 
 	SV *t = tuple;
 	AV *fields;
@@ -608,7 +608,7 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 	uint32_t tuple_size = av_len(t) + 1;
 
 	sz += 1 // mp_sizeof_uint(TP_TUPLE)
-		  + mp_sizeof_array(tuple_size);
+	    + mp_sizeof_array(tuple_size);
 
 	sv_size_check(rv, h, sz);
 
@@ -667,9 +667,9 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 				}
 
 				sz += 1 // mp_sizeof_array(3)
-					  + 2 // mp_sizeof_str(1)
-					  + mp_sizeof_uint(field_no)
-					  ;
+				    + 2 // mp_sizeof_str(1)
+				    + mp_sizeof_uint(field_no)
+				    ;
 
 				sv_size_check(rv, h, sz);
 
@@ -690,9 +690,9 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 				}
 
 				sz += 1 // mp_sizeof_array(3)
-					  + 2 // mp_sizeof_str(1)
-					  + mp_sizeof_uint(field_no)
-					  ;
+				    + 2 // mp_sizeof_str(1)
+				    + mp_sizeof_uint(field_no)
+				    ;
 
 				sv_size_check(rv, h, sz);
 
@@ -729,11 +729,11 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 				}
 
 				sz += 1 // mp_sizeof_array(5)
-					  + 2 // mp_sizeof_str(1)
-					  + mp_sizeof_uint(field_no)
-					  + mp_sizeof_uint(position)
-					  + mp_sizeof_uint(offset)
-					  ;
+				    + 2 // mp_sizeof_str(1)
+				    + mp_sizeof_uint(field_no)
+				    + mp_sizeof_uint(position)
+				    + mp_sizeof_uint(offset)
+				    ;
 
 				sv_size_check(rv, h, sz);
 
@@ -757,7 +757,7 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 }
 
 
-static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space, SV *keys, SV *tuple, HV * opt, SV *cb) {
+static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, SV *tuple, HV *opt, SV *cb) {
 	U32 index  = 0;
 
 	unpack_format *fmt;
@@ -790,7 +790,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			idx = (TntIndex*) SvPVX(*key);
+			idx = (TntIndex *) SvPVX(*key);
 		}
 		else {
 			//warn("No index %d config. Using without formats",index);
@@ -803,13 +803,13 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(body_map_sz)
-				+ 1 // mp_sizeof_uint(TP_SPACE)
-				+ mp_sizeof_uint(spc->id);
+	          + 1 // mp_sizeof_map(body_map_sz)
+	          + 1 // mp_sizeof_uint(TP_SPACE)
+	          + mp_sizeof_uint(spc->id);
 
 	if (index != -1) {
 		sz += 1 // mp_sizeof_uint(TP_INDEX)
-			  + mp_sizeof_uint(index);
+		    + mp_sizeof_uint(index);
 	}
 
 	sz += 1; // mp_sizeof_uint(TP_KEY);
@@ -859,7 +859,7 @@ static inline SV * pkt_update(TntCtx *ctx, uint32_t iid, HV * spaces, SV *space,
 }
 
 
-static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, HV * opt, SV * cb) {
+static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, HV *opt, SV *cb) {
 	uint32_t index = 0;
 	unpack_format *fmt;
 	dUnpackFormat( format );
@@ -889,7 +889,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	}
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
-			idx = (TntIndex*) SvPVX(*key);
+			idx = (TntIndex *) SvPVX(*key);
 		}
 		else {
 			log_warn(ctx->log_level, "No index %d config. Using without formats", index);
@@ -903,13 +903,13 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(body_map_sz)
-				+ 1 // mp_sizeof_uint(TP_SPACE)
-				+ mp_sizeof_uint(spc->id);
+	          + 1 // mp_sizeof_map(body_map_sz)
+	          + 1 // mp_sizeof_uint(TP_SPACE)
+	          + mp_sizeof_uint(spc->id);
 
 	if (index != -1) {
 		sz += 1 // mp_sizeof_uint(TP_INDEX)
-			  + mp_sizeof_uint(index);
+		    + mp_sizeof_uint(index);
 	}
 
 	sz += 1; // mp_sizeof_uint(TP_KEY);
@@ -951,7 +951,7 @@ static inline SV * pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, 
 	return SvREFCNT_inc(rv);
 }
 
-static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expression, SV *tuple, HV * opt, SV *cb) {
+static inline SV *pkt_eval(TntCtx *ctx, uint32_t iid, HV *spaces, SV *expression, SV *tuple, HV *opt, SV *cb) {
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
@@ -984,18 +984,18 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	uint32_t expression_size = SvCUR(expression);
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(body_map_sz)
-				+ 1 // mp_sizeof_uint(TP_EXPRESSION)
-				+ mp_sizeof_str(expression_size)
-				+ 1 // mp_sizeof_uint(TP_TUPLE)
-				;
+	          + 1 // mp_sizeof_map(body_map_sz)
+	          + 1 // mp_sizeof_uint(TP_EXPRESSION)
+	          + mp_sizeof_str(expression_size)
+	          + 1 // mp_sizeof_uint(TP_TUPLE)
+	          ;
 
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
 		croak_cb(cb, "Tuple is invalid. Expecting ARRAYREF");
 	}
 
-	AV *fields  = (AV *) SvRV(tuple);
+	AV *fields = (AV *) SvRV(tuple);
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
@@ -1017,7 +1017,7 @@ static inline SV * pkt_eval(TntCtx *ctx, uint32_t iid, HV * spaces, SV *expressi
 	return SvREFCNT_inc(rv);
 }
 
-static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function_name, SV *tuple, HV * opt, SV *cb) {
+static inline SV *pkt_call(TntCtx *ctx, uint32_t iid, HV *spaces, SV *function_name, SV *tuple, HV *opt, SV *cb) {
 	unpack_format *fmt;
 	dUnpackFormat( format );
 
@@ -1050,11 +1050,11 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	uint32_t function_name_size = SvCUR(function_name);
 
 	size_t sz = HEADER_CONST_LEN
-				+ 1 // mp_sizeof_map(body_map_sz)
-				+ 1 // mp_sizeof_uint(TP_FUNCTION)
-				+ mp_sizeof_str(function_name_size)
-				+ 1 // mp_sizeof_uint(TP_TUPLE)
-				;
+	          + 1 // mp_sizeof_map(body_map_sz)
+	          + 1 // mp_sizeof_uint(TP_FUNCTION)
+	          + mp_sizeof_str(function_name_size)
+	          + 1 // mp_sizeof_uint(TP_TUPLE)
+	          ;
 
 	if (unlikely( !tuple || !SvROK(tuple) || ( (SvTYPE(SvRV(tuple)) != SVt_PVAV) ))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
@@ -1083,7 +1083,7 @@ static inline SV * pkt_call(TntCtx *ctx, uint32_t iid, HV * spaces, SV *function
 	return SvREFCNT_inc(rv);
 }
 
-static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, tnt_header_t *hdr, uint8_t log_level) {
+static int parse_reply_hdr(HV *ret, const char *const data, STRLEN size, tnt_header_t *hdr, uint8_t log_level) {
 	tnt_header_init(hdr);
 	const char *p = data;
 	const char *test = p;
@@ -1150,7 +1150,7 @@ static int parse_reply_hdr(HV *ret, const char * const data, STRLEN size, tnt_he
 }
 
 
-static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const data_begin, const char * const data_end, const unpack_format * const format, AV *fields) {
+static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char *const data_begin, const char *const data_end, const unpack_format *const format, AV *fields) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1208,7 +1208,7 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const
 
 		} else {  // without space definition
 			for (i = 0; i < cont_size; ++i) {
-				AV* tuple = newAV();
+				AV *tuple = newAV();
 				av_push(tuples, newRV_noinc((SV *)tuple));
 				tuple_size = mp_decode_array(&p);
 				av_extend(tuple, tuple_size);
@@ -1229,7 +1229,7 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char * const
 	return 0;
 }
 
-static inline int parse_spaces_body_data(HV *ret, const char * const data_begin, const char * const data_end, uint8_t log_level) {
+static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, const char *const data_end, uint8_t log_level) {
 	const uint32_t VALID_TUPLE_SIZE = 7;
 
 	STRLEN data_size = data_end - data_begin;
@@ -1385,7 +1385,7 @@ static inline int parse_spaces_body_data(HV *ret, const char * const data_begin,
 	return 0;
 }
 
-static inline int parse_index_body_data(HV *spaces, const char * const data_begin, const char * const data_end, uint8_t log_level) {
+static inline int parse_index_body_data(HV *spaces, const char *const data_begin, const char *const data_end, uint8_t log_level) {
 	STRLEN data_size = data_end - data_begin;
 	if (data_size == 0)
 		return 0;
@@ -1417,7 +1417,7 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 			uint32_t index_id = mp_decode_uint(&p);
 
 			if ((key = hv_fetch(spaces, (char *) &space_id, sizeof(uint32_t), 0)) && *key) {
-				TntSpace* spc = (TntSpace*) SvPVX(*key);
+				TntSpace *spc = (TntSpace *) SvPVX(*key);
 
 				dSVX(idxcf, idx, TntIndex);
 				idx->id = index_id;
@@ -1517,7 +1517,7 @@ static inline int parse_index_body_data(HV *spaces, const char * const data_begi
 	return 0;
 }
 
-static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLEN size, const unpack_format * const format, AV *fields) {
+static int parse_reply_body(TntCtx *ctx, HV *ret, const char *const data, STRLEN size, const unpack_format *const format, AV *fields) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1574,7 +1574,7 @@ static int parse_reply_body(TntCtx *ctx, HV *ret, const char * const data, STRLE
 }
 
 
-static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint8_t log_level) {
+static int parse_spaces_body(HV *ret, const char *const data, STRLEN size, uint8_t log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body
@@ -1629,7 +1629,7 @@ static int parse_spaces_body(HV *ret, const char * const data, STRLEN size, uint
 	return p - data;
 }
 
-static int parse_index_body(HV *spaces, HV *err_ret, const char * const data, STRLEN size, uint8_t log_level) {
+static int parse_index_body(HV *spaces, HV *err_ret, const char *const data, STRLEN size, uint8_t log_level) {
 	const char *p = data;
 	const char *test = p;
 	// body

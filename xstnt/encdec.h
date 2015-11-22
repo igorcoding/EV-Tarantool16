@@ -18,7 +18,7 @@ static SV *types_true, *types_false;
 
 #define write_iid(h, iid) STMT_START { \
 	*h = 0xce; \
-	*(uint32_t*)(h + 1) = htobe32(iid); \
+	*(uint32_t *)(h + 1) = htobe32(iid); \
 	h += 5; \
 } STMT_END
 

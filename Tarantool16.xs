@@ -1,16 +1,15 @@
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-
 #include "ppport.h"
-
 #include "EVAPI.h"
-#define XSEV_CON_HOOKS 1
-#include "xsevcnn.h"
+
 
 #define MYDEBUG
+#define XSEV_CON_HOOKS 1
 
 #include "log.h"
+#include "xsevcnn.h"
 #include "xstnt16.h"
 
 #if __GNUC__ >= 3
@@ -68,18 +67,18 @@ void tnt_on_connected_cb(ev_cnn *cnn, struct sockaddr *peer) {
 	}
 }
 
-static inline void call_connected(TntCnn *self) {
+INLINE void call_connected(TntCnn *self) {
 	self->default_on_connected_cb(&self->cnn, &self->peer_info);
 }
 
-static inline void force_disconnect(TntCnn *self, const char *reason) {
+INLINE void force_disconnect(TntCnn *self, const char *reason) {
 
 	on_connect_reset(&self->cnn, 0, reason);
 }
 
 static void on_request_timer(EV_P_ ev_timer *t, int flags) {
-	TntCtx * ctx = (TntCtx *) t;
-	TntCnn * self = (TntCnn *) ctx->self;
+	TntCtx *ctx = (TntCtx *) t;
+	TntCnn *self = (TntCnn *) ctx->self;
 	log_warn(self->log_level, "timer called on %p: %s", ctx, ctx->call);
 	ENTER;SAVETMPS;
 	dSP;
@@ -139,7 +138,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 
 #define __EXEC_REQUEST(self, ctxsv, ctx, iid, _cb) STMT_START { \
 	SvREFCNT_inc(ctx->cb = (_cb)); \
-	(void) hv_store( self->reqs, (char*)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 ); \
+	(void) hv_store( self->reqs, (char *)&iid, sizeof(iid), SvREFCNT_inc(ctxsv), 0 ); \
 	++self->pending; \
 	do_write(&self->cnn,SvPVX(ctx->wbuf), SvCUR(ctx->wbuf)); \
 } STMT_END
@@ -184,7 +183,7 @@ static void on_request_timer(EV_P_ ev_timer *t, int flags) {
 	} \
 } STMT_END
 
-INLINE void _execute_eval(TntCnn *self, const char* expr) {
+INLINE void _execute_eval(TntCnn *self, const char *expr) {
 	dSVX(ctxsv, ctx, TntCtx);
 	sv_2mortal(ctxsv);
 	uint32_t iid;
@@ -201,15 +200,17 @@ INLINE void _execute_eval(TntCnn *self, const char* expr) {
 }
 
 
-static void on_read(ev_cnn * self, size_t len) {
+static void on_read(ev_cnn *self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
 	do_disable_rw_timer(self);
 
-	TntCnn * tnt = (TntCnn *) self;
+	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
+	
+	dSP;
 
 	while ( rbuf < end ) {
 		/* len */
@@ -271,14 +272,12 @@ static void on_read(ev_cnn * self, size_t len) {
 				rbuf += body_length;
 			}
 
-			dSP;
-
 			if (ctx->cb) {
 				SPAGAIN;
 
 				ENTER; SAVETMPS;
 
-				SV ** var = NULL;
+				SV **var = NULL;
 				if (hdr.code == 0) {
 					PUSHMARK(SP);
 					EXTEND(SP, 1);
@@ -330,13 +329,13 @@ static void on_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-static void on_index_info_read(ev_cnn * self, size_t len) {
+static void on_index_info_read(ev_cnn *self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
 	do_disable_rw_timer(self);
 
-	TntCnn * tnt = (TntCnn *) self;
+	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
@@ -435,13 +434,13 @@ static void on_index_info_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-static void on_spaces_info_read(ev_cnn * self, size_t len) {
+static void on_spaces_info_read(ev_cnn *self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
 	do_disable_rw_timer(self);
 
-	TntCnn * tnt = (TntCnn *) self;
+	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
@@ -551,13 +550,13 @@ static void on_spaces_info_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-static void on_auth_read(ev_cnn * self, size_t len) {
+static void on_auth_read(ev_cnn *self, size_t len) {
 	ENTER;
 	SAVETMPS;
 
 	do_disable_rw_timer(self);
 
-	TntCnn * tnt = (TntCnn *) self;
+	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
@@ -621,7 +620,7 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 			} else {
 				rbuf += body_length;
 
-				SV ** var = NULL;
+				SV **var = NULL;
 				if (hdr.code == 0) {
 					self->on_read = (c_cb_read_t) on_spaces_info_read;
 					_execute_eval(tnt, _SPACE_SELECTOR);
@@ -658,14 +657,14 @@ static void on_auth_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-static void on_greet_read(ev_cnn * self, size_t len) {
+static void on_greet_read(ev_cnn *self, size_t len) {
 
 	ENTER;
 	SAVETMPS;
 
 	do_disable_rw_timer(self);
 
-	TntCnn * tnt = (TntCnn *) self;
+	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
 
@@ -706,7 +705,7 @@ static void on_greet_read(ev_cnn * self, size_t len) {
 	LEAVE;
 }
 
-void free_reqs (TntCnn *self, const char * message) {
+void free_reqs (TntCnn *self, const char *message) {
 	if (unlikely(!self->reqs)) return;
 
 	ENTER;SAVETMPS;
@@ -716,7 +715,7 @@ void free_reqs (TntCnn *self, const char * message) {
 	HE *ent;
 	(void) hv_iterinit( self->reqs );
 	while ((ent = hv_iternext( self->reqs ))) {
-		TntCtx * ctx = (TntCtx *) SvPVX( HeVAL(ent) );
+		TntCtx *ctx = (TntCtx *) SvPVX( HeVAL(ent) );
 		ev_timer_stop(self->cnn.loop,&ctx->t);
 		SvREFCNT_dec(ctx->wbuf);
 		if (ctx->f.size && !ctx->f.nofree) {
@@ -751,7 +750,7 @@ void free_reqs (TntCnn *self, const char * message) {
 }
 
 
-static void on_disconnect (TntCnn * self, int err, const char *reason) {
+static void on_disconnect (TntCnn *self, int err, const char *reason) {
 	ENTER;SAVETMPS;
 
 	if (err == 0) {
@@ -798,7 +797,7 @@ BOOT:
 void new(SV *pk, HV *conf)
 	PPCODE:
 		if (0) pk = pk;
-		xs_ev_cnn_new(TntCnn); // declares YourType * self, set ST(0)
+		xs_ev_cnn_new(TntCnn); // declares YourType *self, set ST(0)
 		self->default_on_connected_cb = self->cnn.on_connected;
 		self->cnn.on_connected = (c_cb_conn_t) tnt_on_connected_cb;
 		self->on_disconnect_before = (c_cb_discon_t) on_disconnect;
@@ -885,7 +884,7 @@ void ping(SV *this, ... )
 		XSRETURN_UNDEF;
 
 
-void select( SV *this, SV *space, SV * keys, ... )
+void select( SV *this, SV *space, SV *keys, ... )
 	PPCODE:
 		if (0) this = this;
 		// TODO: croak cleanup may be solved with refcnt+mortal
@@ -905,7 +904,7 @@ void select( SV *this, SV *space, SV * keys, ... )
 		XSRETURN_UNDEF;
 
 
-void insert( SV *this, SV *space, SV * t, ... )
+void insert( SV *this, SV *space, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
@@ -923,7 +922,7 @@ void insert( SV *this, SV *space, SV * t, ... )
 
 		XSRETURN_UNDEF;
 		
-void replace( SV *this, SV *space, SV * t, ... )
+void replace( SV *this, SV *space, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
@@ -943,7 +942,7 @@ void replace( SV *this, SV *space, SV * t, ... )
 		XSRETURN_UNDEF;
 
 
-void update( SV *this, SV *space, SV * key, SV * tuple, ... )
+void update( SV *this, SV *space, SV *key, SV *tuple, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
@@ -962,7 +961,7 @@ void update( SV *this, SV *space, SV * key, SV * tuple, ... )
 		XSRETURN_UNDEF;
 
 
-void delete( SV *this, SV *space, SV * t, ... )
+void delete( SV *this, SV *space, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
@@ -981,7 +980,7 @@ void delete( SV *this, SV *space, SV * t, ... )
 		XSRETURN_UNDEF;
 
 
-void eval( SV *this, SV *expression, SV * t, ... )
+void eval( SV *this, SV *expression, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
 		// TODO: croak cleanup may be solved with refcnt+mortal
@@ -1001,7 +1000,7 @@ void eval( SV *this, SV *expression, SV * t, ... )
 		XSRETURN_UNDEF;
 
 
-void call( SV *this, SV *function_name, SV * t, ... )
+void call( SV *this, SV *function_name, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
 		// TODO: croak cleanup may be solved with refcnt+mortal
