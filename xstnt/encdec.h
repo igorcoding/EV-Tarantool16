@@ -231,7 +231,6 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 				return dest;
 
 			} else if (SvTYPE(src) == SVt_PVAV) {  // array
-
 				encode_AV(src, rv, dest, sz);
 				return dest;
 
@@ -270,8 +269,10 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 			} else if (SvPOK(src)) {  // string
 				encode_str(dest, sz, rv, SvPV_nolen(src), SvCUR(src));
 				return dest;
+			} else if (!SvOK(src)) {
+				encode_nil(dest, sz, rv);
 			} else {
-				croak("What the heck is that?");
+				croak("What the heck is that? (PV = %.*s) (type = %d)", SvCUR(src), SvPV_nolen(src), SvTYPE(src));
 			}
 		}
 

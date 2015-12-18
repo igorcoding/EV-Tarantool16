@@ -25,3 +25,5 @@ end
 BASE = script_path()
 
 dofile(BASE .. 'init.lua')
+
+require('console').start()
