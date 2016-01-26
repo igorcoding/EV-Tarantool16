@@ -12,15 +12,21 @@ use Test::More;
 
 sub renew_tnt {
 	my ($c, $space, $cb) = @_;
+	my $c = shift;
+	my $space = shift;
+	my $cb = pop;
+	my $do_fill = shift // 1;
 
 	$c->call("truncate_$space", [], sub {
-		# my $a = @_[0];
-		# $cb->();
-		$c->call("fill_$space", [], sub {
-			# my $a = $_[0];
-			# diag Dumper $a;
+		if ($do_fill) {
+			$c->call("fill_$space", [], sub {
+				# my $a = $_[0];
+				# diag Dumper $a;
+				$cb->();
+			});
+		} else {
 			$cb->();
-		});
+		}
 	});
 }
 

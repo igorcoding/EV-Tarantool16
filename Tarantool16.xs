@@ -942,7 +942,7 @@ void replace( SV *this, SV *space, SV *t, ... )
 		XSRETURN_UNDEF;
 
 
-void update( SV *this, SV *space, SV *key, SV *tuple, ... )
+void update( SV *this, SV *space, SV *key, SV *operations, ... )
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
@@ -955,11 +955,30 @@ void update( SV *this, SV *space, SV *key, SV *tuple, ... )
 		sv_2mortal(ctxsv);
 		uint32_t iid;
 		INIT_CTX(self, ctx, "update", iid);
-		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, tuple, opts, cb );
+		SV *pkt = pkt_update(ctx, iid, self->spaces, space, key, operations, opts, cb );
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
 
+
+void upsert( SV *this, SV *space, SV *tuple, SV *operations, ... )
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		SV *cb = ST(items-1);
+		xs_ev_cnn_checkconn_wlimit(self, cb, self->wbuf_limit);
+
+		HV *opts = NULL;
+		GET_OPTS(opts, items == 6 ? ST( 4 ) : 0, cb);
+		dSVX(ctxsv, ctx, TntCtx);
+		sv_2mortal(ctxsv);
+		uint32_t iid;
+		INIT_CTX(self, ctx, "upsert", iid);
+		SV *pkt = pkt_upsert(ctx, iid, self->spaces, space, tuple, operations, opts, cb );
+		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
+
+		XSRETURN_UNDEF;
+		
 
 void delete( SV *this, SV *space, SV *t, ... )
 	PPCODE:

@@ -57,11 +57,29 @@ my $c; $c = EV::Tarantool16->new({
 $c->connect;
 EV::loop;
 
-$c->select('_space', [], {}, sub {
+# $c->update('tester', ['a1', 'a2', 12], [ [2 => '=', 18] ], sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+# $c->insert('tester', ['a1', 'a2', 12], sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
+
+$c->upsert('tester', {_t1 => 'a1', _t2 => 'a2', _t3 => 12}, [ [3 => '=', 15] ], sub {
 	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
+
+# $c->select('_space', [], {}, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;

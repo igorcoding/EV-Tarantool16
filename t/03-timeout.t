@@ -25,7 +25,8 @@ my %test_exec = (
 	select => 1,
 	insert => 1,
 	delete => 1,
-	update => 1
+	update => 1,
+	upsert => 1,
 );
 
 my $cfs = 0;
@@ -460,6 +461,63 @@ subtest 'Update tests', sub {
 		]],
 	];
 
+	for my $p (@$plan) {
+		$f->(@$p);
+	}
+
+};
+
+
+subtest 'Upsert tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{update};
+	diag '==== Upsert timeout tests ===';
+
+	my $f = sub {
+		my ($tuple, $operations, $opt, $cmp) = @_;
+		$c->upsert($SPACE_NAME, $tuple, $operations, $opt, sub {
+			cmp_deeply \@_, $cmp;
+			EV::unloop;
+		});
+		EV::loop;
+	};
+
+
+	my $plan = [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 50] ], {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {}, [
+			{
+				sync => ignore(),
+				schema_id => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore()
+			}
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {timeout => 0.00001}, [
+			undef,
+			"Request timed out"
+		]],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {}, [
+			{
+				sync => ignore(),
+				schema_id => ignore(),
+				code => 0,
+				status => "ok",
+				count => ignore(),
+				tuples => ignore(),
+			}
+		]],
+	];
+
+	Renewer::renew_tnt($c, $SPACE_NAME, 0, sub {
+		EV::unloop;
+	});
+	EV::loop;
+	
 	for my $p (@$plan) {
 		$f->(@$p);
 	}

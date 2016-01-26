@@ -197,6 +197,7 @@ subtest 'basic memory test', sub {
 	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
 	memcheck 50000, $c, "replace",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1}];
 	memcheck 50000, $c, "update",[$SPACE_NAME,{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 1] ], { hash => 1 }];
+	memcheck 50000, $c, "upsert",[$SPACE_NAME,{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 1] ], { hash => 1 }];
 	memcheck 50000, $c, "eval",["return {box.info}", [], { timeout => 0.00001 }];
 };
 

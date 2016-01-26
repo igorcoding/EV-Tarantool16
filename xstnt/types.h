@@ -22,7 +22,8 @@ enum tp_body_key_t {
 	TP_TUPLE = 0x21,
 	TP_FUNCTION = 0x22,
 	TP_USERNAME = 0x23,
-	TP_EXPRESSION = 0x27
+	TP_EXPRESSION = 0x27,
+	TP_OPERATIONS = 0x28,
 };
 
 /* response body */
@@ -41,6 +42,7 @@ enum tp_request_type {
 	TP_CALL = 0x06,
 	TP_AUTH = 0x07,
 	TP_EVAL = 0x08,
+	TP_UPSERT = 0x09,
 	TP_PING = 0x40
 };
 

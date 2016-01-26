@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.23';
+our $VERSION = '1.24';
 
 use EV ();
 
@@ -35,7 +35,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.23
+Version 1.24
 
 =cut
 
@@ -395,6 +395,50 @@ Use hash as result
 =item index => $index
 
 Index name or id to use
+
+=item in => $in
+
+Format for parsing input (string). One char is for one argument ('s' = string, 'n' = number, 'a' = array, '*' = anything (type is determined automatically))
+
+=back
+
+=back
+
+=cut
+
+=head2 upsert $space_name, $tuple, $operations, $opts, $cb->($result)
+
+Execute upsert request
+
+=over 4
+
+=item $space_name
+
+Tarantool space name.
+
+=item $tuple
+
+A tuple that will be inserted to Tarantool if there is no tuple like it already (ARRAYREF or HASHREF).
+
+=item $operations
+
+Update operations (ARRAYREF) in this format:
+[$field_no => $operation, $operation_args]
+Please refer to Tarantool 1.6 documentaion for more details.
+
+=item $opts
+
+HASHREF of additional options to the request
+
+=over 4
+
+=item timeout => $timeout
+
+Request execution timeout
+
+=item hash => $hash
+
+Use hash as result
 
 =item in => $in
 

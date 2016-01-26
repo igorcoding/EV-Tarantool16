@@ -34,6 +34,7 @@ my %test_exec = (
 	replace => 1,
 	delete => 1,
 	update => 1,
+	upsert => 1,
 	RTREE => 1,
 	# memtest => 0
 );
@@ -591,6 +592,96 @@ subtest 'Update tests', sub {
 		});
 		EV::loop;
 	}
+};
+
+
+subtest 'Upsert tests', sub {
+	plan( skip_all => 'skip') if !$test_exec{update};
+	diag '==== Upsert tests ====';
+
+	my $_plan = [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1, 10]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '+', 4] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1, 14]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '-', 3] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1, 11]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 8] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1, 8]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [4 => '=', 17] ], { hash => 0 }, {
+			count => 1,
+			tuples => [['t1', 't2', 1, 8, 17]],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => 't1',_t2 => 't2',_t3 => 2}, [ [3 => '=', 17] ], { hash => 0 }, {
+			count => 2,
+			tuples => [
+				['t1', 't2', 1, 8, 17],
+				['t1', 't2', 2],
+			],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+	];
+	
+	Renewer::renew_tnt($c, $SPACE_NAME, 0, sub {
+		EV::unloop;
+	});
+	EV::loop;
+
+	for my $p (@$_plan) {
+		$c->upsert($SPACE_NAME, $p->[0], $p->[1], $p->[2], sub {
+			$c->select($SPACE_NAME, [], { hash => 0 }, sub {
+				my $a = $_[0];
+				# diag Dumper \@_;# if !$a;
+				cmp_deeply($a, $p->[3]);
+				EV::unloop;
+			});
+		});
+		EV::loop;
+	}
+	
+	Renewer::renew_tnt($c, $SPACE_NAME, 1, sub {
+		EV::unloop;
+	});
+	EV::loop;
 };
 
 subtest 'RTREE tests', sub {

@@ -596,23 +596,31 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 }
 
 
-static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex *idx, SV *tuple, size_t sz, SV *rv, char *h, SV *cb) {
+static inline char *pkt_update_write_operations(TntCtx *ctx,
+                                                TntSpace *spc,
+                                                TntIndex *idx,
+                                                uint8_t operations_key,
+                                                SV *operations,
+                                                size_t *sz,
+                                                SV *rv,
+                                                char *h,
+                                                SV *cb) {
 	SV **key;
 
-	if (unlikely( !tuple || !SvROK(tuple) || (SvTYPE(SvRV(tuple)) != SVt_PVAV))) {
+	if (unlikely( !operations || !SvROK(operations) || (SvTYPE(SvRV(operations)) != SVt_PVAV))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"update tuple must be ARRAYREF");
+		croak_cb(cb,"update operations must be ARRAYREF");
 	}
 
-	AV *t = (AV *) SvRV(tuple);
+	AV *t = (AV *) SvRV(operations);
 	uint32_t tuple_size = av_len(t) + 1;
 
-	sz += 1 // mp_sizeof_uint(TP_TUPLE)
-	    + mp_sizeof_array(tuple_size);
+	*sz += 1 // mp_sizeof_uint(operations_key)
+	     + mp_sizeof_array(tuple_size);
 
-	sv_size_check(rv, h, sz);
+	sv_size_check(rv, h, *sz);
 
-	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_uint(h, operations_key);
 	h = mp_encode_array(h, tuple_size);
 
 	SV **operation_sv;
@@ -666,17 +674,17 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
 				}
 
-				sz += 1 // mp_sizeof_array(3)
-				    + 2 // mp_sizeof_str(1)
-				    + mp_sizeof_uint(field_no)
-				    ;
+				*sz += 1 // mp_sizeof_array(3)
+				     + 2 // mp_sizeof_str(1)
+				     + mp_sizeof_uint(field_no)
+				;
 
-				sv_size_check(rv, h, sz);
+				sv_size_check(rv, h, *sz);
 
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
-				h = encode_obj(argument, h, rv, &sz, field_format);
+				h = encode_obj(argument, h, rv, sz, field_format);
 
 				break;
 			}
@@ -689,17 +697,17 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
 				}
 
-				sz += 1 // mp_sizeof_array(3)
-				    + 2 // mp_sizeof_str(1)
-				    + mp_sizeof_uint(field_no)
-				    ;
+				*sz += 1 // mp_sizeof_array(3)
+				     + 2 // mp_sizeof_str(1)
+				     + mp_sizeof_uint(field_no)
+				;
 
-				sv_size_check(rv, h, sz);
+				sv_size_check(rv, h, *sz);
 
 				h = mp_encode_array(h, 3);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
-				h = encode_obj(argument, h, rv, &sz, field_format);
+				h = encode_obj(argument, h, rv, sz, field_format);
 
 				break;
 			}
@@ -728,21 +736,21 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 					croak_cb(cb, "Argument is required for splice operation");
 				}
 
-				sz += 1 // mp_sizeof_array(5)
-				    + 2 // mp_sizeof_str(1)
-				    + mp_sizeof_uint(field_no)
-				    + mp_sizeof_uint(position)
-				    + mp_sizeof_uint(offset)
-				    ;
+				*sz += 1 // mp_sizeof_array(5)
+				     + 2 // mp_sizeof_str(1)
+				     + mp_sizeof_uint(field_no)
+				     + mp_sizeof_uint(position)
+				     + mp_sizeof_uint(offset)
+				;
 
-				sv_size_check(rv, h, sz);
+				sv_size_check(rv, h, *sz);
 
 				h = mp_encode_array(h, 5);
 				h = mp_encode_str(h, op, 1);
 				h = mp_encode_uint(h, field_no);
 				h = mp_encode_uint(h, position);
 				h = mp_encode_uint(h, offset);
-				h = encode_obj(argument, h, rv, &sz, FMT_STR);
+				h = encode_obj(argument, h, rv, sz, FMT_STR);
 
 				break;
 			}
@@ -757,7 +765,7 @@ static inline char *pkt_update_write_tuple(TntCtx *ctx, TntSpace *spc, TntIndex 
 }
 
 
-static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, SV *tuple, HV *opt, SV *cb) {
+static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *keys, SV *operations, HV *opt, SV *cb) {
 	U32 index  = 0;
 
 	unpack_format *fmt;
@@ -848,7 +856,90 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	h = mp_encode_array(h, keys_size);
 	encode_keys(h, sz, fields, keys_size, fmt, key);
 
-	h = pkt_update_write_tuple(ctx, spc, idx, tuple, sz, rv, h, cb);
+	h = pkt_update_write_operations(ctx, spc, idx, TP_TUPLE, operations, &sz, rv, h, cb);
+	if (!h) return NULL;
+
+	char *p = SvPVX(rv);
+	write_length(p, h-p-5);
+	SvCUR_set(rv, h-p);
+
+	return SvREFCNT_inc(rv);
+}
+
+
+static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, SV *tuple, SV *operations, HV *opt, SV *cb) {
+	U32 index  = 0;
+
+	unpack_format *fmt;
+	dUnpackFormat( format );
+
+	SV **key;
+
+	TntSpace *spc = 0;
+	TntIndex *idx = 0;
+
+	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
+		ctx->space = spc;
+	}
+	else {
+		ctx->use_hash = 0;
+		return NULL;
+	}
+
+	if (opt) {
+		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
+	}
+	else {
+		ctx->f.size = 0;
+	}
+
+	if (!idx) {
+		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+			idx = (TntIndex *) SvPVX(*key);
+		}
+		else {
+			//warn("No index %d config. Using without formats",index);
+		}
+	}
+	evt_opt_in( opt, ctx, idx );
+
+	uint32_t body_map_sz = 3;  // space, tuple and operations
+	uint32_t tuple_size = 0;
+
+
+	size_t sz = HEADER_CONST_LEN
+	          + 1 // mp_sizeof_map(body_map_sz)
+	          + 1 // mp_sizeof_uint(TP_SPACE)
+	          + mp_sizeof_uint(spc->id);
+
+	sz += 1; // mp_sizeof_uint(TP_TUPLE);
+
+
+	// counting fields in tuple
+	SV *t = tuple;
+	AV *fields;
+	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
+		fields  = (AV *) SvRV(t);
+	} else {
+		if (!ctx->f.nofree) safefree(ctx->f.f);
+		croak_cb(cb, "Input container is invalid. Expecting ARRAYREF or HASHREF");
+	}
+
+	tuple_size = av_len(fields) + 1;
+	sz += mp_sizeof_array(tuple_size);
+
+	create_buffer(rv, h, sz, TP_UPSERT, iid);
+	h = mp_encode_map(h, body_map_sz);
+	h = mp_encode_uint(h, TP_SPACE);
+	h = mp_encode_uint(h, spc->id);
+
+	h = mp_encode_uint(h, TP_TUPLE);
+	h = mp_encode_array(h, tuple_size);
+	encode_keys(h, sz, fields, tuple_size, fmt, key);
+
+	h = pkt_update_write_operations(ctx, spc, idx, TP_OPERATIONS, operations, &sz, rv, h, cb);
 	if (!h) return NULL;
 
 	char *p = SvPVX(rv);
