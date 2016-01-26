@@ -47,7 +47,7 @@ my $w = AnyEvent->signal (signal => "INT", cb => sub { exit 0 });
 
 my $tnt = {
 	name => 'tarantool_tester',
-	port => 3301,
+	port => 11723,
 	host => '127.0.0.1',
 	username => 'test_user',
 	password => 'test_pass',
