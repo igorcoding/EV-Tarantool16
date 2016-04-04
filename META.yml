@@ -4,29 +4,30 @@ author:
   - 'Mons Anderson <mons@cpan.org>'
   - 'igorcoding <igorcoding@gmail.com>'
 build_requires:
-  AnyEvent: 0
-  Carp: 0
-  Data::Dumper: 0
-  Proc::ProcessTable: 0
-  Scalar::Util: 0
-  Test::Deep: 0
-  Test::More: 0
-  Test::Tarantool16: 0
-  Time::HiRes: 0
+  AnyEvent: '0'
+  Carp: '0'
+  Data::Dumper: '0'
+  Proc::ProcessTable: '0'
+  Scalar::Util: '0'
+  Test::Deep: '0'
+  Test::More: '0'
+  Test::Tarantool16: '0'
+  Time::HiRes: '0'
 configure_requires:
-  ExtUtils::MakeMaker: 0
+  ExtUtils::MakeMaker: '0'
 dynamic_config: 0
-generated_by: 'ExtUtils::MakeMaker version 7.04, CPAN::Meta::Converter version 2.120351'
+generated_by: 'ExtUtils::MakeMaker version 7.1, CPAN::Meta::Converter version 2.150005'
 license: open_source
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: 1.4
+  version: '1.4'
 name: EV-Tarantool16
 no_index:
   directory:
     - t
     - inc
 requires:
-  EV: 4
-  Types::Serialiser: 0
-version: 1.23
+  EV: '4'
+  Types::Serialiser: '0'
+version: '1.25'
+x_serialization_backend: 'CPAN::Meta::YAML version 0.016'

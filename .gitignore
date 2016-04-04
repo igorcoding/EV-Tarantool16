@@ -26,3 +26,4 @@ Kit.pm
 *.swp
 *.src.rpm
 dist/
+tnt_*

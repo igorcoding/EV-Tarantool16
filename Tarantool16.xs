@@ -863,7 +863,14 @@ void spaces(SV *this)
 		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->spaces));
 		XSRETURN(1);
-
+		
+void sync(SV *this)
+	PPCODE:
+		if (0) this = this;
+		xs_ev_cnn_self(TntCnn);
+		ST(0) = sv_2mortal(newSViv(self->seq));
+		XSRETURN(1);
+		
 
 void ping(SV *this, ... )
 	PPCODE:

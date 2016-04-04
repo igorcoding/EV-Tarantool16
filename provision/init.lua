@@ -175,3 +175,7 @@ function get_test_tuple()
 end
 
 
+
+function dummy(arg)
+	return 'ok'
+end
