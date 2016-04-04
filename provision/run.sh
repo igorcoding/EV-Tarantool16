@@ -36,9 +36,9 @@ elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	
 	USR_SRC=/usr/local/src
 	sudo mkdir -p ${USR_SRC}
-	wget http://c-ares.haxx.se/download/c-ares-1.9.1.tar.gz -O $HOME/temp/c-ares-1.9.1.tar.gz
-	sudo tar -C ${USR_SRC} -xzvf $HOME/temp/c-ares-1.9.1.tar.gz
-	cd ${USR_SRC}/c-ares-1.9.1
+	wget http://c-ares.haxx.se/download/c-ares-1.10.0.tar.gz -O $HOME/temp/c-ares-1.10.0.tar.gz
+	sudo tar -C ${USR_SRC} -xzvf $HOME/temp/c-ares-1.10.0.tar.gz
+	cd ${USR_SRC}/c-ares-1.10.0
 	sudo ./configure
 	sudo make
 	sudo make install
@@ -46,7 +46,8 @@ elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	
 	sudo cp $DIR/macos_ares_rules.h /usr/local/include/ares_rules.h
 	
-	brew install http://build.tarantool.org/tarantool.rb --devel
+	brew update
+	brew install tarantool
 	tarantool -V
 	mkdir -p ${HOME}/perl5
 	# cpanm --local-lib=${HOME}/perl5 local::lib && eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)
