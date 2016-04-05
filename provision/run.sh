@@ -28,7 +28,7 @@ if [ -z "$TRAVIS_OS_NAME" ] || [ ${TRAVIS_OS_NAME} == 'linux' ]; then
 	cpanm $HOME/temp/test-tarantool16.tar.gz
 elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	echo "Mac OS X detected"
-	sudo sh -c 'echo "127.0.0.1 localhost" > /etc/hosts'
+	sudo sh -c 'echo "127.0.0.1 localhost" >> /etc/hosts'
 	sudo ifconfig lo0 alias 127.0.0.2 up
 	brew update
 	brew install curl
