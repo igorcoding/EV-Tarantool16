@@ -9,7 +9,7 @@ use Test::More;
 
 my $c = EV::Tarantool16->new({
 	host => 'localhost',
-	port => 3301,
+	port => 14032,
 	reconnect => 1/3,
 	connected => sub {
 		fail "No call connected";
@@ -35,7 +35,7 @@ $c->disconnect;
 $c->disconnect;
 $c->disconnect;
 
-$c->lua('',[],sub {
+$c->call('',[],sub {
 	is_deeply \@_, [undef, "Not connected"], 'Call failed';
 });
 
@@ -47,28 +47,15 @@ alarm 0;
 }
 
 $c->connect;
-
 is $c->state, 'RESOLVING', 'Switched to RESOLVING';
-
 $c->connect for 1..10;
-
 $c->disconnect;
-
 is $c->state, 'DISCONNECTED';
 
 $c->connect;
-
 is $c->state, 'RESOLVING';
-
 $c->connect for 1..10;
-
 $c->disconnect;
-
-# while (1) {
-# 	$c->connect;
-# 	$c->disconnect;
-# }
-
 is $c->state, 'DISCONNECTED';
 
 my $w;$w = EV::timer 1,0,sub { undef $w; fail "Timed out"; exit; };
@@ -81,11 +68,8 @@ undef $w;
 
 
 is $c->state, 'CONNECTING';
-
 $c->connect for 1..10;
-
 $c->disconnect;
-
 is $c->state, 'DISCONNECTED';
 
 my $w;$w = EV::timer 1,0,sub { undef $w; fail "Timed out"; exit; };

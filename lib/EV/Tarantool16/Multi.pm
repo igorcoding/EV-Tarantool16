@@ -23,6 +23,13 @@ sub new {
 		cnntrace => 1,
 		ares_reuse => 0,
 		wbuf_limit => 16000,
+		servers => [],
+		one_connected => undef,
+		connected => undef,
+		all_connected => undef,
+		one_disconnected => undef,
+		disconnected => undef,
+		all_disconnected => undef,
 		@_,
 		stores => [],
 		connected_mode => 'any',
@@ -40,13 +47,15 @@ sub new {
 		if (ref) {
 			$srv = { %$_, id => $id };
 		} else {
-			m{^([^:]+)(?::(\d+))};
+			m{^(?:([^:]*?):([^:]*?)@)?([^:]+)(?::(\d+))};
 			$srv = {
-				rw   => 1,
-				host => $1,
-				port => $2 // 3301,
-				id   => $id,
-				gen  => 1,
+				rw       => 1,
+				username => $1,
+				password => $2,
+				host     => $3,
+				port     => $4 // 3301,
+				id       => $id,
+				gen      => 1,
 			};
 		}
 		$srv->{node} = ($srv->{rw} ? 'rw' : 'ro' ) . ':' . $srv->{host} . ':' . $srv->{port};
@@ -54,6 +63,8 @@ sub new {
 		push @{$self->{servers}}, $srv;
 		my $warned;
 		$srv->{c} = EV::Tarantool16->new({
+			username => $srv->{username},
+			password => $srv->{password},
 			host => $srv->{host},
 			port => $srv->{port},
 			timeout => $self->{timeout},

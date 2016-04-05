@@ -11,7 +11,6 @@ use Test::More;
 
 
 sub renew_tnt {
-	my ($c, $space, $cb) = @_;
 	my $c = shift;
 	my $space = shift;
 	my $cb = pop;

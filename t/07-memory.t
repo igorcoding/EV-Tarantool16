@@ -53,19 +53,13 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	# cleanup => 0,
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	# logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
-	# logger  => sub { },
 	logger  => sub { diag ( $tnt->{title},' ', @_ )},
 	initlua => $tnt->{initlua},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
-	# tarantool_cmd => "/opt/mailru/tarantool16/root/usr/bin/tarantool %{args}"
+	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
-# warn Dumper $tnt;
-# __END__
 
 $tnt->start(timeout => 10, sub {
 	my ($status, $desc) = @_;
@@ -194,6 +188,7 @@ subtest 'basic memory test', sub {
 	memcheck 50000, $c, "ping",[];
 	memcheck 50000, $c, "eval",["return {'hey'}", []];
 	memcheck 50000, $c, "call",["string_function",[]];
+	memcheck 50000, $c, "lua",["string_function",[]];
 	memcheck 50000, $c, "select",[$SPACE_NAME,{ _t1 => 't1' }];
 	memcheck 50000, $c, "replace",[$SPACE_NAME,['t1', 't2', 12, 100 ], { hash => 1}];
 	memcheck 50000, $c, "update",[$SPACE_NAME,{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '+', 1] ], { hash => 1 }];

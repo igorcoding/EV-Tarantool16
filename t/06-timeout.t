@@ -15,8 +15,6 @@ use Data::Dumper;
 use Renewer;
 use Carp;
 use Test::Tarantool16;
-# use Devel::Leak;
-# use AE;
 
 my %test_exec = (
 	ping => 1,
@@ -53,17 +51,12 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	# cleanup => 0,
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	# logger  => sub { diag (map { (my $line =$_) =~ s{^}{$self->{name}: }mg } @_) if $ENV{TEST_VERBOSE}},
-	# logger  => sub { },
 	logger  => sub { diag ( $tnt->{title},' ', @_ )},
 	initlua => $tnt->{initlua},
-	# on_die  => sub { BAIL_OUT "Mock tarantool $self->{name} is dead!!!!!!!! $!"},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
-	# tarantool_cmd => "/opt/mailru/tarantool16/root/usr/bin/tarantool %{args}"
+	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
 
 $tnt->start(timeout => 10, sub {

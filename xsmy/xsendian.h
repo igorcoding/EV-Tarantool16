@@ -11,7 +11,8 @@
 #else
 #  include <byteswap.h>
 #  include <endian.h>
-#endif
+#endif /* __APPLE__ */
+
 
 # if __BYTE_ORDER == __LITTLE_ENDIAN
 
@@ -36,7 +37,7 @@
 #  define le64toh(x) (x)
 #endif
 
-# else
+# else /* __BYTE_ORDER != __LITTLE_ENDIAN */
 
 #ifndef le16toh
 #  define htobe16(x) (x)
@@ -58,7 +59,9 @@
 #  define be64toh(x) (x)
 #  define le64toh(x) bswap_64 (x)
 #endif
-# endif
-#endif
 
-#endif
+#endif /* __BYTE_ORDER */
+
+#endif /* le64toh */
+
+#endif /* XSENDIAN_H */

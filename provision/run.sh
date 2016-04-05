@@ -28,6 +28,7 @@ if [ -z "$TRAVIS_OS_NAME" ] || [ ${TRAVIS_OS_NAME} == 'linux' ]; then
 	cpanm $HOME/temp/test-tarantool16.tar.gz
 elif [ ${TRAVIS_OS_NAME} == 'osx' ]; then
 	echo "Mac OS X detected"
+	sudo sh -c 'echo "127.0.0.1 localhost" > /etc/hosts'
 	brew update
 	brew install curl
 	brew install https://raw.githubusercontent.com/Homebrew/homebrew/master/Library/Formula/cpanminus.rb

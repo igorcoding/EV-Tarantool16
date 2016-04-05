@@ -13,7 +13,6 @@ use EV::Tarantool16::Multi;
 use Test::More;
 use Test::Deep;
 use Data::Dumper;
-use Renewer;
 use Carp;
 use Test::Tarantool16;
 # use Devel::Leak;

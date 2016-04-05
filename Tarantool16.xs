@@ -192,10 +192,6 @@ INLINE void _execute_eval(TntCnn *self, const char *expr) {
 	SV *pkt = pkt_eval(ctx, iid, self->spaces, sv_2mortal(newSVpvn(expr, SELECTOR_STR_LENGTH)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL);
 	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
 
-
-	// INIT_CTX(self, ctx, "select", iid);
-	// SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL );
-	// EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
 	TIMEOUT_TIMER(self, ctx, iid, self->cnn.rw_timeout);
 }
 

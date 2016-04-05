@@ -21,14 +21,13 @@ static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
                                          5;  // sync len
 
 
-#define check_tuple(tuple, allow_hash) STMT_START { \
+#define check_tuple(tuple, allow_hash, cb) STMT_START { \
 	if (SvROK(tuple)) { \
 		if ( SvTYPE(SvRV(tuple)) == SVt_PVHV ) { \
 			if (unlikely(!(allow_hash))) { \
 				croak_cb(cb,"Cannot use hash without space or index"); \
 			} \
-		} else \
-		if ( unlikely(SvTYPE(SvRV(tuple)) != SVt_PVAV) ) { \
+		} else if ( unlikely(SvTYPE(SvRV(tuple)) != SVt_PVAV) ) { \
 			croak_cb(cb,"Tuple must be %s, but have %s", (allow_hash) ? "ARRAYREF or HASHREF" : "ARRAYREF", SvPV_nolen(tuple) ); \
 		} \
 	} else { \
@@ -40,24 +39,21 @@ static const uint32_t HEADER_CONST_LEN = 5 + // pkt_len
 
 #define dUnpackFormat(fvar) unpack_format fvar; fvar.f = ""; fvar.nofree = 1; fvar.size = 0; fvar.def = FMT_UNKNOWN
 
-static TntIndex *evt_find_index(TntSpace *spc, SV **key) {
-	if (SvIOK( *key )) {
+static TntIndex *evt_find_index(TntSpace *spc, SV **key, uint8_t log_level) {
+	if (SvIOK(*key)) {
 		int iid = SvUV(*key);
-		if ((key = hv_fetch( spc->indexes,(char *)&iid,sizeof(U32),0 )) && *key) {
+		if ((key = hv_fetch(spc->indexes, (char *)&iid, sizeof(U32), 0)) && *key) {
 			return (TntIndex *) SvPVX(*key);
-		}
-		else {
-			//warn("Unknown index %d in space %d",iid,spc->id);
+		} else {
+			log_warn(log_level, "Unknown index %d in space \'%s\' [%d]", iid, SvPV_nolen(spc->name), spc->id);
 			return NULL;
 		}
-	}
-	else {
-		if ((key = hv_fetch( spc->indexes,SvPV_nolen(*key),SvCUR(*key),0 )) && *key) {
+	} else {
+		if ((key = hv_fetch(spc->indexes, SvPV_nolen(*key), SvCUR(*key), 0)) && *key) {
 			return (TntIndex *) SvPVX(*key);
-		}
-		else {
+		} else {
+			log_warn(log_level, "Unknown index \'%s\' in space \'%s\' [%d]", SvPV_nolen(*key), SvPV_nolen(spc->name), spc->id);
 			return NULL;
-			//croak("Unknown index %s in space %d",SvPV_nolen(*key),spc->id);
 		}
 	}
 
@@ -66,34 +62,32 @@ static TntIndex *evt_find_index(TntSpace *spc, SV **key) {
 static TntSpace *evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *cb) {
 	U32 ns;
 	SV **key;
-	if (SvIOK( space )) {
+	if (SvIOK(space)) {
 		ns = SvUV(space);
-		if ((key = hv_fetch( spaces,(char *)&ns,sizeof(U32),0 )) && *key) {
+		if ((key = hv_fetch(spaces, (char *) &ns, sizeof(U32),0)) && *key) {
 			return (TntSpace *) SvPVX(*key);
-		}
-		else {
+		} else {
 			if (spaces != NULL) {
-				log_info(log_level, "No space %u config. Creating dummy space.", ns);
+				log_info(log_level, "No space config found for space %u. Creating dummy space.", ns);
 				dSVX(spcf, spc, TntSpace);
 
 				spc->id = ns;
 				spc->name = newSVpvf("%u", ns);
 				spc->f.def = FMT_UNKNOWN;
 
-				(void)hv_store( spaces, (char *)&ns,sizeof(U32),spcf,0 );
-				(void)hv_store( spaces, SvPV_nolen(spc->name),SvLEN(spc->name),SvREFCNT_inc(spcf),0 );
+				(void)hv_store(spaces, (char *)&ns, sizeof(U32), spcf, 0);
+				(void)hv_store(spaces, SvPV_nolen(spc->name), SvLEN(spc->name), SvREFCNT_inc(spcf), 0);
 				return spc;
 			} else {
-				log_warn(log_level, "Spaces are not defined");
+				log_error(log_level, "No spaces are defined");
 				return NULL;
 			}
 		}
 	}
 	else if (SvPOK(space)) {
-		if ((key = hv_fetch( spaces,SvPV_nolen(space),SvCUR(space),0 )) && *key) {
+		if ((key = hv_fetch(spaces, SvPV_nolen(space), SvCUR(space), 0)) && *key) {
 			return (TntSpace *) SvPVX(*key);
-		}
-		else {
+		} else {
 			croak_cb(cb, "Unknown space %s", SvPV_nolen(space));
 		}
 	} else {
@@ -104,8 +98,8 @@ static TntSpace *evt_find_space(SV *space, HV *spaces, uint8_t log_level, SV *cb
 static void destroy_spaces(HV *spaces) {
 	debug("Destroy started");
 	HE *ent;
-	(void) hv_iterinit( spaces );
-	while ((ent = hv_iternext( spaces ))) {
+	(void) hv_iterinit(spaces);
+	while ((ent = hv_iternext(spaces))) {
 		TntSpace *spc = (TntSpace *) SvPVX( HeVAL(ent) );
 		HE *he;
 		if (spc->name) {
@@ -126,13 +120,14 @@ static void destroy_spaces(HV *spaces) {
 			//cwarn("des idxs, refs = %d", SvREFCNT( spc->indexes ));
 			(void) hv_iterinit( spc->indexes );
 			while ((he = hv_iternext( spc->indexes ))) {
-				TntIndex *idx = (TntIndex *) SvPVX( HeVAL(he) );
+				TntIndex *idx = (TntIndex *) SvPVX(HeVAL(he));
 				if (idx->name) {
 					//cwarn("destroy index %s in space %s",SvPV_nolen(idx->name), SvPV_nolen(spc->name));
 					if (idx->f.size > 0) safefree(idx->f.f);
 					if (idx->fields) SvREFCNT_dec(idx->fields);
 					SvREFCNT_dec(idx->name);
 					idx->name = NULL;
+					
 					if (idx->type) {
 						SvREFCNT_dec(idx->type);
 						idx->type = NULL;
@@ -144,7 +139,7 @@ static void destroy_spaces(HV *spaces) {
 					}
 				}
 			}
-			SvREFCNT_dec( spc->indexes );
+			SvREFCNT_dec(spc->indexes);
 			spc->indexes = NULL;
 		}
 
@@ -174,7 +169,7 @@ static void destroy_spaces(HV *spaces) {
 	SvREFCNT_dec(spaces);
 }
 
-#define CHECK_PACK_FORMAT(src) STMT_START { \
+#define CHECK_PACK_FORMAT(src, cb) STMT_START { \
 	char *p = src; \
 	while(*p) { \
 		switch(*p) { \
@@ -191,45 +186,19 @@ static void destroy_spaces(HV *spaces) {
 	} \
 } STMT_END
 
-#define dExtractFormat2(fvar,src) STMT_START { \
-	if ( SvOK(src) && SvPOK(src) ) { \
+#define dExtractFormat2(fvar, src, cb) STMT_START { \
+	if (SvOK(src) && SvPOK(src)) { \
 		fvar.f = SvPVbyte(src, fvar.size); \
-		CHECK_PACK_FORMAT( fvar.f ); \
-	} \
-	else if (!SvOK( src )) {} \
-	else { \
-		croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }"); \
-	} \
-} STMT_END
-
-
-
-#define dExtractFormatCopy(fvar,src) STMT_START { \
-	if ( SvOK(src) && SvPOK(src) ) { \
-		(fvar)->f = SvPVbyte(src, (fvar)->size); \
-		CHECK_PACK_FORMAT( (fvar)->f ); \
-		(fvar)->f = safecpy((fvar)->f,(fvar)->size); \
-		(fvar)->nofree = 0; \
-	} \
-	else if (!SvOK( src )) {} \
-	else { \
-		croak_cb(cb,"Usage { .. in => 'fmtstring', out => 'fmtstring' .. }"); \
-	} \
-} STMT_END
-
-#define evt_opt_out(opt,ctx,spc) STMT_START { \
-	if (opt && (key = hv_fetchs(opt,"out",0)) && *key) { \
-		dExtractFormatCopy( &ctx->f, *key ); \
-	} else if (spc) { \
-		memcpy(&ctx->f,&spc->f,sizeof(unpack_format)); \
+		CHECK_PACK_FORMAT(fvar.f, cb); \
+	} else if (!SvOK(src)) { \
 	} else { \
-		ctx->f.size = 0; \
+		croak_cb(cb,"Usage { .. in => 'fmtstring', .. }"); \
 	} \
 } STMT_END
 
-#define evt_opt_in(opt,ctx,idx) STMT_START { \
+#define evt_opt_in(opt, idx, key, fmt, cb) STMT_START { \
 	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) { \
-		dExtractFormat2( format, *key ); \
+		dExtractFormat2( format, *key, cb ); \
 		fmt = &format; \
 	} else if (idx) { \
 		fmt = &idx->f; \
@@ -240,24 +209,23 @@ static void destroy_spaces(HV *spaces) {
 
 
 static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
-	AV *rv = (AV *) sv_2mortal((SV *)newAV());
+	AV *rv = (AV *) sv_2mortal((SV *) newAV());
 	int fcnt = HvTOTALKEYS(hf);
 	int k;
 
 	SV **f;
 	HE *fl;
 
-	for (k = 0; k <= av_len( fields );k++) {
-		f = av_fetch( fields,k,0 );
+	for (k = 0; k <= av_len(fields);k++) {
+		f = av_fetch(fields, k, 0);
 		if (unlikely(!f)) {
-			croak_cb(cb,"Missing field %d entry", k);
+			croak_cb(cb, "Missing field %d entry", k);
 		}
 		fl = hv_fetch_ent(hf,*f,0,0);
 		if (fl && SvOK( HeVAL(fl) )) {
 			fcnt--;
 			av_push( rv, SvREFCNT_inc(HeVAL(fl)) );
-		}
-		else {
+		} else {
 			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
 			// TODO: not sure that we should ignore it
 			// av_push( rv, &PL_sv_undef );
@@ -272,14 +240,14 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
 				(void) hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
 			}
 		}
-		if ((f = hv_fetch(hf,"",0,0)) && SvROK(*f)) {
-			(void) hv_store(used,"",0, &PL_sv_undef,0);
+		if ((f = hv_fetch(hf, "", 0, 0)) && SvROK(*f)) {
+			(void) hv_store(used, "", 0, &PL_sv_undef, 0);
 		}
 		(void) hv_iterinit( hf );
 		STRLEN nlen;
 		while ((fl = hv_iternext( hf ))) {
 			char *name = HePV(fl, nlen);
-			if (!hv_exists(used,name,nlen)) {
+			if (!hv_exists(used, name, nlen)) {
 				warn("tuple key = %s; val = %s could not be used in hash fields",name, SvPV_nolen(HeVAL(fl)));
 			}
 		}
@@ -320,24 +288,24 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	}
 
 	char op = op_str[0];
-
-	if (op == '+' || op == '-' || op == '&' || op == '^' || op == '|') {
-		return OP_UPD_ARITHMETIC;
+	
+	switch (op) {
+		case '+':
+		case '-':
+		case '&':
+		case '^':
+		case '|':
+			return OP_UPD_ARITHMETIC;
+		case '#':
+			return OP_UPD_DELETE;
+		case '!':
+		case '=':
+			return OP_UPD_INSERT_ASSIGN;
+		case ':':
+			return OP_UPD_SPLICE;
+		default:
+			return OP_UPD_UNKNOWN;
 	}
-
-	if (op == '#') {
-		return OP_UPD_DELETE;
-	}
-
-	if (op == '!' || op == '=') {
-		return OP_UPD_INSERT_ASSIGN;
-	}
-
-	if (op == ':') {
-		return OP_UPD_SPLICE;
-	}
-
-	return OP_UPD_UNKNOWN;
 }
 
 static inline SV *pkt_authenticate(uint32_t iid, SV *username, SV *password, const char *const salt_begin, const char *const salt_end, SV *cb) {
@@ -413,47 +381,41 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	U32 iterator = -1;
 
 	unpack_format *fmt;
-	dUnpackFormat( format );
+	dUnpackFormat(format);
 
 	SV **key;
 
 	TntSpace *spc = NULL;
 	TntIndex *idx = NULL;
 
-	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
+	if (( spc = evt_find_space(space, spaces, ctx->log_level, cb) )) {
 		ctx->space = spc;
-	}
-	else {
+	} else {
 		ctx->use_hash = 0;
 		return NULL;
 	}
 
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if(( idx = evt_find_index( spc, key ) ))
+			if(( idx = evt_find_index( spc, key, ctx->log_level ) ))
 				index = idx->id;
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
 		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key) && SvPOK(*key)) iterator = get_iterator(ctx, *key);
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-	}
-	else {
+	} else {
 		ctx->f.size = 0;
 	}
 	if (!idx) {
-		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+		if ( spc && spc->indexes && (key = hv_fetch(spc->indexes, (char *) &index, sizeof(U32), 0)) && *key) {
 			idx = (TntIndex *) SvPVX(*key);
 		}
-		else {
-			//warn("No index %d config. Using without formats",index);
-		}
 	}
-	evt_opt_in( opt, ctx, idx );
+	evt_opt_in(opt, idx, key, fmt, cb);
 
 	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1) + (iterator != -1);
 	uint32_t keys_size = 0;
-
 
 	size_t sz = HEADER_CONST_LEN
 	            + 1 // mp_sizeof_map(body_map_sz)
@@ -493,10 +455,8 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_SELECT, iid);
-
 	h = mp_encode_map(h, body_map_sz);
 	h = mp_encode_uint(h, TP_SPACE);
 	h = mp_encode_uint(h, spc->id);
@@ -533,17 +493,13 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	uint32_t op_code = TP_INSERT;
 
 	unpack_format *fmt;
-	dUnpackFormat( format );
+	dUnpackFormat(format);
 
 	SV **key;
-
 	TntSpace *spc = NULL;
 
-	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
+	if(( spc = evt_find_space(space, spaces, ctx->log_level, cb) )) {
 		ctx->space = spc;
-		SV *i0 = sv_2mortal(newSVuv(0));
-		key = &i0;
-		// idx = evt_find_index( spc, key );
 	}
 	else {
 		ctx->use_hash = 0;
@@ -554,8 +510,8 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 		if ((key = hv_fetchs(opt, "replace", 0)) && SvOK(*key) && SvIV(*key) != 0) op_code = TP_REPLACE;
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
-	check_tuple(tuple, spc);
-	evt_opt_in( opt, ctx, spc );
+	check_tuple(tuple, spc, cb);
+	evt_opt_in(opt, spc, key, fmt, cb);
 
 
 	size_t sz = HEADER_CONST_LEN
@@ -567,7 +523,6 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		// cwarn("%d", av_len(idx->fields) + 1);
 		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
@@ -578,7 +533,6 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	uint32_t cardinality = av_len(fields) + 1;
 
 	sz += mp_sizeof_array(cardinality);
-	// sz += cardinality * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, op_code, iid);
 	h = mp_encode_map(h, 2);
@@ -609,7 +563,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 
 	if (unlikely( !operations || !SvROK(operations) || (SvTYPE(SvRV(operations)) != SVt_PVAV))) {
 		if (!ctx->f.nofree) safefree(ctx->f.f);
-		croak_cb(cb,"update operations must be ARRAYREF");
+		croak_cb(cb, "update operations must be ARRAYREF");
 	}
 
 	AV *t = (AV *) SvRV(operations);
@@ -636,7 +590,9 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 		}
 
 		operation = (AV *) SvRV(*operation_sv);
-		if (av_len(operation) < 2) croak_cb(cb, "Too short operation argument list");
+		if (av_len(operation) < 2) {
+			croak_cb(cb, "Too short operation argument list");
+		}
 
 		char *op;
 		uint32_t field_no;
@@ -648,23 +604,20 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 			if (spc && field_no < spc->f.size) {
 				field_format = spc->f.f[field_no];
 			}
-		}
-		else {
+		} else {
 			HE *fhe = hv_fetch_ent(spc->field, *key, 1, 0);
 			if (fhe && SvOK( HeVAL(fhe) )) {
 				TntField *fld = (TntField *) SvPVX( HeVAL(fhe) );
 				field_format = fld->format;
 				field_no = fld->id;
-			}
-			else {
-				croak_cb(cb,"Unknown field name: '%s' in space %u", SvPV_nolen( *key ), spc->id);
+			} else {
+				croak_cb(cb, "Unknown field name: '%s' in space %u", SvPV_nolen( *key ), spc->id);
 			}
 		}
 
 		op = SvPV_nolen(*av_fetch(operation, 1, 0));
 
 		switch (get_update_op_type(op, 1)) {
-
 			case OP_UPD_ARITHMETIC:
 			case OP_UPD_DELETE: {
 				SV *argument = 0;
@@ -713,7 +666,6 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 			}
 
 			case OP_UPD_SPLICE: {
-
 				uint32_t position;
 				uint32_t offset;
 				SV *argument;
@@ -769,42 +721,36 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	U32 index  = 0;
 
 	unpack_format *fmt;
-	dUnpackFormat( format );
+	dUnpackFormat(format);
 
 	SV **key;
-
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
 	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
-	}
-	else {
+	} else {
 		ctx->use_hash = 0;
 		return NULL;
 	}
 
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if(( idx = evt_find_index( spc, key ) ))
+			if(( idx = evt_find_index( spc, key, ctx->log_level ) ))
 				index = idx->id;
 		}
-
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-	}
-	else {
+	} else {
 		ctx->f.size = 0;
 	}
 
 	if (!idx) {
+		// Getting index #0
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
 			idx = (TntIndex *) SvPVX(*key);
 		}
-		else {
-			//warn("No index %d config. Using without formats",index);
-		}
 	}
-	evt_opt_in( opt, ctx, idx );
+	evt_opt_in(opt, idx, key, fmt, cb);
 
 	uint32_t body_map_sz = 3 + (index != -1);
 	uint32_t keys_size = 0;
@@ -837,7 +783,6 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_UPDATE, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -847,9 +792,6 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	if (index != -1) {
 		h = mp_encode_uint(h, TP_INDEX);
 		h = mp_encode_uint(h, index);
-		// cwarn("Writing index %d", index);
-	} else {
-		// cwarn("index not writing");
 	}
 
 	h = mp_encode_uint(h, TP_KEY);
@@ -871,37 +813,31 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	U32 index  = 0;
 
 	unpack_format *fmt;
-	dUnpackFormat( format );
+	dUnpackFormat(format);
 
 	SV **key;
-
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
+	if (( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
 		ctx->space = spc;
-	}
-	else {
+	} else {
 		ctx->use_hash = 0;
 		return NULL;
 	}
 
 	if (opt) {
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-	}
-	else {
+	} else {
 		ctx->f.size = 0;
 	}
 
 	if (!idx) {
-		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
+		if ( spc && spc->indexes && (key = hv_fetch(spc->indexes, (char *) &index, sizeof(U32), 0)) && *key) {
 			idx = (TntIndex *) SvPVX(*key);
 		}
-		else {
-			//warn("No index %d config. Using without formats",index);
-		}
 	}
-	evt_opt_in( opt, ctx, idx );
+	evt_opt_in(opt, idx, key, fmt, cb);
 
 	uint32_t body_map_sz = 3;  // space, tuple and operations
 	uint32_t tuple_size = 0;
@@ -913,7 +849,6 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	          + mp_sizeof_uint(spc->id);
 
 	sz += 1; // mp_sizeof_uint(TP_TUPLE);
-
 
 	// counting fields in tuple
 	SV *t = tuple;
@@ -960,38 +895,33 @@ static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	TntSpace *spc = 0;
 	TntIndex *idx = 0;
 
-	if(( spc = evt_find_space( space, spaces, ctx->log_level, cb ) )) {
+	if (( spc = evt_find_space(space, spaces, ctx->log_level, cb) )) {
 		ctx->space = spc;
-	}
-	else {
+	} else {
 		ctx->use_hash = 0;
 		return NULL;
 	}
 
 	if (opt) {
 		if ((key = hv_fetch(opt, "index", 5, 0)) && SvOK(*key)) {
-			if(( idx = evt_find_index( spc, key ) ))
+			if(( idx = evt_find_index( spc, key, ctx->log_level ) ))
 				index = idx->id;
 		}
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
-	}
-	else {
+	} else {
 		ctx->f.size = 0;
 	}
 	if (!idx) {
 		if ( spc && spc->indexes && (key = hv_fetch( spc->indexes,(char *)&index,sizeof(U32),0 )) && *key) {
 			idx = (TntIndex *) SvPVX(*key);
-		}
-		else {
+		} else {
 			log_warn(ctx->log_level, "No index %d config. Using without formats", index);
 		}
 	}
-	evt_opt_in( opt, ctx, idx );
-
+	evt_opt_in( opt, idx, key, fmt, cb );
 
 	uint32_t body_map_sz = 2 + (index != -1);
 	uint32_t keys_size = 0;
-
 
 	size_t sz = HEADER_CONST_LEN
 	          + 1 // mp_sizeof_map(body_map_sz)
@@ -1019,7 +949,6 @@ static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_DELETE, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1044,10 +973,9 @@ static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 
 static inline SV *pkt_eval(TntCtx *ctx, uint32_t iid, HV *spaces, SV *expression, SV *tuple, HV *opt, SV *cb) {
 	unpack_format *fmt;
-	dUnpackFormat( format );
+	dUnpackFormat(format);
 
 	SV **key;
-
 	TntSpace *spc = NULL;
 	TntIndex *idx = NULL;
 
@@ -1063,7 +991,7 @@ static inline SV *pkt_eval(TntCtx *ctx, uint32_t iid, HV *spaces, SV *expression
 	} else {
 		ctx->f.size = 0;
 	}
-	evt_opt_in( opt, ctx, idx );
+	evt_opt_in(opt, idx, key, fmt, cb);
 
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
@@ -1090,7 +1018,6 @@ static inline SV *pkt_eval(TntCtx *ctx, uint32_t iid, HV *spaces, SV *expression
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_EVAL, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1113,7 +1040,6 @@ static inline SV *pkt_call(TntCtx *ctx, uint32_t iid, HV *spaces, SV *function_n
 	dUnpackFormat( format );
 
 	SV **key;
-
 	TntSpace *spc = NULL;
 	TntIndex *idx = NULL;
 
@@ -1129,7 +1055,7 @@ static inline SV *pkt_call(TntCtx *ctx, uint32_t iid, HV *spaces, SV *function_n
 	} else {
 		ctx->f.size = 0;
 	}
-	evt_opt_in( opt, ctx, idx );
+	evt_opt_in(opt, idx, key, fmt, cb);
 
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
@@ -1156,7 +1082,6 @@ static inline SV *pkt_call(TntCtx *ctx, uint32_t iid, HV *spaces, SV *function_n
 
 	keys_size = av_len(fields) + 1;
 	sz += mp_sizeof_array(keys_size);
-	// sz += keys_size * EST_FIELD_SIZE;
 
 	create_buffer(rv, h, sz, TP_CALL, iid);
 	h = mp_encode_map(h, body_map_sz);
@@ -1250,13 +1175,6 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char *const 
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	// case MP_MAP: {
-	// 	cont_size = mp_decode_map(&p);
-	// 	cwarn("map.size=%d", cont_size);
-	// 	// TODO: this is not valid probably
-	// 	break;
-	// }
-
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
@@ -1331,13 +1249,6 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	// case MP_MAP: {
-	// 	cont_size = mp_decode_map(&p);
-	// 	cwarn("map.size=%d", cont_size);
-	// 	// TODO: this is not valid probably
-	// 	break;
-	// }
-
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
@@ -1485,18 +1396,10 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 
 	uint32_t cont_size = 0;
 	switch (mp_typeof(*p)) {
-	// case MP_MAP: {
-	// 	cont_size = mp_decode_map(&p);
-	// 	cwarn("map.size=%d", cont_size);
-	// 	// TODO: this is not valid probably
-	// 	break;
-	// }
-
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
-
-		// uint32_t tuple_size = 0;
+		
 		uint32_t i = 0;
 
 		SV **key;

@@ -14,8 +14,6 @@ use Test::Deep;
 use Data::Dumper;
 use Renewer;
 use Carp;
-# use Devel::Leak;
-# use AE;
 
 is 1,1;
 
