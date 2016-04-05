@@ -91,8 +91,8 @@ for (@tnts) {
 }
 
 my $timeout = 5;
-my $w; $w = AE::timer $timeout, 0, sub {
-	undef $w;
+my $w_timeout; $w_timeout = AE::timer $timeout, 0, sub {
+	undef $w_timeout;
 	
 	fail "Couldn't connect to Multi in $timeout seconds";
 	EV::unloop;
@@ -127,6 +127,7 @@ my $c; $c = EV::Tarantool16::Multi->new(
 		$disconnected++;
 	},
 	all_connected => sub {
+		undef $w_timeout;
 		diag Dumper \@_ unless $_[0];
 		warn "all_connected: @_";
 		is $connected, scalar @required_tnts, 'Connected to correct number of nodes';
