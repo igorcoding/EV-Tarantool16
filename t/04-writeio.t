@@ -14,7 +14,7 @@ use Scalar::Util 'weaken';
 use Test::Tarantool16;
 
 $EV::DIED = sub {
-	warn "@_";
+	diag "@_" if $ENV{TEST_VERBOSE};
 	EV::unloop;
 	exit;
 };
@@ -40,7 +40,7 @@ $tnt = Test::Tarantool16->new(
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 );
@@ -63,6 +63,7 @@ my $c = EV::Tarantool16->new({
 	port => $tnt->{port},
 	reconnect => 1,
 	timeout => 10,
+	log_level => $ENV{TEST_VERBOSE} ? 4 : 0,
 	connected => sub {
 		my $c = shift;
 		my %start;
@@ -109,7 +110,7 @@ my $c = EV::Tarantool16->new({
 	},
 	disconnected => sub {
 		my $c = shift;
-		warn "PL: Disconnected: @_";
+		diag "PL: Disconnected: @_" if $ENV{TEST_VERBOSE};
 		pass "Disconnected";
 		EV::unloop;
 	},

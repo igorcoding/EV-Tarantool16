@@ -19,7 +19,7 @@ use Test::Tarantool16;
 use AE;
 
 $EV::DIED = sub {
-	warn "@_";
+	diag "@_" if $ENV{TEST_VERBOSE};
 	EV::unloop;
 	exit;
 };
@@ -52,7 +52,7 @@ my @required_tnts = (
 );
 
 my @tnts = map { {
-	name => 'tarantool_tester',
+	name => 'tarantool_tester['.$_.']',
 	port => $port,
 	host => $_,
 	username => 'test_user',
@@ -73,7 +73,7 @@ my @tnts = map { {
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	logger  => sub { diag ( $tnt->{name},' ', @_ ) if $ENV{TEST_VERBOSE};},
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 ) } @tnts;
@@ -84,7 +84,7 @@ for (@tnts) {
 		if ($status == 1) {
 			EV::unloop;
 		} else {
-			diag Dumper \@_;
+			diag Dumper \@_ if $ENV{TEST_VERBOSE};
 		}
 	});
 	EV::loop;
@@ -101,14 +101,14 @@ my $w_timeout; $w_timeout = AE::timer $timeout, 0, sub {
 my $c; $c = EV::Tarantool16::Multi->new(
 	cnntrace => 0,
 	reconnect => 0.2,
-	log_level => 4,
+	log_level => $ENV{TEST_VERBOSE} ? 4 : 0,
 	servers => [
 		"127.0.0.1:$port",
 		"127.0.0.2:$port",
 	],
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
-		warn "connected: @_";
+		diag "connected: @_" if $ENV{TEST_VERBOSE};
 	},
 	one_connected => sub {
 		diag Dumper \@_ unless $_[0];
@@ -123,19 +123,19 @@ my $c; $c = EV::Tarantool16::Multi->new(
 		EV::unloop;
 	},
 	disconnected => sub {
-		warn "discon: @_ / $!";
+		diag "discon: @_ / $!" if $ENV{TEST_VERBOSE};
 		$disconnected++;
 	},
 	all_connected => sub {
 		undef $w_timeout;
 		diag Dumper \@_ unless $_[0];
-		warn "all_connected: @_";
+		diag "all_connected: @_" if $ENV{TEST_VERBOSE};
 		is $connected, scalar @required_tnts, 'Connected to correct number of nodes';
 		EV::unloop;
 	},
 	all_disconnected => sub {
 		diag Dumper \@_ unless $_[0];
-		warn "all_disconnected: @_";
+		diag "all_disconnected: @_" if $ENV{TEST_VERBOSE};
 		EV::unloop;
 	}
 );

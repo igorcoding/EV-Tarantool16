@@ -23,7 +23,7 @@ my $c = EV::Tarantool16->new({
 });
 
 $EV::DIED = sub {
-	warn "@_";
+	diag "@_" if $ENV{TEST_VERBOSE};
 	EV::unloop;
 	exit;
 };
@@ -82,7 +82,7 @@ undef $w;
 
 is $c->state, 'CONNECTING';
 
-diag "do reconnect";
+diag "do reconnect" if $ENV{TEST_VERBOSE};
 $c->reconnect;
 
 # Resolve is skipped on this step

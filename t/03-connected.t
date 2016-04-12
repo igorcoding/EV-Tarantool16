@@ -12,6 +12,7 @@ my $c = EV::Tarantool16->new({
 	host => 'localhost',
 	port => 3301,
 	reconnect => 0,
+	log_level => $ENV{TEST_VERBOSE} ? 4 : 0,
 	connected => sub {
 		pass "Connected";
 	},

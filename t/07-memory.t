@@ -56,7 +56,7 @@ $tnt = Test::Tarantool16->new(
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
@@ -89,23 +89,21 @@ sub memcheck ($$$$) {
 	my $cnt = 0;
 	my $start = time;
 	my $do;$do = sub {
-		#warn "[$cnt/$n] call $method(@$args): @_";
-		# diag Dumper \@_;
 		return EV::unloop if ++$cnt >= $n;
 		$obj->$method(@$args,$do);
 	};$do->();
 	EV::loop;
 	my $run = time - $start;
 	my ($rss2,$vsz2) = meminfo();
-	warn sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
+	diag sprintf "$method: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
 	if ($rss2 > $rss1 or $vsz2 > $vsz1) {
-		warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
+		diag sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
 	}
 	is 1, 1;
 }
 
 
-diag '==== Memory tests ====';
+diag '==== Memory tests ====' if $ENV{TEST_VERBOSE};
 
 subtest 'connect/disconnect test', sub {
 	# plan( skip_all => 'skip');
@@ -124,8 +122,8 @@ subtest 'connect/disconnect test', sub {
 			username => $tnt->{username},
 			password => $tnt->{password},
 			reconnect => 0.2,
-			log_level => 1,
 			cnntrace => $tnt->{cnntrace},
+			log_level => $ENV{TEST_VERBOSE} ? 1 : 0,
 			connected => sub {
 				my $c = shift;
 				diag Dumper \@_ unless $_[0];
@@ -135,12 +133,10 @@ subtest 'connect/disconnect test', sub {
 			},
 			connfail => sub {
 				my $c = shift;
-				warn "@_ / $!";
+				diag "@_ / $!";
 				EV::unloop;
 			},
 			disconnected => sub {
-				# warn "discon: @_ / $!";
-				# EV::unloop;
 			},
 		});
 
@@ -150,9 +146,9 @@ subtest 'connect/disconnect test', sub {
 
 		my $run = time - $start;
 		my ($rss2,$vsz2) = meminfo();
-		warn sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
+		diag sprintf "connect/disconnect: %0.6fs/%d; %0.2f rps (%+0.2fk/%+0.2fk)",$run,$cnt, $cnt/$run, ($rss2-$rss1)/1024, ($vsz2 - $vsz1)/1024;
 		if ($rss2 > $rss1 or $vsz2 > $vsz1) {
-			warn sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
+			diag sprintf "%0.2fM/%0.2fM -> %0.2fM/%0.2fM", $rss1/1024/1024,$vsz1/1024/1024, $rss2/1024/1024,$vsz2/1024/1024;
 		}
 	}
 	is 1, 1;
@@ -165,18 +161,18 @@ subtest 'basic memory test', sub {
 		username => $tnt->{username},
 		password => $tnt->{password},
 		reconnect => 0.2,
-		log_level => 1,
 		cnntrace => $tnt->{cnntrace},
+		log_level => $ENV{TEST_VERBOSE} ? 1 : 0,
 		connected => sub {
 			EV::unloop;
 		},
 		connfail => sub {
 			my $c = shift;
-			warn "@_ / $!";
+			diag "@_ / $!";
 			EV::unloop;
 		},
 		disconnected => sub {
-			warn "@_ / $!";
+			diag "@_ / $!" if $ENV{TEST_VERBOSE};
 			EV::unloop;
 		},
 	});

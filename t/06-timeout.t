@@ -54,7 +54,7 @@ $tnt = Test::Tarantool16->new(
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
@@ -77,11 +77,11 @@ my $c; $c = EV::Tarantool16->new({
 	username => $tnt->{username},
 	password => $tnt->{password},
 	reconnect => 0.2,
-	log_level => 3,
 	cnntrace => $tnt->{cnntrace},
+	log_level => $ENV{TEST_VERBOSE} ? 4 : 0,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
-		warn "connected: @_";
+		diag "connected: @_" if $ENV{TEST_VERBOSE};
 		$connected++ if defined $_[0];
 		EV::unloop;
 	},
@@ -94,7 +94,7 @@ my $c; $c = EV::Tarantool16->new({
 		EV::unloop;
 	},
 	disconnected => sub {
-		warn "discon: @_ / $!";
+		diag "discon: @_ / $!" if $ENV{TEST_VERBOSE};
 		$disconnected++;
 		EV::unloop;
 	},
@@ -109,7 +109,7 @@ croak "Not connected normally" unless $connected > 0;
 
 subtest 'Ping tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{ping};
-	diag '==== Ping timeout tests ===';
+	diag '==== Ping timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($opt, $cmp) = @_;
@@ -154,7 +154,7 @@ subtest 'Ping tests', sub {
 
 subtest 'Eval tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{eval};
-	diag '==== Eval timeout tests ===';
+	diag '==== Eval timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($opt, $cmp) = @_;
@@ -205,7 +205,7 @@ subtest 'Eval tests', sub {
 
 subtest 'Call tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{call};
-	diag '==== Call timeout tests ===';
+	diag '==== Call timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($timeout, $opt, $cmp) = @_;
@@ -257,7 +257,7 @@ subtest 'Call tests', sub {
 
 subtest 'Select tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{ping};
-	diag '==== Select timeout tests ===';
+	diag '==== Select timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($key, $opt, $cmp) = @_;
@@ -309,7 +309,7 @@ subtest 'Select tests', sub {
 
 subtest 'Insert tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{insert};
-	diag '==== Insert timeout tests ===';
+	diag '==== Insert timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($args, $opt, $cmp) = @_;
@@ -360,7 +360,7 @@ subtest 'Insert tests', sub {
 
 subtest 'Delete tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{delete};
-	diag '==== Delete timeout tests ===';
+	diag '==== Delete timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($args, $opt, $cmp) = @_;
@@ -411,7 +411,7 @@ subtest 'Delete tests', sub {
 
 subtest 'Update tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{update};
-	diag '==== Update timeout tests ===';
+	diag '==== Update timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($key, $tuples, $opt, $cmp) = @_;
@@ -463,7 +463,7 @@ subtest 'Update tests', sub {
 
 subtest 'Upsert tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{update};
-	diag '==== Upsert timeout tests ===';
+	diag '==== Upsert timeout tests ===' if $ENV{TEST_VERBOSE};
 
 	my $f = sub {
 		my ($tuple, $operations, $opt, $cmp) = @_;

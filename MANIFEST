@@ -25,7 +25,6 @@ libs/msgpuck/debian/docs
 libs/msgpuck/debian/libmsgpuck-dev.manpages
 libs/msgpuck/debian/rules
 libs/msgpuck/debian/source/format
-libs/msgpuck/Doxyfile
 libs/msgpuck/Doxyfile.in
 libs/msgpuck/LICENSE
 libs/msgpuck/msgpuck.c
@@ -39,8 +38,6 @@ libs/msgpuck/test/test.h
 Makefile.PL
 MANIFEST
 MANIFEST.SKIP
-META.json
-META.yml
 ppport.h
 provision/init.lua
 provision/macos_ares_rules.h

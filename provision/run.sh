@@ -6,7 +6,7 @@ echo ${TRAVIS_OS_NAME}
 
 mkdir -p $HOME/temp
 cd $HOME/temp
-TestTarantool_VER=0.032
+TestTarantool_VER=0.033
 TestTarantool_URL=https://github.com/igorcoding/Test-Tarantool16/releases/download/v${TestTarantool_VER}/Test-Tarantool16-${TestTarantool_VER}.tar.gz
 wget ${TestTarantool_URL} -O $HOME/temp/test-tarantool16.tar.gz
 cd -

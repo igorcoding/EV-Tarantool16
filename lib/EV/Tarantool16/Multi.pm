@@ -11,8 +11,8 @@ sub U(@) { $_[0] }
 
 sub log_err {}
 sub log_warn {
-	shift;
-	warn "@_\n"
+	my $self = shift;
+	warn "@_\n" if $self->{log_level} >= 2;
 }
 
 sub new {
@@ -24,6 +24,7 @@ sub new {
 		ares_reuse => 0,
 		wbuf_limit => 16000,
 		servers => [],
+		log_level => 3,
 		one_connected => undef,
 		connected => undef,
 		all_connected => undef,
@@ -73,6 +74,7 @@ sub new {
 			cnntrace => $self->{cnntrace},
 			ares_reuse => $self->{ares_reuse},
 			wbuf_limit => $self->{wbuf_limit},
+			log_level => $self->{log_level},
 			connected => sub {
 				my $c = shift;
 				@{ $srv->{peer} = {} }{qw(host port)} = @_;
@@ -82,12 +84,12 @@ sub new {
 			connfail => sub {
 				my ($c,$fail) = @_;
 				$self->{connfail} ? $self->{connfail}( U($self,$c),$fail ) :
-				!$warned++ && $self->log_warn( "Connection to $srv->{node} failed: $fail" );
+				!$warned++ && $self->log_warn("Connection to $srv->{node} failed: $fail");
 			},
 			disconnected => sub {
 				my $c = shift;
 				$srv->{gen}++;
-				@_ and $srv->{peer} and $self->log_warn( "Connection to $srv->{node}/$srv->{peer}{host}:$srv->{peer}{port} closed: @_" );
+				@_ and $srv->{peer} and $self->log_warn("Connection to $srv->{node}/$srv->{peer}{host}:$srv->{peer}{port} closed: @_");
 				$self->_db_offline( $srv, @_ );
 				
 			},

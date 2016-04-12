@@ -63,7 +63,7 @@ $tnt = Test::Tarantool16->new(
 	title   => $tnt->{name},
 	host    => $tnt->{host},
 	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ )},
+	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
 	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 );
@@ -89,10 +89,10 @@ my $c; $c = EV::Tarantool16->new({
 	password => $tnt->{password},
 	cnntrace => $tnt->{cnntrace},
 	reconnect => 0.2,
-	log_level => 4,
+	log_level => $ENV{TEST_VERBOSE} ? 4 : 0,
 	connected => sub {
 		diag Dumper \@_ unless $_[0];
-		warn "connected: @_";
+		diag "connected: @_" if $ENV{TEST_VERBOSE};
 		$connected++ if defined $_[0];
 		EV::unloop;
 	},
@@ -105,7 +105,7 @@ my $c; $c = EV::Tarantool16->new({
 		EV::unloop;
 	},
 	disconnected => sub {
-		warn "discon: @_ / $!";
+		diag "discon: @_ / $!" if $ENV{TEST_VERBOSE};
 		$disconnected++;
 		EV::unloop;
 	},
@@ -133,7 +133,7 @@ croak "Not connected normally" unless $connected > 0;
 
 subtest 'Ping tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{ping};
-	diag '==== Ping tests ===';
+	diag '==== Ping tests ===' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[{}, [
@@ -157,23 +157,6 @@ subtest 'Ping tests', sub {
 		]],
 	];
 
-	# my $plan_exec = sub {
-	# 	my ($plan) = @_;
-	# 	my $plan_exec_inner; $plan_exec_inner = sub {
-	# 		my ($i) = @_;
-	# 		return unless $i <= scalar @$plan;
-	# 		my $plan_exec_inner = $plan_exec_inner;
-	# 		my $p = $plan->[$i];
-	# 		$c->ping($p->[0], sub {
-	# 			my $a = $_[0];
-	# 			cmp_deeply \@_, $p->[1];
-	# 			$plan_exec_inner->($i + 1);
-	# 		});
-	# 	};
-	# 	$plan_exec_inner->(0);
-	# 	weaken($plan_exec_inner);
-	# };
-
 	for my $p (@$_plan) {
 		my $finished = 0;
 		$c->ping($p->[0], sub {
@@ -192,7 +175,7 @@ subtest 'Ping tests', sub {
 
 subtest 'Eval tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{eval};
-	diag '==== Eval tests ====';
+	diag '==== Eval tests ====' if $ENV{TEST_VERBOSE};
 	$c->eval("return {'hey'}", [], sub {
 		my $a = $_[0];
 		diag Dumper \@_ if !$a;
@@ -211,7 +194,7 @@ subtest 'Eval tests', sub {
 
 subtest 'Call tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{call};
-	diag '==== Call tests ====';
+	diag '==== Call tests ====' if $ENV{TEST_VERBOSE};
 	$c->call('string_function', [], sub {
 		my $a = $_[0];
 		diag Dumper \@_ if !$a;
@@ -230,7 +213,7 @@ subtest 'Call tests', sub {
 
 subtest 'Lua tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{lua};
-	diag '==== Lua tests ====';
+	diag '==== Lua tests ====' if $ENV{TEST_VERBOSE};
 	$c->lua('string_function', [], sub {
 		my $a = $_[0];
 		diag Dumper \@_ if !$a;
@@ -249,7 +232,7 @@ subtest 'Lua tests', sub {
 
 subtest 'Select tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{select};
-	diag '==== Select tests ====';
+	diag '==== Select tests ====' if $ENV{TEST_VERBOSE};
 
 
 	my $_plan = [
@@ -312,7 +295,7 @@ subtest 'Select tests', sub {
 
 subtest 'Insert tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{insert};
-	diag '==== Insert tests ====';
+	diag '==== Insert tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { replace => 0, hash => 0 }, {
@@ -363,7 +346,7 @@ subtest 'Insert tests', sub {
 
 subtest 'Replace tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{replace};
-	diag '==== Replace tests ====';
+	diag '==== Replace tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[["t1", "t2", 101, '-100', { a => 11, b => 12, c => 13 }], { hash => 0 }, {
@@ -415,7 +398,7 @@ subtest 'Replace tests', sub {
 
 subtest 'Delete tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{delete};
-	diag '==== Delete tests ====';
+	diag '==== Delete tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[['tt1', 'tt2', 456], {}, {
@@ -453,7 +436,7 @@ subtest 'Delete tests', sub {
 
 subtest 'Update tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{update};
-	diag '==== Update tests ====';
+	diag '==== Update tests ====' if $ENV{TEST_VERBOSE};
 
 
 	my $_plan = [
@@ -589,7 +572,7 @@ subtest 'Update tests', sub {
 
 subtest 'Upsert tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{update};
-	diag '==== Upsert tests ====';
+	diag '==== Upsert tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
@@ -678,7 +661,7 @@ subtest 'Upsert tests', sub {
 
 subtest 'RTREE tests', sub {
 	plan( skip_all => 'skip') if !$test_exec{RTREE};
-	diag '==== RTREE tests ====';
+	diag '==== RTREE tests ====' if $ENV{TEST_VERBOSE};
 	my $space = "rtree";
 
 	Renewer::renew_tnt($c, $space, sub {

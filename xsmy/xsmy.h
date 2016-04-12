@@ -51,7 +51,7 @@ void *safecpy(const void *src,register size_t len) {
 }
 
 #define _croak_cb(cb,...) STMT_START { \
-		warn(__VA_ARGS__); \
+		/* warn(__VA_ARGS__);*/ \
 		if (likely(cb != NULL)) { \
 			dSP; \
 			ENTER; \
