@@ -277,7 +277,7 @@ static void on_read(ev_cnn *self, size_t len) {
 				if (hdr.code == 0) {
 					PUSHMARK(SP);
 					EXTEND(SP, 1);
-					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
+					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc_NN((SV *) hv) )) );
 					PUTBACK;
 				}
 				else {
@@ -286,7 +286,7 @@ static void on_read(ev_cnn *self, size_t len) {
 					EXTEND(SP, 3);
 					PUSHs( &PL_sv_undef );
 					PUSHs( var && *var ? sv_2mortal(newSVsv(*var)) : &PL_sv_undef );
-					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc((SV *) hv) )) );
+					PUSHs( sv_2mortal(newRV_noinc( SvREFCNT_inc_NN((SV *) hv) )) );
 					PUTBACK;
 				}
 

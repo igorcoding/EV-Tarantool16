@@ -224,7 +224,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
 		fl = hv_fetch_ent(hf,*f,0,0);
 		if (fl && SvOK( HeVAL(fl) )) {
 			fcnt--;
-			av_push( rv, SvREFCNT_inc(HeVAL(fl)) );
+			av_push( rv, SvREFCNT_inc_NN(HeVAL(fl)) );
 		} else {
 			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
 			// TODO: not sure that we should ignore it
@@ -1369,7 +1369,7 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 					fld->name = field_name;
 					(void) hv_store(spc->field, SvPV_nolen(field_name), field_name_len, fldsv, 0);
 					// cwarn("field_name = %.*s", SvCUR(field_name), SvPV_nolen(field_name));
-					av_push(spc->fields, SvREFCNT_inc(field_name));
+					av_push(spc->fields, SvREFCNT_inc_NN(field_name));
 				}
 			}
 
@@ -1484,7 +1484,7 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 					if (f) {
 						HE *fhe = hv_fetch_ent(spc->field, *f, 1, 0);
 						if (SvOK( HeVAL(fhe) )) {
-							av_push(idx->fields, SvREFCNT_inc(((TntField *)SvPVX( HeVAL(fhe) ))->name));
+							av_push(idx->fields, SvREFCNT_inc_NN(((TntField *)SvPVX( HeVAL(fhe) ))->name));
 							// idx->f.f[ix] = ((TntField *)SvPVX( HeVAL(fhe) ))->format;
 						}
 					} else {
