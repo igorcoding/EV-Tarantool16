@@ -46,3 +46,4 @@ build.sh
 \.travis.yml
 t/temp.pl
 Vagrantfile
+^tnt_*
