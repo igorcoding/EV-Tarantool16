@@ -49,7 +49,7 @@ static SV *types_true, *types_false;
 	uint32_t k; \
 	for (k = 0; k < keys_size; k++) { \
 		key = av_fetch( fields, k, 0 ); \
-		if (key && *key && SvOK(*key) && sv_len(*key)) { \
+		if (key && *key && SvOK(*key)) { \
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def; \
 			h = encode_obj(*key, h, rv, &sz, _fmt); \
 		} else { \
