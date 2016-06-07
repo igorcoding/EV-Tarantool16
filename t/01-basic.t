@@ -254,23 +254,23 @@ subtest 'Select tests', sub {
 			count => 3,
 			tuples => [
 						{
-						  '' => ['heyo'],
+						  _t5 => 'heyo',
 						  _t4 => -745,
 						  _t1 => 't1',
 						  _t2 => 't2',
-						  _t3 => 17
+						  _t3 => 17,
 						},
 						{
 						  _t4 => {35 => Types::Serialiser::false,33 => Types::Serialiser::true,key2 => 42,key1 => 'value1'},
 						  _t1 => 't1',
 						  _t2 => 't2',
-						  _t3 => 3
+						  _t3 => 3,
 						},
 						{
 						  _t4 => [1,2,3,'str1',4],
 						  _t1 => 't1',
 						  _t2 => 't2',
-						  _t3 => 2
+						  _t3 => 2,
 						},
 
 					  ],
@@ -321,13 +321,47 @@ subtest 'Insert tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { replace => 0, hash => 0 }, {
 			count => 1,
 			tuples => [
-						['t1', 't2', 18, -100]
+						['t1', 't2', 18, -100, undef]
 					  ],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
-		}]
+		}],
+		
+		# Not all fields supplied tests
+		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t5 => '-100' }, { replace => 0, hash => 1 }, {
+			count => 1,
+			tuples => [
+						{
+							_t1 => 't1',
+							_t2 => 't2',
+							_t3 => 18,
+							_t4 => undef,
+							_t5 => '-100',
+						}
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
+		[{_t1 => "t1", _t2 => "t2", _t3 => 18, }, { replace => 0, hash => 1 }, {
+			count => 1,
+			tuples => [
+						{
+							_t1 => 't1',
+							_t2 => 't2',
+							_t3 => 18,
+							_t4 => undef,
+							_t5 => undef
+						}
+					  ],
+			status => 'ok',
+			code => 0,
+			sync => ignore(),
+			schema_id => ignore(),
+		}],
 	];
 	for my $p (@$_plan) {
 		$c->insert($SPACE_NAME, $p->[0], $p->[1], sub {
@@ -372,7 +406,7 @@ subtest 'Replace tests', sub {
 		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { hash => 0 }, {
 			count => 1,
 			tuples => [
-						['t1', 't2', 18, -100]
+						['t1', 't2', 18, -100, undef]
 					  ],
 			status => 'ok',
 			code => 0,
@@ -444,11 +478,11 @@ subtest 'Update tests', sub {
 			count => 1,
 			tuples => [
 						{
-							'' => [ 'heyo' ],
 							_t1 => 't1',
 							_t2 => 't2',
 							_t3 => 17,
 							_t4 => -695,
+							_t5 => 'heyo',
 						}
 					  ],
 			status => 'ok',
@@ -500,11 +534,11 @@ subtest 'Update tests', sub {
 			count => 1,
 			tuples => [
 						{
-							'' => [ 'heyo' ],
 							_t1 => 't1',
 							_t2 => 't2',
 							_t3 => 17,
 							_t4 => 12,
+							_t5 => 'heyo',
 						}
 					  ],
 			status => 'ok',
@@ -516,11 +550,12 @@ subtest 'Update tests', sub {
 			count => 1,
 			tuples => [
 						{
-							'' => [ {a => 1, b => 2, c => 3}, 'heyo' ],
+							_t5 => {a => 1, b => 2, c => 3},
 							_t1 => 't1',
 							_t2 => 't2',
 							_t3 => 17,
 							_t4 => -745,
+							'' => ['heyo']
 						}
 					  ],
 			status => 'ok',
@@ -532,7 +567,7 @@ subtest 'Update tests', sub {
 			count => 1,
 			tuples => [
 						{
-							'' => [ 'romyo' ],
+							_t5 => 'romyo',
 							_t1 => 't1',
 							_t2 => 't2',
 							_t3 => 17,

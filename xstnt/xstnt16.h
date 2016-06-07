@@ -4,6 +4,7 @@
 #define MP_SOURCE 1
 
 #include <string.h>
+#include <stdbool.h>
 #include "xsmy.h"
 #include "msgpuck.h"
 #include "types.h"
@@ -208,7 +209,7 @@ static void destroy_spaces(HV *spaces) {
 } STMT_END
 
 
-static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
+static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, SV *cb) {
 	AV *rv = (AV *) sv_2mortal((SV *) newAV());
 	int fcnt = HvTOTALKEYS(hf);
 	int k;
@@ -227,8 +228,9 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, SV *cb) {
 			av_push( rv, SvREFCNT_inc_NN(HeVAL(fl)) );
 		} else {
 			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
-			// TODO: not sure that we should ignore it
-			// av_push( rv, &PL_sv_undef );
+			if (!ignore_missing_fields) {
+				av_push( rv, &PL_sv_undef );
+			}
 		}
 	}
 	if (unlikely(fcnt != 0)) {
@@ -445,7 +447,7 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = keys;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, true, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -523,7 +525,7 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, false, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -773,7 +775,7 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = keys;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, true, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -854,7 +856,7 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, false, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -939,7 +941,7 @@ static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = keys;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, true, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {

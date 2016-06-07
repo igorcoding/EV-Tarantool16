@@ -54,7 +54,7 @@ static SV *types_true, *types_false;
 			h = encode_obj(*key, h, rv, &sz, _fmt); \
 		} else { \
 			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN); \
-			cwarn("Passed key is invalid. Consider revising."); \
+			/*cwarn("Passed key is invalid. Consider revising.");*/ \
 		} \
 	} \
 } STMT_END
