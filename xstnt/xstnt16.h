@@ -229,17 +229,17 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 		} else {
 			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
 			if (!ignore_missing_fields) {
-				av_push( rv, &PL_sv_undef );
+				av_push( rv, PERL_UNDEF );
 			}
 		}
 	}
 	if (unlikely(fcnt != 0)) {
-		HV *used = (HV *)sv_2mortal((SV *)newHV());
+		HV *used = (HV *) sv_2mortal((SV *) newHV());
 		for (k = 0; k <= av_len( fields );k++) {
 			f = av_fetch( fields,k,0 );
 			fl = hv_fetch_ent(hf,*f,0,0);
 			if (fl && SvOK( HeVAL(fl) )) {
-				(void) hv_store(used,SvPV_nolen(*f),sv_len(*f), &PL_sv_undef,0);
+				(void) hv_store(used, SvPV_nolen(*f), sv_len(*f), &PL_sv_undef, 0);
 			}
 		}
 		if ((f = hv_fetch(hf, "", 0, 0)) && SvROK(*f)) {

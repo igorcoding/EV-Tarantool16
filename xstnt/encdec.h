@@ -11,6 +11,8 @@
 static HV *types_boolean_stash;
 static SV *types_true, *types_false;
 
+#define PERL_UNDEF newSV(0)
+
 #define write_length(h, size) STMT_START { \
 	*h = 0xce; \
 	*((uint32_t *)(h+1)) = htobe32(size); \
@@ -53,7 +55,7 @@ static SV *types_true, *types_false;
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def; \
 			h = encode_obj(*key, h, rv, &sz, _fmt); \
 		} else { \
-			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN); \
+			h = encode_obj(sv_2mortal(PERL_UNDEF), h, rv, &sz, FMT_UNKNOWN); \
 			/*cwarn("Passed key is invalid. Consider revising.");*/ \
 		} \
 	} \
@@ -401,11 +403,11 @@ static SV *decode_obj(const char **p) {
 	}
 	case MP_NIL:
 		mp_next(p);
-		return &PL_sv_undef;
+		return PERL_UNDEF;
 	default:
 		cwarn("Got unexpected type as a tuple element value");
 		mp_next(p);
-		return &PL_sv_undef;
+		return PERL_UNDEF;
 	}
 }
 
