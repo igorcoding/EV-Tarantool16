@@ -229,7 +229,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 		} else {
 			// cwarn("missing field: %.*s", SvCUR(*f), SvPV_nolen(*f));
 			if (!ignore_missing_fields) {
-				av_push( rv, PERL_UNDEF );
+				av_push( rv, &PL_sv_undef );
 			}
 		}
 	}

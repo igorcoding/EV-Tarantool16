@@ -55,7 +55,7 @@ static SV *types_true, *types_false;
 			char _fmt = k < fmt->size ? fmt->f[k] : fmt->def; \
 			h = encode_obj(*key, h, rv, &sz, _fmt); \
 		} else { \
-			h = encode_obj(sv_2mortal(PERL_UNDEF), h, rv, &sz, FMT_UNKNOWN); \
+			h = encode_obj(&PL_sv_undef, h, rv, &sz, FMT_UNKNOWN); \
 			/*cwarn("Passed key is invalid. Consider revising.");*/ \
 		} \
 	} \
