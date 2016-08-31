@@ -143,6 +143,7 @@ typedef enum {
 	TNT_IT_BITS_ALL_NOT_SET = 9,
 	TNT_IT_OVERLAPS = 10,
 	TNT_IT_NEIGHBOR = 11,
+	TNT_IT_COUNT,
 } tnt_iterator_t;
 
 

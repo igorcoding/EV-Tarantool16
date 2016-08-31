@@ -33,6 +33,7 @@ WriteMakefile(
 		'Scalar::Util'       => 0,
 		'Data::Dumper'       => 0,
 		'Carp'               => 0,
+		'constant'           => 0,
 	},
 	LIBS              => [ $ARES_LDFLAGS ],
 	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',

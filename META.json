@@ -31,7 +31,8 @@
             "Test::Deep" : "0",
             "Test::More" : "0",
             "Test::Tarantool16" : "0",
-            "Time::HiRes" : "0"
+            "Time::HiRes" : "0",
+            "constant" : "0"
          }
       },
       "configure" : {
@@ -47,6 +48,6 @@
       }
    },
    "release_status" : "stable",
-   "version" : "1.30",
+   "version" : "1.31",
    "x_serialization_backend" : "JSON::PP version 2.27203"
 }

@@ -5,12 +5,27 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.30';
+our $VERSION = '1.31';
 
 use EV ();
 
 require XSLoader;
 XSLoader::load('EV::Tarantool16', $VERSION);
+
+use constant {
+	INDEX_EQ => 0,
+	INDEX_REQ => 1,
+	INDEX_ALL => 2,
+	INDEX_LT => 3,
+	INDEX_LE => 4,
+	INDEX_GE => 5,
+	INDEX_GT  => 6,
+	INDEX_BITS_ALL_SET => 7,
+	INDEX_BITS_ANY_SET => 8,
+	INDEX_BITS_ALL_NOT_SET => 9,
+	INDEX_OVERLAPS  => 10,
+	INDEX_NEIGHBOR  => 11,
+};
 
 =begin HTML
 
@@ -31,7 +46,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.30
+Version 1.31
 
 =cut
 
@@ -282,19 +297,41 @@ Select offset
 
 =item iterator => $iterator
 
-Select iterator type. Possible values:
-'EQ',
-'REQ',
-'ALL',
-'LT',
-'LE',
-'GE',
-'GT',
-'BITS_ALL_SET',
-'BITS_ANY_SET',
-'BITS_ALL_NOT_SET',
-'OVERLAPS',
-'NEIGHBOR'
+Select iterator type. It is recommended to use the predefined constants EV::Tarantool16::INDEX_#iterator_name#
+(eg. EV::Tarantool16::INDEX_EQ, EV::Tarantool16::INDEX_GE and so on).
+
+List of possible iterator names:
+
+=over
+
+=item * EQ
+
+=item * REQ
+
+=item * ALL
+
+=item * LT
+
+=item * LE
+
+=item * GE
+
+=item * GT
+
+=item * BITS_ALL_SET
+
+=item * BITS_ANY_SET
+
+=item * BITS_ALL_NOT_SET
+
+=item * OVERLAPS
+
+=item * NEIGHBOR
+
+=back
+
+You can also use string names as the value to this option (like 'EQ' or 'LT').
+
 
 =item in => $in
 

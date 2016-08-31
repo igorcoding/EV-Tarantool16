@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.30
+    Version 1.31
 
 SYNOPSIS
         use EV::Tarantool16;
@@ -170,9 +170,38 @@ SUBROUTINES/METHODS
             Select offset
 
         iterator => $iterator
-            Select iterator type. Possible values: 'EQ', 'REQ', 'ALL', 'LT',
-            'LE', 'GE', 'GT', 'BITS_ALL_SET', 'BITS_ANY_SET',
-            'BITS_ALL_NOT_SET', 'OVERLAPS', 'NEIGHBOR'
+            Select iterator type. It is recommended to use the predefined
+            constants EV::Tarantool16::INDEX_#iterator_name# (eg.
+            EV::Tarantool16::INDEX_EQ, EV::Tarantool16::INDEX_GE and so on).
+
+            List of possible iterator names:
+
+            *   EQ
+
+            *   REQ
+
+            *   ALL
+
+            *   LT
+
+            *   LE
+
+            *   GE
+
+            *   GT
+
+            *   BITS_ALL_SET
+
+            *   BITS_ANY_SET
+
+            *   BITS_ALL_NOT_SET
+
+            *   OVERLAPS
+
+            *   NEIGHBOR
+
+            You can also use string names as the value to this option (like
+            'EQ' or 'LT').
 
         in => $in
             Format for parsing input (string). One char is for one argument

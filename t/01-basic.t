@@ -250,7 +250,7 @@ subtest 'Select tests', sub {
 			schema_id => ignore(),
 		}],
 
-		[{_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => 'LE'}, {
+		[{_t1=>'t1', _t2=>'t2'}, {hash => 1, iterator => EV::Tarantool16::INDEX_LE}, {
 			count => 3,
 			tuples => [
 						{
@@ -786,7 +786,7 @@ subtest 'RTREE tests', sub {
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'OVERLAPS'}, {
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>EV::Tarantool16::INDEX_OVERLAPS}, {
 			count => 2,
 			tuples => [['a2', [5,6,7,8]], ['a4', [5,6,10,15]]],
 			status => 'ok',
@@ -802,7 +802,7 @@ subtest 'RTREE tests', sub {
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'GE'}, {
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>EV::Tarantool16::INDEX_GE}, {
 			count => 2,
 			tuples => [['a2', [5,6,7,8]], ['a4', [5, 6, 10, 15]]],
 			status => 'ok',
@@ -810,7 +810,7 @@ subtest 'RTREE tests', sub {
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>'LT'}, {
+		["select", [[5,6,7,8]], {hash=>0, index=>'spatial', iterator=>EV::Tarantool16::INDEX_LT}, {
 			count => 0,
 			tuples => [],
 			status => 'ok',

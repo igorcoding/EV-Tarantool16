@@ -27,3 +27,5 @@ Kit.pm
 *.src.rpm
 dist/
 tnt_*
+
+EV-Tarantool16-*/

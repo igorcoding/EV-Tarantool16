@@ -265,23 +265,37 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 } STMT_END
 
 
-static inline U32 get_iterator(TntCtx *ctx, SV *iterator_str) {
-	const char *str = SvPVX(iterator_str);
-	U32 str_len = SvCUR(iterator_str);
-	COMP_STR(str, "EQ",               str_len, 2,  TNT_IT_EQ);
-	COMP_STR(str, "REQ",              str_len, 3,  TNT_IT_REQ);
-	COMP_STR(str, "ALL",              str_len, 3,  TNT_IT_ALL);
-	COMP_STR(str, "LT",               str_len, 2,  TNT_IT_LT);
-	COMP_STR(str, "LE",               str_len, 2,  TNT_IT_LE);
-	COMP_STR(str, "GE",               str_len, 2,  TNT_IT_GE);
-	COMP_STR(str, "GT",               str_len, 2,  TNT_IT_GT);
-	COMP_STR(str, "BITS_ALL_SET",     str_len, 12, TNT_IT_BITS_ALL_SET);
-	COMP_STR(str, "BITS_ANY_SET",     str_len, 12, TNT_IT_BITS_ANY_SET);
-	COMP_STR(str, "BITS_ALL_NOT_SET", str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
-	COMP_STR(str, "OVERLAPS",         str_len, 8,  TNT_IT_OVERLAPS);
-	COMP_STR(str, "NEIGHBOR",         str_len, 8,  TNT_IT_NEIGHBOR);
-	log_error(ctx->log_level, "Unknown iterator: %.*s", (int) str_len, str);
-	return -1;
+static inline tnt_iterator_t get_iterator(TntCtx *ctx, SV *iterator) {
+	if (SvIOK(iterator)) {
+		IV num = SvIVX(iterator);
+		tnt_iterator_t it = (tnt_iterator_t) num;
+		if (num >= 0 && it < TNT_IT_COUNT) {
+			return it;
+		} else {
+			log_error(ctx->log_level, "Unknown iterator: %d", (int) num);
+			return -1;
+		}
+	} else if (SvPOK(iterator)) {
+		const char *str = SvPVX(iterator);
+		U32 str_len = SvCUR(iterator);
+		COMP_STR(str, "EQ",               str_len, 2,  TNT_IT_EQ);
+		COMP_STR(str, "REQ",              str_len, 3,  TNT_IT_REQ);
+		COMP_STR(str, "ALL",              str_len, 3,  TNT_IT_ALL);
+		COMP_STR(str, "LT",               str_len, 2,  TNT_IT_LT);
+		COMP_STR(str, "LE",               str_len, 2,  TNT_IT_LE);
+		COMP_STR(str, "GE",               str_len, 2,  TNT_IT_GE);
+		COMP_STR(str, "GT",               str_len, 2,  TNT_IT_GT);
+		COMP_STR(str, "BITS_ALL_SET",     str_len, 12, TNT_IT_BITS_ALL_SET);
+		COMP_STR(str, "BITS_ANY_SET",     str_len, 12, TNT_IT_BITS_ANY_SET);
+		COMP_STR(str, "BITS_ALL_NOT_SET", str_len, 16, TNT_IT_BITS_ALL_NOT_SET);
+		COMP_STR(str, "OVERLAPS",         str_len, 8,  TNT_IT_OVERLAPS);
+		COMP_STR(str, "NEIGHBOR",         str_len, 8,  TNT_IT_NEIGHBOR);
+		log_error(ctx->log_level, "Unknown iterator: %.*s", (int) str_len, str);
+		return -1;
+	} else {
+		log_error(ctx->log_level, "Unknown iterator type (expecting string or integer)");
+		return -1;
+	}
 }
 
 
@@ -381,7 +395,7 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	U32 offset = -1;
 	U32 index  = 0;
 	// U32 flags  = 0;
-	U32 iterator = -1;
+	tnt_iterator_t iterator = -1;
 
 	unpack_format *fmt;
 	dUnpackFormat(format);
@@ -405,7 +419,7 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 		}
 		if ((key = hv_fetchs(opt, "limit", 0)) && SvOK(*key)) limit = SvUV(*key);
 		if ((key = hv_fetchs(opt, "offset", 0)) && SvOK(*key)) offset = SvUV(*key);
-		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key) && SvPOK(*key)) iterator = get_iterator(ctx, *key);
+		if ((key = hv_fetchs(opt, "iterator", 0)) && SvOK(*key)) iterator = get_iterator(ctx, *key);
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	} else {
 		ctx->f.size = 0;
