@@ -145,10 +145,9 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 	// cwarn("fmt = %d", fmt);
 
 	SvGETMAGIC(initial_src);
-
 	REAL_SV(initial_src, src, stash);
 
-	if (fmt == FMT_STR) {
+	if (fmt == FMT_STRING) {
 		STRLEN str_len = 0;
 		char *str = NULL;
 
@@ -163,7 +162,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 		encode_str(dest, sz, rv, str, str_len);
 		return dest;
 
-	} else if (fmt == FMT_NUMBER || fmt == FMT_NUM || fmt == FMT_INT)  {
+	} else if (fmt == FMT_NUMBER || fmt == FMT_UNSIGNED || fmt == FMT_INTEGER)  {
 
 		if (fmt == FMT_NUMBER) {
 			if (SvNOK(src)) {
@@ -208,7 +207,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 		} else {
 			croak("Incompatible types. Format expects: %c", fmt);
 		}
-
+		
 	} else if (fmt == FMT_ARRAY) {
 
 		if (SvTYPE(src) == SVt_PVAV) {
@@ -218,7 +217,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 			croak("Incompatible types. Format expects: %c", fmt);
 		}
 
-	} else if (fmt == FMT_UNKNOWN) {
+	} else if (fmt == FMT_UNKNOWN || fmt == FMT_SCALAR) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
 
@@ -232,11 +231,11 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 				encode_nil(dest, sz, rv);
 				return dest;
 
-			} else if (SvTYPE(src) == SVt_PVAV) {  // array
+			} else if (fmt != FMT_SCALAR && SvTYPE(src) == SVt_PVAV) {  // array
 				encode_AV(src, rv, dest, sz);
 				return dest;
 
-			} else if (SvTYPE(src) == SVt_PVHV) {  // hash
+			} else if (fmt != FMT_SCALAR && SvTYPE(src) == SVt_PVHV) {  // hash
 
 				HV *hv = (HV *) src;
 				HE *he;
@@ -274,7 +273,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 			} else if (!SvOK(src)) {
 				encode_nil(dest, sz, rv);
 			} else {
-				croak("What the heck is that? (PV = %.*s) (type = %d)", SvCUR(src), SvPV_nolen(src), SvTYPE(src));
+				croak("What the heck are you trying to encode? (PV = %.*s) (type = %d)", SvCUR(src), SvPV_nolen(src), SvTYPE(src));
 			}
 		}
 

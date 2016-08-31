@@ -49,7 +49,7 @@ my $tnt = {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/init.lua';
+		my $file = 'provision/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";
@@ -65,7 +65,7 @@ $tnt = Test::Tarantool16->new(
 	port    => $tnt->{port},
 	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
+	on_die  => sub { my $self = shift; fail "tarantool $self->{title} is dead!: $!"; exit 1; },
 );
 
 $tnt->start(timeout => 10, sub {

@@ -42,8 +42,9 @@ Tarantool16.bs
 \.gitmodules
 build.sh
 ^provision/run.sh
-^provision/evtnt.lua
 \.travis.yml
 t/temp.pl
 Vagrantfile
 ^tnt_*
+provision/tarantool-version/README.md
+provision/tarantool-version/tntversion-0.1-1.rockspec

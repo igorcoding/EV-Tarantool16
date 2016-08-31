@@ -2,7 +2,7 @@ NAME
     EV::Tarantool16 - EV client for Tarantool 1.6
 
 VESRION
-    Version 1.29
+    Version 1.30
 
 SYNOPSIS
         use EV::Tarantool16;

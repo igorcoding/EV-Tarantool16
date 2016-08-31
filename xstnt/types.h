@@ -119,13 +119,16 @@ typedef enum {
 } update_op_type_t;
 
 typedef enum {
+	FMT_BAD = -1,
+	
 	FMT_UNKNOWN = '*',
-	FMT_NUM = 'n',
-	FMT_STR = 's',
-	FMT_NUMBER = 'b',
-	FMT_INT = 'i',
-	FMT_ARRAY = 'a'
-} TNT_FORMAT_TYPE;
+	FMT_UNSIGNED = 'u',
+	FMT_STRING = 's',
+	FMT_NUMBER = 'n',
+	FMT_INTEGER = 'i',
+	FMT_ARRAY = 'a',
+	FMT_SCALAR = 'r'
+} tnt_format_t;
 
 typedef enum {
 	TNT_IT_EQ = 0,

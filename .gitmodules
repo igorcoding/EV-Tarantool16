@@ -4,3 +4,6 @@
 [submodule "msgpuck"]
 	path = libs/msgpuck
 	url = https://github.com/tarantool/msgpuck.git
+[submodule "provision/tarantool-version"]
+	path = provision/tarantool-version
+	url = https://github.com/igorcoding/tarantool-version.git

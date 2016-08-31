@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 sudo apt-get install -y curl
-curl https://packagecloud.io/tarantool/1_6/gpgkey | sudo apt-key add -
+curl https://packagecloud.io/tarantool/1_7/gpgkey | sudo apt-key add -
 sudo apt-get update
 release=`lsb_release -c -s`
 
 sudo bash -c 'cat > /etc/apt/sources.list.d/tarantool.list <<- EOF
-deb https://packagecloud.io/tarantool/1_6/ubuntu/ `lsb_release -c -s` main
-deb-src https://packagecloud.io/tarantool/1_6/ubuntu/ `lsb_release -c -s` main
+deb https://packagecloud.io/tarantool/1_7/ubuntu/ `lsb_release -c -s` main
+deb-src https://packagecloud.io/tarantool/1_7/ubuntu/ `lsb_release -c -s` main
 EOF'
 
 sudo apt-get update

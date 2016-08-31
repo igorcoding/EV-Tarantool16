@@ -79,10 +79,6 @@ PREV_HOME=${HOME}
 
 if [ ${TRAVIS} == true ]; then
 	echo "TRAVIS"
-
-	# sudo ln -s ${TRAVIS_BUILD_DIR}/provision/evtnt.lua /etc/tarantool/instances.enabled/
-	# HOME=${TRAVIS_BUILD_DIR}/../ sudo tarantoolctl start evtnt
-	# export HOME=${PREV_HOME}
 else
 	sudo apt-get install -y valgrind perl-doc
     curl -L https://cpanmin.us | sudo perl - App::cpanminus
@@ -102,8 +98,6 @@ else
 	
 	sudo cpanm Test::Valgrind
 	sudo cpanm List::BinarySearch
-
-	# sudo ln -s ${HOME}/EV-Tarantool1.6/provision/evtnt.lua /etc/tarantool/instances.enabled/
 
 	echo 'Build Perl 5.16.3...'
 
@@ -129,8 +123,6 @@ else
 	sudo ${HOME}/perl/bin/perl `which cpanm` Devel::Leak
 
 	mkdir -p ${HOME}/tnt
-
-	# sudo tarantoolctl start evtnt
 fi
 
 # sudo service tarantool restart

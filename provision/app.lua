@@ -1,3 +1,19 @@
+function script_path()
+	local str = debug.getinfo(2, "S").source:sub(2)
+	return str:match("(.*/)")
+end
+
+local BASE = script_path() .. '../provision/'
+package.path = package.path .. ";" .. BASE .. "?.lua" ..
+							   ";" .. BASE .. "tarantool-version/" .. "?.lua"
+
+local log = require('log')
+local yaml = require('yaml')
+
+log.info(package.path)
+
+local version = require('tntversion')
+
 local username = 'test_user'
 local password = 'test_pass'
 
@@ -6,6 +22,33 @@ if #box.space._user.index.name:select({username}) ~= 0 then
 end
 box.schema.user.create('test_user', {password=password, if_not_exists=true})
 box.schema.user.grant('test_user','read,write,execute,create,drop','universe')
+
+local function bootstrap()
+	local b = {
+		tarantool_ver = version.parse(),
+		has_new_types = false,
+		types = {}
+	}
+	
+	if b.tarantool_ver >= version.new(1, 7, 1, 245) then
+		b.has_new_types = true
+		b.types.string = 'string'
+		b.types.unsigned = 'unsigned'
+		b.types.integer = 'integer'
+	else
+		b.types.string = 'str'
+		b.types.unsigned = 'num'
+		b.types.integer = 'int'
+	end
+	b.types.number = 'number'
+	b.types.array = 'array'
+	b.types.scalar = 'scalar'
+	b.types.any = 'any'
+	return b
+end
+
+local B = bootstrap()
+log.info(yaml.encode(B))
 
 s_tester = box.space.tester
 if s_tester then
@@ -22,9 +65,9 @@ if s_memier then
 	s_memier:drop{}
 end
 
-s_sophier = box.space.sophier
-if s_sophier then
-	s_sophier:drop{}
+s_vinyl = box.space.vinyler
+if s_vinyl then
+	s_vinyl:drop{}
 end
 
 
@@ -32,15 +75,15 @@ end
 
 local function init_tester(s)
 	_format = {
-		{type='str', name='_t1'},
-		{type='str', name='_t2'},
-		{type='num', name='_t3'},
-		{type='num', name='_t4'},
-		{type='*', name='_t5'},
+		{type=B.types.string, name='_t1'},
+		{type=B.types.string, name='_t2'},
+		{type=B.types.unsigned, name='_t3'},
+		{type=B.types.unsigned, name='_t4'},
+		{type=B.types.any, name='_t5'},
 	}
 	s:format(_format)
 
-	i = s:create_index('primary', {type = 'tree', parts = {1, 'STR', 2, 'STR', 3, 'NUM'}})
+	i = s:create_index('primary', {type = 'tree', parts = {1, B.types.string, 2, B.types.string, 3, B.types.unsigned}})
 	-- box.space.tester:insert({'s','a',3,4})
 end
 
@@ -74,11 +117,11 @@ end
 
 -------------------------------------------------------------------------------
 
-local function init_sophier(s)
-	i = s:create_index('primary', {type = 'tree', parts = {1, 'STR'}})
+local function init_vinyler(s)
+	i = s:create_index('primary', {type = 'tree', parts = {1, B.types.string}})
 end
 
-local function _truncate_sophier(s)
+local function _truncate_vinyler(s)
 	t = {}
 	i = 1
 	for k, v in s:pairs() do
@@ -91,14 +134,14 @@ local function _truncate_sophier(s)
 	end
 end
 
-function truncate_sophier()
-	s = box.space.sophier
-	_truncate_sophier(s)
+function truncate_vinyler()
+	s = box.space.vinyler
+	_truncate_vinyler(s)
 end
 
 function truncate_memier()
 	s = box.space.memier
-	_truncate_sophier(s)
+	_truncate_vinyler(s)
 end
 
 
@@ -106,8 +149,8 @@ end
 
 
 local function init_rtree(s)
-	i = s:create_index('primary', {type = 'TREE', parts = {1, 'STR'}})
-	i2 = s:create_index('spatial', {type = 'RTREE', unique = false, parts = {2, 'ARRAY'}})
+	i = s:create_index('primary', {type = 'TREE', parts = {1, B.types.string}})
+	i2 = s:create_index('spatial', {type = 'RTREE', unique = false, parts = {2, B.types.array}})
 end
 
 function fill_rtree()
@@ -136,10 +179,10 @@ s_tester = box.schema.space.create('tester')
 init_tester(s_tester)
 
 s_memier = box.schema.space.create('memier', {engine = 'memtx'})
-init_sophier(s_memier)
+init_vinyler(s_memier)
 
-s_sophier = box.schema.space.create('sophier', {engine = 'sophia'})
-init_sophier(s_sophier)
+s_vinyl = box.schema.space.create('vinyler', {engine = 'vinyl'})
+init_vinyler(s_vinyl)
 
 s_rtree = box.schema.space.create('rtree')
 init_rtree(s_rtree)
@@ -160,8 +203,8 @@ function truncate_all()
 	print "Truncating tester space"
 	truncate_tester()
 
-	print "Truncating sophier space"
-	truncate_sophier()
+	print "Truncating vinyler space"
+	truncate_vinyler()
 
 	print "Truncating memier space"
 	truncate_memier()

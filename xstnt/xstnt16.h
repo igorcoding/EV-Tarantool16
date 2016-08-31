@@ -175,11 +175,12 @@ static void destroy_spaces(HV *spaces) {
 	while(*p) { \
 		switch(*p) { \
 			case FMT_UNKNOWN: \
-			case FMT_NUM: \
-			case FMT_STR: \
+			case FMT_UNSIGNED: \
+			case FMT_STRING: \
 			case FMT_NUMBER: \
-			case FMT_INT: \
+			case FMT_INTEGER: \
 			case FMT_ARRAY: \
+			case FMT_SCALAR: \
 				p++; break; \
 			default: \
 				croak_cb(cb,"Unknown pattern in format: %c", *p); \
@@ -197,7 +198,7 @@ static void destroy_spaces(HV *spaces) {
 	} \
 } STMT_END
 
-#define evt_opt_in(opt, idx, key, fmt, cb) STMT_START { \
+#define evt_opt_in(opt, idx, key, format, fmt, cb) STMT_START { \
 	if (opt && (key = hv_fetchs(opt,"in",0)) && *key) { \
 		dExtractFormat2( format, *key, cb ); \
 		fmt = &format; \
@@ -414,7 +415,7 @@ static inline SV *pkt_select(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 			idx = (TntIndex *) SvPVX(*key);
 		}
 	}
-	evt_opt_in(opt, idx, key, fmt, cb);
+	evt_opt_in(opt, idx, key, format, fmt, cb);
 
 	uint32_t body_map_sz = 3 + (index != -1) + (offset != -1) + (iterator != -1);
 	uint32_t keys_size = 0;
@@ -513,7 +514,7 @@ static inline SV *pkt_insert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 		if ((key = hv_fetchs(opt, "hash", 0)) ) ctx->use_hash = SvOK(*key) ? SvIV( *key ) : 0;
 	}
 	check_tuple(tuple, spc, cb);
-	evt_opt_in(opt, spc, key, fmt, cb);
+	evt_opt_in(opt, spc, key, format, fmt, cb);
 
 
 	size_t sz = HEADER_CONST_LEN
@@ -704,7 +705,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 				h = mp_encode_uint(h, field_no);
 				h = mp_encode_uint(h, position);
 				h = mp_encode_uint(h, offset);
-				h = encode_obj(argument, h, rv, sz, FMT_STR);
+				h = encode_obj(argument, h, rv, sz, FMT_STRING);
 
 				break;
 			}
@@ -752,7 +753,7 @@ static inline SV *pkt_update(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 			idx = (TntIndex *) SvPVX(*key);
 		}
 	}
-	evt_opt_in(opt, idx, key, fmt, cb);
+	evt_opt_in(opt, idx, key, format, fmt, cb);
 
 	uint32_t body_map_sz = 3 + (index != -1);
 	uint32_t keys_size = 0;
@@ -839,7 +840,7 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 			idx = (TntIndex *) SvPVX(*key);
 		}
 	}
-	evt_opt_in(opt, idx, key, fmt, cb);
+	evt_opt_in(opt, idx, key, format, fmt, cb);
 
 	uint32_t body_map_sz = 3;  // space, tuple and operations
 	uint32_t tuple_size = 0;
@@ -920,7 +921,7 @@ static inline SV *pkt_delete(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 			log_warn(ctx->log_level, "No index %d config. Using without formats", index);
 		}
 	}
-	evt_opt_in( opt, idx, key, fmt, cb );
+	evt_opt_in( opt, idx, key, format, fmt, cb );
 
 	uint32_t body_map_sz = 2 + (index != -1);
 	uint32_t keys_size = 0;
@@ -993,7 +994,7 @@ static inline SV *pkt_eval(TntCtx *ctx, uint32_t iid, HV *spaces, SV *expression
 	} else {
 		ctx->f.size = 0;
 	}
-	evt_opt_in(opt, idx, key, fmt, cb);
+	evt_opt_in(opt, idx, key, format, fmt, cb);
 
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
@@ -1057,7 +1058,7 @@ static inline SV *pkt_call(TntCtx *ctx, uint32_t iid, HV *spaces, SV *function_n
 	} else {
 		ctx->f.size = 0;
 	}
-	evt_opt_in(opt, idx, key, fmt, cb);
+	evt_opt_in(opt, idx, key, format, fmt, cb);
 
 	uint32_t body_map_sz = 2;
 	uint32_t keys_size = 0;
@@ -1240,6 +1241,43 @@ static inline int parse_reply_body_data(TntCtx *ctx, HV *ret, const char *const 
 	return 0;
 }
 
+static inline tnt_format_t parse_format_string(const char *str, uint32_t str_len) {
+	if ((str_len == 3 && strncasecmp(str, "num", 3) == 0)
+		|| (str_len == 4 && strncasecmp(str, "uint", 4) == 0)
+		|| (str_len == 8 && strncasecmp(str, "unsigned", 8) == 0)) {
+		return FMT_UNSIGNED;
+	}
+	else
+	if ((str_len == 3 && strncasecmp(str, "str", 3) == 0)
+		|| (str_len == 6 && strncasecmp(str, "string", 6) == 0)) {
+		return FMT_STRING;
+	}
+	else
+	if (str_len == 6 && strncasecmp(str, "number", 6) == 0) {
+		return FMT_NUMBER;
+	}
+	else
+	if ((str_len == 3 && strncasecmp(str, "int", 3) == 0)
+		|| (str_len == 7 && strncasecmp(str, "integer", 7) == 0)) {
+		return FMT_INTEGER;
+	}
+	else
+	if (str_len == 5 && strncasecmp(str, "array", 5) == 0) {
+		return FMT_ARRAY;
+	}
+	else
+	if (str_len == 6 && strncasecmp(str, "scalar", 6) == 0) {
+		return FMT_SCALAR;
+	}
+	else
+	if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
+		return FMT_UNKNOWN;
+	}
+	else {
+		return FMT_BAD;
+	}
+}
+
 static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, const char *const data_end, uint8_t log_level) {
 	const uint32_t VALID_TUPLE_SIZE = 7;
 
@@ -1329,34 +1367,13 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 						else
 						if (str_len == 4 && strncasecmp(str, "type", 4) == 0) {
 							str = mp_decode_str(&p, &str_len); // getting the type itself
-
-							if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
-								spc->f.f[ix] = FMT_NUM;
-							}
-							else
-							if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
-								spc->f.f[ix] = FMT_STR;
-							}
-							else
-							if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
-								spc->f.f[ix] = FMT_NUMBER;
-							}
-							else
-							if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
-								spc->f.f[ix] = FMT_INT;
-							}
-							else
-							if (str_len == 5 && strncasecmp(str, "ARRAY", 5) == 0) {
-								spc->f.f[ix] = FMT_ARRAY;
-							}
-							else
-							if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
-								spc->f.f[ix] = FMT_UNKNOWN;
-							}
-							else {
-								spc->f.f[ix] = FMT_UNKNOWN;
+							
+							tnt_format_t part_format = parse_format_string(str, str_len);
+							if (part_format == FMT_BAD) {
 								log_warn(log_level, "Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
+								part_format = FMT_UNKNOWN;
 							}
+							spc->f.f[ix] = part_format;
 						}
 					}
 
@@ -1453,34 +1470,13 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 					if (index_part_size == 3) {
 						mp_next(&p); // TODO: index part options
 					}
-
-					if (str_len == 3 && strncasecmp(str, "NUM", 3) == 0) {
-						idx->f.f[part_i] = FMT_NUM;
-					}
-					else
-					if (str_len == 3 && strncasecmp(str, "STR", 3) == 0) {
-						idx->f.f[part_i] = FMT_STR;
-					}
-					else
-					if (str_len == 6 && strncasecmp(str, "NUMBER", 6) == 0) {
-						idx->f.f[part_i] = FMT_NUMBER;
-					}
-					else
-					if (str_len == 3 && strncasecmp(str, "INT", 3) == 0) {
-						idx->f.f[part_i] = FMT_INT;
-					}
-					else
-					if (str_len == 5 && strncasecmp(str, "ARRAY", 5) == 0) {
-						idx->f.f[part_i] = FMT_ARRAY;
-					}
-					else
-					if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
-						idx->f.f[part_i] = FMT_UNKNOWN;
-					}
-					else {
-						idx->f.f[part_i] = FMT_UNKNOWN;
+					
+					tnt_format_t part_format = parse_format_string(str, str_len);
+					if (part_format == FMT_BAD) {
 						log_info(log_level, "Unknown part type \'%.*s\' for index %d of space \'%.*s\'", str_len, str, index_id, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
+						part_format = FMT_UNKNOWN;
 					}
+					idx->f.f[part_i] = part_format;
 
 					SV **f = av_fetch(spc->fields, ix, 0);
 					if (f) {

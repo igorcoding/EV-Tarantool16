@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.29';
+our $VERSION = '1.30';
 
 use EV ();
 
@@ -31,7 +31,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.29
+Version 1.30
 
 =cut
 
