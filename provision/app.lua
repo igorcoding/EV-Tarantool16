@@ -1,18 +1,5 @@
-function script_path()
-	local str = debug.getinfo(2, "S").source:sub(2)
-	return str:match("(.*/)")
-end
-
-local BASE = script_path() .. '../provision/'
-package.path = package.path .. ";" .. BASE .. "?.lua" ..
-							   ";" .. BASE .. "tarantool-version/" .. "?.lua"
-
 local log = require('log')
 local yaml = require('yaml')
-
-log.info(package.path)
-
-local version = require('tntversion')
 
 local username = 'test_user'
 local password = 'test_pass'
@@ -25,12 +12,12 @@ box.schema.user.grant('test_user','read,write,execute,create,drop','universe')
 
 local function bootstrap()
 	local b = {
-		tarantool_ver = version.parse(),
+		tarantool_ver = box.info.version,
 		has_new_types = false,
 		types = {}
 	}
 	
-	if b.tarantool_ver >= version.new(1, 7, 1, 245) then
+	if b.tarantool_ver >= "1.7.1-245" then
 		b.has_new_types = true
 		b.types.string = 'string'
 		b.types.unsigned = 'unsigned'
