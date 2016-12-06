@@ -5,14 +5,13 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  config.vm.box = "ubuntu/precise64"
+  config.vm.box = "ubuntu/trusty64"
 
   config.vm.synced_folder "./", "/home/vagrant/EV-Tarantool16/"
-  config.vm.synced_folder "../../", "/home/vagrant/projects"
 
   config.vm.provision "shell",
     privileged: false,
-    path: "provision/run.sh"
+    path: "provision/vagrant.sh"
 
   config.vm.provider "virtualbox" do |v|
     v.memory = 2000

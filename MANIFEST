@@ -1,8 +1,3 @@
-bench/bench.pl
-bench/lib/Inserter.pm
-bench/lib/Selector.pm
-bench/lib/Util.pm
-bench/test.pl
 lib/EV/Tarantool16.pm
 lib/EV/Tarantool16/Multi.pm
 libs/crypto/base64.c
@@ -39,10 +34,6 @@ Makefile.PL
 MANIFEST
 MANIFEST.SKIP
 ppport.h
-provision/app.lua
-provision/macos_ares_rules.h
-provision/tarantool-version/tntversion.lua
-provision/tnt-cares.sh
 README
 README.pod
 t/00-use.t
@@ -55,9 +46,8 @@ t/06-timeout.t
 t/07-memory.t
 t/08-multi.t
 t/lib/Renewer.pm
+t/tnt/app.lua
 Tarantool16.xs
-temp/demo.pl
-temp/leaks.pl
 xsmy/xsendian.h
 xsmy/xsmy.h
 xstnt/encdec.h

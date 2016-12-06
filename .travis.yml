@@ -1,19 +1,22 @@
 language: perl
 os:
-  - linux
-  - osx
+- linux
 perl:
-  - "5.20"
-  - "5.18"
-  - "5.16"
-  - "5.14"
-  - "5.12"
-  - "5.10"
-matrix:
-  allow_failures:
-    - os: osx
+- '5.20'
+- '5.18'
+- '5.16'
+- '5.14'
+- '5.12'
+- '5.10'
 install:
-  - provision/run.sh
+- provision/travis.sh
+deploy:
+  provider: releases
+  api_key:
+    secure: Xnmab8XGFv2zR8OyszOeRxibYr9c3gavRyPokEPMkscOljamS9Uy0yYJ5x0sUWWozq6Dd1cg5Mkef7GG7tgSCqV+Fu57lpz4aHGu2OpnIsKGwrMDhNsS4qOYbEGpcIiE0YKRtIiGiJmK6kr8lmbCI8fdQakbW/7vZW1a1a154Aw=
+  file: EV-Tarantool*.tar.gz
+  on:
+    tags: true
 notifications:
-  email: false
+  email: true
 sudo: required

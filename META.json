@@ -5,7 +5,7 @@
       "igorcoding <igorcoding@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "ExtUtils::MakeMaker version 7.1, CPAN::Meta::Converter version 2.150005",
+   "generated_by" : "ExtUtils::MakeMaker version 7.24, CPAN::Meta::Converter version 2.143240",
    "license" : [
       "open_source"
    ],
@@ -48,6 +48,5 @@
       }
    },
    "release_status" : "stable",
-   "version" : "1.31",
-   "x_serialization_backend" : "JSON::PP version 2.27203"
+   "version" : "1.32"
 }

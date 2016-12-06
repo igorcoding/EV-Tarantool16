@@ -58,7 +58,7 @@ my @tnts = map { {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/app.lua';
+		my $file = 't/tnt/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";
