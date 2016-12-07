@@ -17,6 +17,7 @@ script:
   - make dist
 deploy:
   provider: releases
+  skip_cleanup: true
   api_key:
     secure: Xnmab8XGFv2zR8OyszOeRxibYr9c3gavRyPokEPMkscOljamS9Uy0yYJ5x0sUWWozq6Dd1cg5Mkef7GG7tgSCqV+Fu57lpz4aHGu2OpnIsKGwrMDhNsS4qOYbEGpcIiE0YKRtIiGiJmK6kr8lmbCI8fdQakbW/7vZW1a1a154Aw=
   file: EV-Tarantool*.tar.gz
