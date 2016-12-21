@@ -10,6 +10,7 @@ use Scalar::Util 'weaken';
 use Errno;
 use EV::Tarantool16;
 use Test::More;
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 use Test::Deep;
 use Data::Dumper;
 use Renewer;
