@@ -30,7 +30,7 @@ local function bootstrap()
 	b.types.number = 'number'
 	b.types.array = 'array'
 	b.types.scalar = 'scalar'
-	b.types.any = 'any'
+	b.types.any = '*'
 	return b
 end
 

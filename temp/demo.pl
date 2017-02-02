@@ -69,7 +69,7 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->upsert('tester', {_t1 => 'a1', _t2 => 'a2', _t3 => 12}, [ [3 => '=', 15] ], sub {
+$c->upsert('tester', {_t1 => 'a1', _t2 => 'a2', _t3 => 12, _t4 => 0}, [ [4 => '+', 1] ], sub {
 	say Dumper \@_;
 	EV::unloop;
 });

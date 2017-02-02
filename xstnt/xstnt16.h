@@ -217,7 +217,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 
 	SV **f;
 	HE *fl;
-
+	
 	for (k = 0; k <= av_len(fields);k++) {
 		f = av_fetch(fields, k, 0);
 		if (unlikely(!f)) {
@@ -234,6 +234,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 			}
 		}
 	}
+	
 	if (unlikely(fcnt != 0)) {
 		HV *used = (HV *) sv_2mortal((SV *) newHV());
 		for (k = 0; k <= av_len( fields );k++) {
@@ -641,7 +642,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 				if ((key = av_fetch(operation, 2, 0)) && *key && SvOK(*key)) {
 					argument = *key;
 				} else {
-					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
+					croak_cb(cb, "Integer argument is required for arithmetic or delete operation");
 				}
 
 				*sz += 1 // mp_sizeof_array(3)
@@ -664,7 +665,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 				if ((key = av_fetch(operation, 2, 0)) && *key && SvOK(*key)) {
 					argument = *key;
 				} else {
-					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
+					croak_cb(cb, "Argument is required for insert or assign operation");
 				}
 
 				*sz += 1 // mp_sizeof_array(3)
@@ -871,7 +872,7 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, false, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, false, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {

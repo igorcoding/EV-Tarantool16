@@ -607,7 +607,7 @@ subtest 'Update tests', sub {
 
 
 subtest 'Upsert tests', sub {
-	plan( skip_all => 'skip') if !$test_exec{update};
+	plan( skip_all => 'skip') if !$test_exec{upsert};
 	diag '==== Upsert tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
