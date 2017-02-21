@@ -47,6 +47,7 @@ t/07-memory.t
 t/08-multi.t
 t/lib/Renewer.pm
 t/tnt/app.lua
+t/tnt/init.lua
 Tarantool16.xs
 xsmy/xsendian.h
 xsmy/xsmy.h

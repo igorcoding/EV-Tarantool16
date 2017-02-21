@@ -1315,7 +1315,7 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k;
-
+		
 		for (i = 0; i < cont_size; ++i) {
 			k = 0;
 

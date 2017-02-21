@@ -8,6 +8,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "ubuntu/trusty64"
 
   config.vm.synced_folder "./", "/home/vagrant/EV-Tarantool16/"
+  config.vm.synced_folder "./../../", "/home/vagrant/Projects/"
 
   config.vm.provision "shell",
     privileged: false,

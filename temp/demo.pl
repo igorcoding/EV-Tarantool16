@@ -29,12 +29,12 @@ my $max_cnt = 30000;
 my $c; $c = EV::Tarantool16->new({
 	host => $tnt->{host},
 	port => $tnt->{port},
-	username => $tnt->{username},
-	password => $tnt->{password},
+	# username => $tnt->{username},
+	# password => $tnt->{password},
 
 	# spaces => $realspaces,
 	reconnect => 0.2,
-	log_level => 4,
+	log_level => 5,
 	connected => sub {
 		warn "connected: @_";
 		$connected++;
@@ -53,7 +53,15 @@ my $c; $c = EV::Tarantool16->new({
 
 
 
+say "CONNECT 1";
+$c->connect;
+EV::loop;
 
+say "DISCONNECT";
+$c->disconnect;
+EV::loop;
+
+say "CONNECT 2";
 $c->connect;
 EV::loop;
 
@@ -69,17 +77,17 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->upsert('tester', {_t1 => 'a1', _t2 => 'a2', _t3 => 12, _t4 => 0}, [ [4 => '+', 1] ], sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
-
-# $c->select('_space', [], {}, sub {
+# $c->upsert('tester', {_t1 => 'a1', _t2 => 'a2', _t3 => 12, _t4 => 0}, [ [4 => '+', 1] ], sub {
 # 	say Dumper \@_;
 # 	EV::unloop;
 # });
 # EV::loop;
+
+$c->select('_space', ['_space'], {index => 'name'}, sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
 
 # $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;
