@@ -30,4 +30,4 @@ no_index:
 requires:
   EV: '4'
   Types::Serialiser: '0'
-version: '1.33'
+version: '1.34'
