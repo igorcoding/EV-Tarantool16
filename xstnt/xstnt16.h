@@ -1281,6 +1281,10 @@ static inline tnt_format_t parse_format_string(const char *str, uint32_t str_len
 		return FMT_ARRAY;
 	}
 	else
+	if (str_len == 3 && strncasecmp(str, "map", 3) == 0) {
+		return FMT_MAP;
+	}
+	else
 	if (str_len == 6 && strncasecmp(str, "scalar", 6) == 0) {
 		return FMT_SCALAR;
 	}

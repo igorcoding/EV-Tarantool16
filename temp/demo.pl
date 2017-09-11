@@ -57,13 +57,13 @@ say "CONNECT 1";
 $c->connect;
 EV::loop;
 
-say "DISCONNECT";
-$c->disconnect;
-EV::loop;
+# say "DISCONNECT";
+# $c->disconnect;
+# EV::loop;
 
-say "CONNECT 2";
-$c->connect;
-EV::loop;
+# say "CONNECT 2";
+# $c->connect;
+# EV::loop;
 
 # $c->update('tester', ['a1', 'a2', 12], [ [2 => '=', 18] ], sub {
 # 	say Dumper \@_;
@@ -83,11 +83,30 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->select('_space', ['_space'], {index => 'name'}, sub {
+my $data = {
+	id => 2,
+	d => {
+		a => 2
+	},
+};
+
+$c->insert('test', $data, sub {
 	say Dumper \@_;
 	EV::unloop;
 });
 EV::loop;
+
+$c->select('test', [], sub {
+	say Dumper \@_;
+	EV::unloop;
+});
+EV::loop;
+
+# $c->select('_vspace', ['_vspace'], {index => 'name'}, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
 # $c->insert('memier', [7, {a => 1, b => 2}], { in => 's*' }, sub {
 # 	say Dumper \@_;
