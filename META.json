@@ -5,13 +5,13 @@
       "igorcoding <igorcoding@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "ExtUtils::MakeMaker version 7.1, CPAN::Meta::Converter version 2.150005",
+   "generated_by" : "ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.150010",
    "license" : [
       "open_source"
    ],
    "meta-spec" : {
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
-      "version" : "2"
+      "version" : 2
    },
    "name" : "EV-Tarantool16",
    "no_index" : {
@@ -48,6 +48,6 @@
       }
    },
    "release_status" : "stable",
-   "version" : "1.31",
-   "x_serialization_backend" : "JSON::PP version 2.27203"
+   "version" : "1.32",
+   "x_serialization_backend" : "JSON::PP version 2.94"
 }
