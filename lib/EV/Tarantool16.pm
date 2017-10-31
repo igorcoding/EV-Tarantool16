@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Types::Serialiser;
 
-our $VERSION = '1.34';
+our $VERSION = '1.35';
 
 use EV ();
 
