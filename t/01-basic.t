@@ -66,6 +66,7 @@ $tnt = Test::Tarantool16->new(
 	port    => $tnt->{port},
 	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
 	initlua => $tnt->{initlua},
+	wal_mode => 'write',
 	on_die  => sub { my $self = shift; fail "tarantool $self->{title} is dead!: $!"; exit 1; },
 );
 

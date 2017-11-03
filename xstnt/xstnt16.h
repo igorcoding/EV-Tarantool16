@@ -1289,6 +1289,10 @@ static inline tnt_format_t parse_format_string(const char *str, uint32_t str_len
 		return FMT_SCALAR;
 	}
 	else
+	if (str_len == 7 && strncasecmp(str, "boolean", 7) == 0) {
+		return FMT_BOOLEAN;
+	}
+	else
 	if (str_len == 1 && strncasecmp(str, "*", 1) == 0) {
 		return FMT_UNKNOWN;
 	}
