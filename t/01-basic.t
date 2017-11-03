@@ -10,6 +10,7 @@ use Scalar::Util 'weaken';
 use Errno;
 use EV::Tarantool16;
 use Test::More;
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 use Test::Deep;
 use Data::Dumper;
 use Renewer;
@@ -49,7 +50,7 @@ my $tnt = {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/app.lua';
+		my $file = 't/tnt/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";
@@ -606,13 +607,13 @@ subtest 'Update tests', sub {
 
 
 subtest 'Upsert tests', sub {
-	plan( skip_all => 'skip') if !$test_exec{update};
+	plan( skip_all => 'skip') if !$test_exec{upsert};
 	diag '==== Upsert tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1]],
+			tuples => [['t1', 't2', 1, undef, undef]],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -620,7 +621,7 @@ subtest 'Upsert tests', sub {
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 10]],
+			tuples => [['t1', 't2', 1, 10, undef]],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -628,7 +629,7 @@ subtest 'Upsert tests', sub {
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '+', 4] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 14]],
+			tuples => [['t1', 't2', 1, 14, undef]],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -636,7 +637,7 @@ subtest 'Upsert tests', sub {
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '-', 3] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 11]],
+			tuples => [['t1', 't2', 1, 11, undef]],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -644,7 +645,7 @@ subtest 'Upsert tests', sub {
 		}],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 8] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 8]],
+			tuples => [['t1', 't2', 1, 8, undef]],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -662,7 +663,7 @@ subtest 'Upsert tests', sub {
 			count => 2,
 			tuples => [
 				['t1', 't2', 1, 8, 17],
-				['t1', 't2', 2],
+				['t1', 't2', 2, undef, undef],
 			],
 			status => 'ok',
 			code => 0,

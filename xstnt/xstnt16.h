@@ -217,7 +217,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 
 	SV **f;
 	HE *fl;
-
+	
 	for (k = 0; k <= av_len(fields);k++) {
 		f = av_fetch(fields, k, 0);
 		if (unlikely(!f)) {
@@ -234,6 +234,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 			}
 		}
 	}
+	
 	if (unlikely(fcnt != 0)) {
 		HV *used = (HV *) sv_2mortal((SV *) newHV());
 		for (k = 0; k <= av_len( fields );k++) {
@@ -641,7 +642,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 				if ((key = av_fetch(operation, 2, 0)) && *key && SvOK(*key)) {
 					argument = *key;
 				} else {
-					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
+					croak_cb(cb, "Integer argument is required for arithmetic or delete operation");
 				}
 
 				*sz += 1 // mp_sizeof_array(3)
@@ -664,7 +665,7 @@ static inline char *pkt_update_write_operations(TntCtx *ctx,
 				if ((key = av_fetch(operation, 2, 0)) && *key && SvOK(*key)) {
 					argument = *key;
 				} else {
-					croak_cb(cb, "Integer argument is required for arithmetic and delete operations");
+					croak_cb(cb, "Argument is required for insert or assign operation");
 				}
 
 				*sz += 1 // mp_sizeof_array(3)
@@ -871,7 +872,7 @@ static inline SV *pkt_upsert(TntCtx *ctx, uint32_t iid, HV *spaces, SV *space, S
 	SV *t = tuple;
 	AV *fields;
 	if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVHV) {
-		fields = hash_to_array_fields( (HV *) SvRV(t), idx->fields, false, cb );
+		fields = hash_to_array_fields( (HV *) SvRV(t), spc->fields, false, cb );
 	} else if (SvROK(t) && SvTYPE(SvRV(t)) == SVt_PVAV) {
 		fields  = (AV *) SvRV(t);
 	} else {
@@ -1280,6 +1281,10 @@ static inline tnt_format_t parse_format_string(const char *str, uint32_t str_len
 		return FMT_ARRAY;
 	}
 	else
+	if (str_len == 3 && strncasecmp(str, "map", 3) == 0) {
+		return FMT_MAP;
+	}
+	else
 	if (str_len == 6 && strncasecmp(str, "scalar", 6) == 0) {
 		return FMT_SCALAR;
 	}
@@ -1314,7 +1319,7 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k;
-
+		
 		for (i = 0; i < cont_size; ++i) {
 			k = 0;
 

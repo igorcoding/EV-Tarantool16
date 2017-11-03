@@ -8,6 +8,11 @@
 #  define bswap_16(x) OSSwapInt16(x)
 #  define bswap_32(x) OSSwapInt32(x)
 #  define bswap_64(x) OSSwapInt64(x)
+#elif __FreeBSD__
+#  include <sys/endian.h>
+#  define bswap_16(x) bswap16(x)
+#  define bswap_32(x) bswap32(x)
+#  define bswap_64(x) bswap64(x)
 #else
 #  include <byteswap.h>
 #  include <endian.h>

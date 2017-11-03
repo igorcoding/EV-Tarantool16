@@ -53,18 +53,22 @@ typedef struct {
 	uint32_t wbuf_limit;
 } TntCnn;
 
-// static const uint32_t _SPACE_SPACEID = 280;
-// static const uint32_t _INDEX_SPACEID = 288;
+static const uint32_t _SPACE_SPACEID = 280;
+static const uint32_t _INDEX_SPACEID = 288;
 
-static const char *_SPACE_SELECTOR = "return unpack(box.space._space:select{})";
-static const char *_INDEX_SELECTOR = "return unpack(box.space._index:select{})";
+static const uint32_t _VSPACE_SPACEID = 281;
+static const uint32_t _VINDEX_SPACEID = 289;
+
+// static const char *_SPACE_SELECTOR = "return unpack(box.space._space:select{})";
+// static const char *_INDEX_SELECTOR = "return unpack(box.space._index:select{})";
 static const size_t SELECTOR_STR_LENGTH = 40;
 
 void tnt_on_connected_cb(ev_cnn *cnn, struct sockaddr *peer) {
+	TntCnn *self = (TntCnn *) cnn;
 	if (likely(peer != NULL)) {
-		TntCnn *self = (TntCnn *) cnn;
 		self->peer_info = *peer;
 	}
+	self->spaces = newHV();
 }
 
 INLINE void call_connected(TntCnn *self) {
@@ -190,6 +194,18 @@ INLINE void _execute_eval(TntCnn *self, const char *expr) {
 
 	INIT_CTX(self, ctx, "eval", iid);
 	SV *pkt = pkt_eval(ctx, iid, self->spaces, sv_2mortal(newSVpvn(expr, SELECTOR_STR_LENGTH)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL);
+	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
+
+	TIMEOUT_TIMER(self, ctx, iid, self->cnn.rw_timeout);
+}
+
+INLINE void _execute_select(TntCnn *self, uint32_t space_id) {
+	dSVX(ctxsv, ctx, TntCtx);
+	sv_2mortal(ctxsv);
+	uint32_t iid;
+
+	INIT_CTX(self, ctx, "select", iid);
+	SV *pkt = pkt_select(ctx, iid, self->spaces, sv_2mortal(newSVuv(space_id)), sv_2mortal(newRV_noinc((SV *) newAV())), NULL, NULL);
 	EXEC_REQUEST(self, ctxsv, ctx, iid, pkt, NULL);
 
 	TIMEOUT_TIMER(self, ctx, iid, self->cnn.rw_timeout);
@@ -383,22 +399,34 @@ static void on_index_info_read(ev_cnn *self, size_t len) {
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-
-			if (unlikely(hdr.code != 0)) {
-				log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) hdr.code);
+			
+			
+			int body_length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
+			if (unlikely(body_length <= 0)) {
+				rbuf += (pkt_length - hdr_length);
+				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
 				force_disconnect(tnt, "Couldn\'t retrieve index info.");
 			} else {
+				rbuf += body_length;
 
-				/* body */
-
-				int body_length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
-				if (unlikely(body_length <= 0)) {
-					rbuf += (pkt_length - hdr_length);
-					log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
-					force_disconnect(tnt, "Couldn\'t retrieve index info.");
+				if (unlikely(hdr.code != 0)) {
+					// log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) hdr.code);
+					// force_disconnect(tnt, "Couldn\'t retrieve index info.");
+					
+					SV **var = hv_fetchs(hv,"errstr",0);
+					log_error(
+						tnt->log_level,
+						"Couldn\'t retrieve indexes info. Code = %d, Message = \"%.*s\"",
+						(int) hdr.code,
+						(int) SvCUR(*var),
+						SvPV_nolen(*var)
+					);
+					
+					SV *msg = sv_2mortal(newSVpvf(
+						"Couldn\'t retrieve indexes info: %.*s", (int) SvCUR(*var), SvPV_nolen(*var)
+					));
+					force_disconnect(tnt, SvPVX(msg));
 				} else {
-					rbuf += body_length;
-
 					self->on_read = (c_cb_read_t) on_read;
 					call_connected(tnt);
 				}
@@ -489,34 +517,46 @@ static void on_spaces_info_read(ev_cnn *self, size_t len) {
 				safefree(ctx->f.f);
 			}
 
-			SV **key = NULL;
-			if (unlikely(hdr.code != 0)) {
-				log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) hdr.code);
-				force_disconnect(tnt, "Couldn\'t retrieve space info");
+			int body_length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
+			
+			if (unlikely(body_length <= 0)) {
+				rbuf += (pkt_length - hdr_length);
+				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
+				force_disconnect(tnt, "Couldn\'t retrieve space info (body_length <= 0).");
 			} else {
-
-				/* body */
+				rbuf += body_length;
 				
-				int body_length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
-				if (unlikely(body_length <= 0)) {
-					rbuf += (pkt_length - hdr_length);
-					log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
-					force_disconnect(tnt, "Couldn\'t retrieve space info.");
+				SV **var = NULL;
+				if (unlikely(hdr.code != 0)) {
+					// log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) hdr.code);
+					// force_disconnect(tnt, "Couldn\'t retrieve space info");
+					var = hv_fetchs(hv,"errstr",0);
+					log_error(
+						tnt->log_level,
+						"Couldn\'t retrieve spaces info. Code = %d, Message = \"%.*s\"",
+						(int) hdr.code,
+						(int) SvCUR(*var),
+						SvPV_nolen(*var)
+					);
+					
+					SV *msg = sv_2mortal(newSVpvf(
+						"Couldn\'t retrieve spaces info: %.*s", (int) SvCUR(*var), SvPV_nolen(*var)
+					));
+					force_disconnect(tnt, SvPVX(msg));
 				} else {
-					rbuf += body_length;
-
-					if ((key = hv_fetchs(hv, "data", 0)) && SvOK(*key) && SvROK(*key)) {
+					if ((var = hv_fetchs(hv, "data", 0)) && SvOK(*var) && SvROK(*var)) {
 						if (tnt->spaces) {
 							destroy_spaces(tnt->spaces);
 						}
-						tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*key));
+						tnt->spaces = (HV *) SvREFCNT_inc(SvRV(*var));
 
 						self->on_read = (c_cb_read_t) on_index_info_read;
-						_execute_eval(tnt, _INDEX_SELECTOR);
+						// _execute_eval(tnt, _INDEX_SELECTOR);
+						_execute_select(tnt, _VINDEX_SPACEID);
 						// self->on_read = (c_cb_read_t) on_read;
 					} else {
 						log_error(tnt->log_level, "Couldn\'t retrieve space info. No data parsed");
-						force_disconnect(tnt, "Couldn\'t retrieve space info.");
+						force_disconnect(tnt, "Couldn\'t retrieve space info (no parsed data).");
 					}
 				}
 			}
@@ -612,14 +652,15 @@ static void on_auth_read(ev_cnn *self, size_t len) {
 			if (unlikely(body_length <= 0)) {
 				rbuf += (pkt_length - hdr_length);
 				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
-				force_disconnect(tnt, "Couldn\'t authenticate.");
+				force_disconnect(tnt, "Couldn\'t authenticate (body_length <= 0).");
 			} else {
 				rbuf += body_length;
 
 				SV **var = NULL;
 				if (hdr.code == 0) {
 					self->on_read = (c_cb_read_t) on_spaces_info_read;
-					_execute_eval(tnt, _SPACE_SELECTOR);
+					// _execute_eval(tnt, _SPACE_SELECTOR);
+					_execute_select(tnt, _VSPACE_SPACEID);
 					// self->on_read = (c_cb_read_t) on_read;
 				}
 				else {
@@ -692,7 +733,8 @@ static void on_greet_read(ev_cnn *self, size_t len) {
 		TIMEOUT_TIMER(tnt, ctx, iid, tnt->cnn.rw_timeout);
 	} else {
 		self->on_read = (c_cb_read_t) on_spaces_info_read;
-		_execute_eval(tnt, _SPACE_SELECTOR);
+		// _execute_eval(tnt, _SPACE_SELECTOR);
+		_execute_select(tnt, _VSPACE_SPACEID);
 		// self->on_read = (c_cb_read_t) on_read;
 		// call_connected(tnt);
 	}
@@ -801,6 +843,7 @@ void new(SV *pk, HV *conf)
 
 		self->reqs = newHV();
 		self->use_hash = 1;
+		self->spaces = NULL;
 		self->spaces = NULL;
 		
 		SV **key;

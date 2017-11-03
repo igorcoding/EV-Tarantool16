@@ -3,6 +3,7 @@
 use 5.010;
 use strict;
 use Test::More;# skip_all => "TODO";
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV;
@@ -26,7 +27,7 @@ my $tnt = {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/app.lua';
+		my $file = 't/tnt/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";

@@ -11,6 +11,7 @@ use Errno;
 use EV::Tarantool16;
 use EV::Tarantool16::Multi;
 use Test::More;
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 use Test::Deep;
 use Data::Dumper;
 use Carp;
@@ -58,7 +59,7 @@ my @tnts = map { {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/app.lua';
+		my $file = 't/tnt/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";

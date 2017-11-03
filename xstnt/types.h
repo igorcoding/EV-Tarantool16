@@ -127,7 +127,8 @@ typedef enum {
 	FMT_NUMBER = 'n',
 	FMT_INTEGER = 'i',
 	FMT_ARRAY = 'a',
-	FMT_SCALAR = 'r'
+	FMT_SCALAR = 'r',
+	FMT_MAP = 'm'
 } tnt_format_t;
 
 typedef enum {

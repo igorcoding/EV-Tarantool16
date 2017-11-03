@@ -6,6 +6,7 @@ use FindBin;
 use lib "t/lib","lib","$FindBin::Bin/../blib/lib","$FindBin::Bin/../blib/arch";
 use EV::Tarantool16;
 use Test::More;
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 
 my $c = EV::Tarantool16->new({
 	host => 'localhost',

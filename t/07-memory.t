@@ -10,6 +10,7 @@ use Scalar::Util 'weaken';
 use Errno;
 use EV::Tarantool16;
 use Test::More;
+BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 use Test::Deep;
 use Data::Dumper;
 use Renewer;
@@ -42,7 +43,7 @@ my $tnt = {
 	username => 'test_user',
 	password => 'test_pass',
 	initlua => do {
-		my $file = 'provision/app.lua';
+		my $file = 't/tnt/app.lua';
 		local $/ = undef;
 		open my $f, "<", $file
 			or die "could not open $file: $!";

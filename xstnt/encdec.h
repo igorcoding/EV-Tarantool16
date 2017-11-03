@@ -140,6 +140,22 @@ static SV *types_true, *types_false;
 } STMT_END
 
 
+#define encode_HV(src, rv, dest, sz) STMT_START { \
+	HV *hv = (HV *) src; \
+	HE *he; \
+	\
+	uint32_t keys_size = hv_iterinit(hv); \
+	\
+	encode_map(dest, sz, rv, keys_size); \
+	STRLEN nlen; \
+	while ((he = hv_iternext(hv))) { \
+		char *name = HePV(he, nlen); \
+		encode_str(dest, sz, rv, name, nlen); \
+		dest = encode_obj(HeVAL(he), dest, rv, sz, FMT_UNKNOWN); \
+	} \
+} STMT_END
+
+
 
 static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fmt) {
 	// cwarn("fmt = %d", fmt);
@@ -217,6 +233,15 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 			croak("Incompatible types. Format expects: %c", fmt);
 		}
 
+	} else if (fmt == FMT_MAP) {
+
+		if (SvTYPE(src) == SVt_PVHV) {
+			encode_HV(src, rv, dest, sz);
+			return dest;
+		} else {
+			croak("Incompatible types. Format expects: %c", fmt);
+		}
+
 	} else if (fmt == FMT_UNKNOWN || fmt == FMT_SCALAR) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
@@ -236,19 +261,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 				return dest;
 
 			} else if (fmt != FMT_SCALAR && SvTYPE(src) == SVt_PVHV) {  // hash
-
-				HV *hv = (HV *) src;
-				HE *he;
-
-				uint32_t keys_size = hv_iterinit(hv);
-
-				encode_map(dest, sz, rv, keys_size);
-				STRLEN nlen;
-				while ((he = hv_iternext(hv))) {
-					char *name = HePV(he, nlen);
-					encode_str(dest, sz, rv, name, nlen);
-					dest = encode_obj(HeVAL(he), dest, rv, sz, FMT_UNKNOWN);
-				}
+				encode_HV(src, rv, dest, sz);
 				return dest;
 
 			} else if (SvNOK(src)) {  // double
