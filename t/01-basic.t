@@ -61,13 +61,13 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	title   => $tnt->{name},
-	host    => $tnt->{host},
-	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
-	initlua => $tnt->{initlua},
+	title    => $tnt->{name},
+	host     => $tnt->{host},
+	port     => $tnt->{port},
+	logger   => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
+	initlua  => $tnt->{initlua},
 	wal_mode => 'write',
-	on_die  => sub { my $self = shift; fail "tarantool $self->{title} is dead!: $!"; exit 1; },
+	on_die   => sub { my $self = shift; fail "tarantool $self->{title} is dead!: $!"; exit 1; },
 );
 
 $tnt->start(timeout => 10, sub {
@@ -241,10 +241,10 @@ subtest 'Select tests', sub {
 		[[], {hash => 0}, {
 			count => 4,
 			tuples => [
-						  ['t1','t2',2,[ 1, 2, 3, 'str1', 4 ]],
-						  ['t1','t2',3,{35 => Types::Serialiser::false,33 => Types::Serialiser::true,key2 => 42,key1 => 'value1'}],
+						  ['t1','t2',2,200,[ 1, 2, 3, 'str1', 4 ]],
+						  ['t1','t2',3,0,{35 => Types::Serialiser::false,33 => Types::Serialiser::true,key2 => 42,key1 => 'value1'}],
 						  ['t1','t2',17,-745,'heyo'],
-						  ['tt1','tt2',456, 5]
+						  ['tt1','tt2',456,5,'s']
 						],
 			status => 'ok',
 			code => 0,
@@ -256,23 +256,25 @@ subtest 'Select tests', sub {
 			count => 3,
 			tuples => [
 						{
-						  _t5 => 'heyo',
-						  _t4 => -745,
 						  _t1 => 't1',
 						  _t2 => 't2',
 						  _t3 => 17,
+						  _t4 => -745,
+						  _t5 => 'heyo',
 						},
 						{
-						  _t4 => {35 => Types::Serialiser::false,33 => Types::Serialiser::true,key2 => 42,key1 => 'value1'},
 						  _t1 => 't1',
 						  _t2 => 't2',
 						  _t3 => 3,
+						  _t4 => 0,
+						  _t5 => {35 => Types::Serialiser::false,33 => Types::Serialiser::true,key2 => 42,key1 => 'value1'},
 						},
 						{
-						  _t4 => [1,2,3,'str1',4],
 						  _t1 => 't1',
 						  _t2 => 't2',
 						  _t3 => 2,
+						  _t4 => 200,
+						  _t5 => [1,2,3,'str1',4],
 						},
 
 					  ],
@@ -320,10 +322,10 @@ subtest 'Insert tests', sub {
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100' }, { replace => 0, hash => 0 }, {
+		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t4 => '-100', _t5 => "hello" }, { replace => 0, hash => 0 }, {
 			count => 1,
 			tuples => [
-						['t1', 't2', 18, -100, undef]
+						['t1', 't2', 18, -100, 'hello']
 					  ],
 			status => 'ok',
 			code => 0,
@@ -332,38 +334,7 @@ subtest 'Insert tests', sub {
 		}],
 		
 		# Not all fields supplied tests
-		[{_t1 => "t1", _t2 => "t2", _t3 => 18, _t5 => '-100' }, { replace => 0, hash => 1 }, {
-			count => 1,
-			tuples => [
-						{
-							_t1 => 't1',
-							_t2 => 't2',
-							_t3 => 18,
-							_t4 => undef,
-							_t5 => '-100',
-						}
-					  ],
-			status => 'ok',
-			code => 0,
-			sync => ignore(),
-			schema_id => ignore(),
-		}],
-		[{_t1 => "t1", _t2 => "t2", _t3 => 18, }, { replace => 0, hash => 1 }, {
-			count => 1,
-			tuples => [
-						{
-							_t1 => 't1',
-							_t2 => 't2',
-							_t3 => 18,
-							_t4 => undef,
-							_t5 => undef
-						}
-					  ],
-			status => 'ok',
-			code => 0,
-			sync => ignore(),
-			schema_id => ignore(),
-		}],
+		# You can't do this in 1.7.5 anymore
 	];
 	for my $p (@$_plan) {
 		$c->insert($SPACE_NAME, $p->[0], $p->[1], sub {
@@ -444,7 +415,8 @@ subtest 'Delete tests', sub {
 						  _t1 => 'tt1',
 						  _t2 => 'tt2',
 						  _t3 => 456,
-						  _t4 => 5
+						  _t4 => 5,
+						  _t5 => 's'
 						}
 					  ],
 			status => 'ok',
@@ -502,7 +474,7 @@ subtest 'Update tests', sub {
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '&', 4] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['tt1', 'tt2', 456, 4]],
+			tuples => [['tt1', 'tt2', 456, 4, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -510,7 +482,7 @@ subtest 'Update tests', sub {
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '^', 4] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['tt1', 'tt2', 456, 1]],
+			tuples => [['tt1', 'tt2', 456, 1, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
@@ -518,20 +490,20 @@ subtest 'Update tests', sub {
 		}],
 		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '|', 3] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['tt1', 'tt2', 456, 7]],
+			tuples => [['tt1', 'tt2', 456, 7, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [3 => '#', 2] ], { hash => 0 }, {
-			count => 1,
-			tuples => [['tt1', 'tt2', 456]],
-			status => 'ok',
-			code => 0,
-			sync => ignore(),
-			schema_id => ignore(),
-		}],
+		# [{_t1 => 'tt1',_t2 => 'tt2',_t3 => 456}, [ [6 => '#', 1] ], { hash => 0 }, {
+		# 	count => 1,
+		# 	tuples => [['tt1', 'tt2', 456, 7, 's']],
+		# 	status => 'ok',
+		# 	code => 0,
+		# 	sync => ignore(),
+		# 	schema_id => ignore(),
+		# }],
 		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 12] ],  { hash => 1 }, {
 			count => 1,
 			tuples => [
@@ -552,11 +524,11 @@ subtest 'Update tests', sub {
 			count => 1,
 			tuples => [
 						{
-							_t5 => {a => 1, b => 2, c => 3},
 							_t1 => 't1',
 							_t2 => 't2',
 							_t3 => 17,
 							_t4 => -745,
+							_t5 => {a => 1, b => 2, c => 3},
 							'' => ['heyo']
 						}
 					  ],
@@ -612,47 +584,47 @@ subtest 'Upsert tests', sub {
 	diag '==== Upsert tests ====' if $ENV{TEST_VERBOSE};
 
 	my $_plan = [
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [3 => '=', 10] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, undef, undef]],
+			tuples => [['t1', 't2', 1, 5, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 10] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [3 => '=', 10] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 10, undef]],
+			tuples => [['t1', 't2', 1, 10, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '+', 4] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [3 => '+', 4] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 14, undef]],
+			tuples => [['t1', 't2', 1, 14, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '-', 3] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [3 => '-', 3] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 11, undef]],
+			tuples => [['t1', 't2', 1, 11, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [3 => '=', 8] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [3 => '=', 8] ], { hash => 0 }, {
 			count => 1,
-			tuples => [['t1', 't2', 1, 8, undef]],
+			tuples => [['t1', 't2', 1, 8, 's']],
 			status => 'ok',
 			code => 0,
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 1}, [ [4 => '=', 17] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 1, _t4 => 5, _t5 => 's'}, [ [4 => '=', 17] ], { hash => 0 }, {
 			count => 1,
 			tuples => [['t1', 't2', 1, 8, 17]],
 			status => 'ok',
@@ -660,11 +632,11 @@ subtest 'Upsert tests', sub {
 			sync => ignore(),
 			schema_id => ignore(),
 		}],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 2}, [ [3 => '=', 17] ], { hash => 0 }, {
+		[{_t1 => 't1',_t2 => 't2',_t3 => 2, _t4 => 5, _t5 => 's'}, [ [3 => '=', 17] ], { hash => 0 }, {
 			count => 2,
 			tuples => [
 				['t1', 't2', 1, 8, 17],
-				['t1', 't2', 2, undef, undef],
+				['t1', 't2', 2, 5, 's'],
 			],
 			status => 'ok',
 			code => 0,

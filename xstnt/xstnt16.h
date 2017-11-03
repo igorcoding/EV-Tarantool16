@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <assert.h>
 #include "xsmy.h"
 #include "msgpuck.h"
 #include "types.h"
@@ -1372,8 +1373,8 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 				uint32_t ix;
 				for (ix = 0; ix < format_arr_size; ++ix) {
 					uint32_t field_format_map_size = mp_decode_map(&p);
-					if (field_format_map_size != 2) {
-						croak("Bad things happened! field_format_map_size != 2");
+					if (field_format_map_size < 2) {
+						croak("Bad things happened! field_format_map_size < 2");
 					}
 
 					SV *field_name = NULL;
@@ -1397,6 +1398,10 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 								part_format = FMT_UNKNOWN;
 							}
 							spc->f.f[ix] = part_format;
+						}
+						else {
+							/* skip value */
+							mp_next(&p);
 						}
 					}
 
@@ -1481,18 +1486,50 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 				av_extend(idx->fields, parts_count);
 
 				uint32_t part_i;
-				uint32_t ix = 0;
-				const char *str;
+				int32_t ix = -1;
+				const char *str = NULL;
 				uint32_t str_len;
 
 				for (part_i = 0; part_i < parts_count; ++part_i) {
-					uint32_t index_part_size = mp_decode_array(&p);
-					
-					ix = mp_decode_uint(&p);
-					str = mp_decode_str(&p, &str_len);
-					if (index_part_size == 3) {
-						mp_next(&p); // TODO: index part options
+					switch(mp_typeof(*p)) {
+					case MP_ARRAY: {
+						uint32_t index_part_size = mp_decode_array(&p);
+						ix = (int32_t) mp_decode_uint(&p);
+						str = mp_decode_str(&p, &str_len);
+						if (index_part_size > 2) {
+							for (uint32_t i = 2; i < index_part_size; ++i) {
+								mp_next(&p); // TODO: index part options
+							}
+						}
+						break;
 					}
+					case MP_MAP:{
+						int n = mp_decode_map(&p);
+						const char *key_str;
+						uint32_t key_str_len;
+						while (n-- > 0) {
+							key_str = mp_decode_str(&p, &key_str_len);
+							
+							if (key_str_len == 5 && strncasecmp(key_str, "field", 5) == 0) {
+								ix = (int32_t) mp_decode_uint(&p);
+							}
+							else
+							if (key_str_len == 4 && strncasecmp(key_str, "type", 4) == 0) {
+								str = mp_decode_str(&p, &str_len);
+							}
+							else {
+								/* skip value */
+								mp_next(&p);
+							}
+						}
+						break;
+					}
+					default:
+						assert(false && "invalid type of part");
+					}
+					
+					assert(ix != -1 && "could not parse field no");
+					assert(str != NULL && "could not parse field type");
 					
 					tnt_format_t part_format = parse_format_string(str, str_len);
 					if (part_format == FMT_BAD) {

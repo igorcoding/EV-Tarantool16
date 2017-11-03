@@ -17,7 +17,7 @@ EV::Tarantool16 - EV client for Tarantool 1.6
 
 =head1 VESRION
 
-Version 1.36
+Version 1.37
 
 
 =cut

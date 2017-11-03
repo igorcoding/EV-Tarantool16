@@ -65,13 +65,18 @@ local function init_tester(s)
 		{type=B.types.string, name='_t1'},
 		{type=B.types.string, name='_t2'},
 		{type=B.types.unsigned, name='_t3'},
-		{type=B.types.unsigned, name='_t4'},
+		{type=B.types.number, name='_t4', is_nullable = true},
 		{type=B.types.any, name='_t5'},
 	}
 	s:format(_format)
 
 	i = s:create_index('primary', {type = 'tree', parts = {1, B.types.string, 2, B.types.string, 3, B.types.unsigned}})
+	i = s:create_index('tt', {type = 'tree', unique = false, parts = { {field = 4, type = 'number', is_nullable = true} } })
 	-- box.space.tester:insert({'s','a',3,4})
+end
+
+function res()
+	return box.space.tester:select{}
 end
 
 function fill_tester()
@@ -83,9 +88,9 @@ function fill_tester()
 	obj[35] = false
 
 	box.space.tester:insert{"t1", "t2", 17, -745, "heyo"};
-	box.space.tester:insert{"t1", "t2", 2, arr};
-	box.space.tester:insert{"t1", "t2", 3, obj};
-	box.space.tester:insert{"tt1", "tt2", 456, 5};
+	box.space.tester:insert{"t1", "t2", 2, 200, arr};
+	box.space.tester:insert{"t1", "t2", 3, 0, obj};
+	box.space.tester:insert{"tt1", "tt2", 456, 5, "s"};
 end
 
 function truncate_tester()

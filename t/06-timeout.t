@@ -52,12 +52,13 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	title   => $tnt->{name},
-	host    => $tnt->{host},
-	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
-	initlua => $tnt->{initlua},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
+	title    => $tnt->{name},
+	host     => $tnt->{host},
+	port     => $tnt->{port},
+	logger   => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
+	initlua  => $tnt->{initlua},
+	wal_mode => 'write',
+	on_die   => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
 
 $tnt->start(timeout => 10, sub {
@@ -323,11 +324,11 @@ subtest 'Insert tests', sub {
 
 
 	my $plan = [
-		[{_t1 => "t1", _t2 => "t2", _t3 => 180, _t4 => '-100' }, {timeout => 0.00001}, [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 180, _t4 => '-100', _t5 => 's' }, {timeout => 0.00001}, [
 			undef,
 			"Request timed out"
 		]],
-		[{_t1 => "t1", _t2 => "t2", _t3 => 181, _t4 => '-100' }, {}, [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 181, _t4 => '-100', _t5 => 's' }, {}, [
 			{
 				sync => ignore(),
 				schema_id => ignore(),
@@ -337,11 +338,11 @@ subtest 'Insert tests', sub {
 				tuples => ignore()
 			}
 		]],
-		[{_t1 => "t1", _t2 => "t2", _t3 => 182, _t4 => '-100' }, {timeout => 0.00001}, [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 182, _t4 => '-100', _t5 => 's' }, {timeout => 0.00001}, [
 			undef,
 			"Request timed out"
 		]],
-		[{_t1 => "t1", _t2 => "t2", _t3 => 183, _t4 => '-100' }, {}, [
+		[{_t1 => "t1", _t2 => "t2", _t3 => 183, _t4 => '-100', _t5 => 's' }, {}, [
 			{
 				sync => ignore(),
 				schema_id => ignore(),
@@ -481,7 +482,7 @@ subtest 'Upsert tests', sub {
 			undef,
 			"Request timed out"
 		]],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {}, [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17, _t4 => 20, _t5 => 's'}, [ [3 => '=', 50] ], {}, [
 			{
 				sync => ignore(),
 				schema_id => ignore(),
@@ -491,11 +492,11 @@ subtest 'Upsert tests', sub {
 				tuples => ignore()
 			}
 		]],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {timeout => 0.00001}, [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17, _t4 => 20, _t5 => 's'}, [ [3 => '=', 50] ], {timeout => 0.00001}, [
 			undef,
 			"Request timed out"
 		]],
-		[{_t1 => 't1',_t2 => 't2',_t3 => 17}, [ [3 => '=', 50] ], {}, [
+		[{_t1 => 't1',_t2 => 't2',_t3 => 17, _t4 => 20, _t5 => 's'}, [ [3 => '=', 50] ], {}, [
 			{
 				sync => ignore(),
 				schema_id => ignore(),
