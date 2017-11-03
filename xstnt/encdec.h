@@ -242,7 +242,7 @@ static char *encode_obj(SV *initial_src, char *dest, SV *rv, size_t *sz, char fm
 			croak("Incompatible types. Format expects: %c", fmt);
 		}
 
-	} else if (fmt == FMT_UNKNOWN || fmt == FMT_SCALAR) {
+	} else if (fmt == FMT_UNKNOWN || fmt == FMT_SCALAR || fmt == FMT_BOOLEAN) {
 
 		HV *boolean_stash = types_boolean_stash ? types_boolean_stash : gv_stashpv ("Types::Serialiser::Boolean", 1);
 

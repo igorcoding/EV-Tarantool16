@@ -1,7 +1,7 @@
 box.cfg{
 	listen = "127.0.0.1:3301",
 	work_dir = ".",
-	wal_mode = "none"
+--	wal_mode = "none"
 }
 
 box.schema.user.grant('guest','read,write,execute','universe')

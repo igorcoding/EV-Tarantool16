@@ -83,20 +83,20 @@ EV::loop;
 # });
 # EV::loop;
 
-my $data = {
-	id => 2,
-	d => {
-		a => 2
-	},
-};
+# my $data = {
+# 	id => 2,
+# 	d => {
+# 		a => 2
+# 	},
+# };
 
-$c->insert('test', $data, sub {
-	say Dumper \@_;
-	EV::unloop;
-});
-EV::loop;
+# $c->insert('tester', $data, sub {
+# 	say Dumper \@_;
+# 	EV::unloop;
+# });
+# EV::loop;
 
-$c->select('test', [], sub {
+$c->select('tester', [], sub {
 	say Dumper \@_;
 	EV::unloop;
 });
