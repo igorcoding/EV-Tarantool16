@@ -71,12 +71,13 @@ my @tnts = map { {
 
 
 @tnts = map { my $tnt = $_; Test::Tarantool16->new(
-	title   => $tnt->{name},
-	host    => $tnt->{host},
-	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{name},' ', @_ ) if $ENV{TEST_VERBOSE};},
-	initlua => $tnt->{initlua},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
+	title    => $tnt->{name},
+	host     => $tnt->{host},
+	port     => $tnt->{port},
+	logger   => sub { diag ( $tnt->{name},' ', @_ ) if $ENV{TEST_VERBOSE};},
+	initlua  => $tnt->{initlua},
+	wal_mode => 'write',
+	on_die   => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; },
 ) } @tnts;
 
 for (@tnts) {

@@ -54,12 +54,13 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	title   => $tnt->{name},
-	host    => $tnt->{host},
-	port    => $tnt->{port},
-	logger  => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
-	initlua => $tnt->{initlua},
-	on_die  => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
+	title    => $tnt->{name},
+	host     => $tnt->{host},
+	port     => $tnt->{port},
+	logger   => sub { diag ( $tnt->{title},' ', @_ ) if $ENV{TEST_VERBOSE}; },
+	initlua  => $tnt->{initlua},
+	wal_mode => 'write',
+	on_die   => sub { fail "tarantool $tnt->{name} is dead!: $!"; exit 1; }
 );
 
 $tnt->start(timeout => 10, sub {
