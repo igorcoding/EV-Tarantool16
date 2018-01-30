@@ -341,7 +341,9 @@ static SV *decode_obj(const char **p) {
 	}
 	case MP_STR: {
 		str = mp_decode_str(p, &str_len);
-		return (SV *) newSVpvn(str, str_len);
+		SV *sv = newSVpvn(str, str_len);
+		sv_utf8_decode(sv);
+		return sv;
 	}
 	case MP_BOOL: {
 		bool value = mp_decode_bool(p);
@@ -376,30 +378,24 @@ static SV *decode_obj(const char **p) {
 
 		const char *map_key_str = NULL;
 		uint32_t map_key_len = 0;
-
+		SV *key;
 		HV *hash = newHV();
 		for (i = 0; i < map_size; ++i) {
 			switch(mp_typeof(**p)) {
 			case MP_STR: {
 				map_key_str = mp_decode_str(p, &map_key_len);
+				key = newSVpvn(map_key_str, map_key_len);
+				(void) sv_utf8_decode(key);
 				break;
 			}
 			case MP_UINT: {
 				uint64_t value = mp_decode_uint(p);
-				SV *s = sv_2mortal(newSVuv(value));
-				STRLEN l;
-
-				map_key_str = SvPV(s, l);
-				map_key_len = (uint32_t) l;
+				key = newSVuv(value);
 				break;
 			}
 			case MP_INT: {
 				int64_t value = mp_decode_int(p);
-				SV *s = sv_2mortal(newSViv(value));
-				STRLEN l;
-
-				map_key_str = SvPV(s, l);
-				map_key_len = (uint32_t) l;
+				key = newSViv(value);
 				break;
 			}
 			default:
@@ -409,7 +405,8 @@ static SV *decode_obj(const char **p) {
 				continue;
 			}
 			SV *value = decode_obj(p);
-			(void) hv_store(hash, map_key_str, map_key_len, value, 0);
+			(void) hv_store_ent (hash, key, value, 0);
+			SvREFCNT_dec(key);
 		}
 		return newRV_noinc((SV *) hash);
 	}
