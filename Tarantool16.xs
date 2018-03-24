@@ -1,12 +1,10 @@
+#define XSEV_CON_HOOKS 1
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
 #include "ppport.h"
 #include "EVAPI.h"
-
-
-#define MYDEBUG
-#define XSEV_CON_HOOKS 1
 
 #include "log.h"
 #include "xsevcnn.h"
@@ -32,7 +30,6 @@
 
 typedef struct {
 	xs_ev_cnn_struct;
-
 
 	c_cb_discon_t on_disconnect_before;
 	c_cb_discon_t on_disconnect_after;
@@ -221,7 +218,7 @@ static void on_read(ev_cnn *self, size_t len) {
 	TntCnn *tnt = (TntCnn *) self;
 	char *rbuf = self->rbuf;
 	char *end = rbuf + self->ruse;
-	
+
 	dSP;
 
 	while ( rbuf < end ) {
@@ -399,8 +396,8 @@ static void on_index_info_read(ev_cnn *self, size_t len) {
 			if (ctx->f.size && !ctx->f.nofree) {
 				safefree(ctx->f.f);
 			}
-			
-			
+
+
 			int body_length = parse_index_body(tnt->spaces, hv, rbuf, buf_len, tnt->log_level);
 			if (unlikely(body_length <= 0)) {
 				rbuf += (pkt_length - hdr_length);
@@ -412,7 +409,7 @@ static void on_index_info_read(ev_cnn *self, size_t len) {
 				if (unlikely(hdr.code != 0)) {
 					// log_error(tnt->log_level, "Failed to retrieve index info. Code = %d", (int) hdr.code);
 					// force_disconnect(tnt, "Couldn\'t retrieve index info.");
-					
+
 					SV **var = hv_fetchs(hv,"errstr",0);
 					log_error(
 						tnt->log_level,
@@ -421,7 +418,7 @@ static void on_index_info_read(ev_cnn *self, size_t len) {
 						(int) SvCUR(*var),
 						SvPV_nolen(*var)
 					);
-					
+
 					SV *msg = sv_2mortal(newSVpvf(
 						"Couldn\'t retrieve indexes info: %.*s", (int) SvCUR(*var), SvPV_nolen(*var)
 					));
@@ -518,14 +515,14 @@ static void on_spaces_info_read(ev_cnn *self, size_t len) {
 			}
 
 			int body_length = parse_spaces_body(hv, rbuf, buf_len, tnt->log_level);
-			
+
 			if (unlikely(body_length <= 0)) {
 				rbuf += (pkt_length - hdr_length);
 				log_error(tnt->log_level, "Unexpected response body. length = %d", body_length);
 				force_disconnect(tnt, "Couldn\'t retrieve space info (body_length <= 0).");
 			} else {
 				rbuf += body_length;
-				
+
 				SV **var = NULL;
 				if (unlikely(hdr.code != 0)) {
 					// log_error(tnt->log_level, "Couldn\'t retrieve space info. Code = %d", (int) hdr.code);
@@ -538,7 +535,7 @@ static void on_spaces_info_read(ev_cnn *self, size_t len) {
 						(int) SvCUR(*var),
 						SvPV_nolen(*var)
 					);
-					
+
 					SV *msg = sv_2mortal(newSVpvf(
 						"Couldn\'t retrieve spaces info: %.*s", (int) SvCUR(*var), SvPV_nolen(*var)
 					));
@@ -845,7 +842,7 @@ void new(SV *pk, HV *conf)
 		self->use_hash = 1;
 		self->spaces = NULL;
 		self->spaces = NULL;
-		
+
 		SV **key;
 		if ((key = hv_fetchs(conf, "hash", 0)) ) self->use_hash = SvOK(*key) ? SvIV(*key) : 0;
 		if ((key = hv_fetchs(conf, "username", 0)) && SvPOK(*key)) SvREFCNT_inc(self->username = *key);
@@ -902,14 +899,14 @@ void spaces(SV *this)
 		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newRV_inc((SV *)self->spaces));
 		XSRETURN(1);
-		
+
 void sync(SV *this)
 	PPCODE:
 		if (0) this = this;
 		xs_ev_cnn_self(TntCnn);
 		ST(0) = sv_2mortal(newSViv(self->seq));
 		XSRETURN(1);
-		
+
 
 void ping(SV *this, ... )
 	PPCODE:
@@ -967,7 +964,7 @@ void insert( SV *this, SV *space, SV *t, ... )
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
-		
+
 void replace( SV *this, SV *space, SV *t, ... )
 	PPCODE:
 		if (0) this = this;
@@ -1024,7 +1021,7 @@ void upsert( SV *this, SV *space, SV *tuple, SV *operations, ... )
 		EXEC_REQUEST_TIMEOUT(self, ctxsv, ctx, iid, pkt, opts, cb);
 
 		XSRETURN_UNDEF;
-		
+
 
 void delete( SV *this, SV *space, SV *t, ... )
 	PPCODE:

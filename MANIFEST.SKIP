@@ -23,6 +23,8 @@
 _bak$
 Tarantool16.c
 Tarantool16.o
+hints.o
+msgpuck.o
 Tarantool16.bs
 
 # Avoid Devel::Cover files.
@@ -36,6 +38,19 @@ Tarantool16.bs
 ^tmp/
 ^EV-Tarantool16-.*
 
+# msgpuck
+^libs/msgpuck/.build.mk
+^libs/msgpuck/AUTHORS
+^libs/msgpuck/CMakeLists.txt
+^libs/msgpuck/debian/
+^libs/msgpuck/Doxyfile.in
+^libs/msgpuck/Jenkinsfile
+^libs/msgpuck/LICENSE
+^libs/msgpuck/README.md
+^libs/msgpuck/rpm/msgpuck.spec
+^libs/msgpuck/test/
+
+
 # Custom
 ^.vagrant/
 \.gitignore
@@ -44,6 +59,8 @@ build.sh
 \.travis.yml
 Vagrantfile
 ^tnt_*
+^\.tnt*
 ^provision/
 ^temp/
 ^bench/
+^.vscode/

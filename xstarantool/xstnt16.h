@@ -1,8 +1,6 @@
 #ifndef _XSTNT16_H_
 #define _XSTNT16_H_
 
-#define MP_SOURCE 1
-
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -129,12 +127,12 @@ static void destroy_spaces(HV *spaces) {
 					if (idx->fields) SvREFCNT_dec(idx->fields);
 					SvREFCNT_dec(idx->name);
 					idx->name = NULL;
-					
+
 					if (idx->type) {
 						SvREFCNT_dec(idx->type);
 						idx->type = NULL;
 					}
-					
+
 					if (idx->opts) {
 						SvREFCNT_dec(idx->opts);
 						idx->opts = NULL;
@@ -218,7 +216,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 
 	SV **f;
 	HE *fl;
-	
+
 	for (k = 0; k <= av_len(fields);k++) {
 		f = av_fetch(fields, k, 0);
 		if (unlikely(!f)) {
@@ -235,7 +233,7 @@ static AV *hash_to_array_fields(HV *hf, AV *fields, bool ignore_missing_fields, 
 			}
 		}
 	}
-	
+
 	if (unlikely(fcnt != 0)) {
 		HV *used = (HV *) sv_2mortal((SV *) newHV());
 		for (k = 0; k <= av_len( fields );k++) {
@@ -307,7 +305,7 @@ static inline update_op_type_t get_update_op_type(const char *op_str, uint32_t l
 	}
 
 	char op = op_str[0];
-	
+
 	switch (op) {
 		case '+':
 		case '-':
@@ -1324,7 +1322,7 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 
 		uint32_t tuple_size = 0;
 		uint32_t i = 0, k;
-		
+
 		for (i = 0; i < cont_size; ++i) {
 			k = 0;
 
@@ -1391,7 +1389,7 @@ static inline int parse_spaces_body_data(HV *ret, const char *const data_begin, 
 						else
 						if (str_len == 4 && strncasecmp(str, "type", 4) == 0) {
 							str = mp_decode_str(&p, &str_len); // getting the type itself
-							
+
 							tnt_format_t part_format = parse_format_string(str, str_len);
 							if (part_format == FMT_BAD) {
 								log_warn(log_level, "Unknown part %d type \'%.*s\' for space \'%.*s\'", ix, str_len, str, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
@@ -1446,7 +1444,7 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 	case MP_ARRAY: {
 		cont_size = mp_decode_array(&p);
 		// cwarn("tuples count = %d", cont_size);
-		
+
 		uint32_t i = 0;
 
 		SV **key;
@@ -1462,13 +1460,13 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 
 				dSVX(idxcf, idx, TntIndex);
 				idx->id = index_id;
-				
+
 				if (mp_typeof(*p) != MP_STR) croak("[parse_index_body_data] index name has to be string");
 				idx->name = decode_obj(&p);
-				
+
 				if (mp_typeof(*p) != MP_STR) croak("[parse_index_body_data] index type has to be string");
 				idx->type = decode_obj(&p);
-				
+
 				if (mp_typeof(*p) != MP_MAP) croak("[parse_index_body_data] index opts has to be map");
 				idx->opts = (HV *) decode_obj(&p);
 
@@ -1509,7 +1507,7 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 						uint32_t key_str_len;
 						while (n-- > 0) {
 							key_str = mp_decode_str(&p, &key_str_len);
-							
+
 							if (key_str_len == 5 && strncasecmp(key_str, "field", 5) == 0) {
 								ix = (int32_t) mp_decode_uint(&p);
 							}
@@ -1527,10 +1525,10 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 					default:
 						assert(false && "invalid type of part");
 					}
-					
+
 					assert(ix != -1 && "could not parse field no");
 					assert(str != NULL && "could not parse field type");
-					
+
 					tnt_format_t part_format = parse_format_string(str, str_len);
 					if (part_format == FMT_BAD) {
 						log_info(log_level, "Unknown part type \'%.*s\' for index %d of space \'%.*s\'", str_len, str, index_id, (int) SvCUR(spc->name), SvPV_nolen(spc->name));
@@ -1615,7 +1613,7 @@ static int parse_reply_body(TntCtx *ctx, HV *ret, const char *const data, STRLEN
 			parse_reply_body_data(ctx, ret, data_begin, p, format, fields);
 			break;
 		}
-		
+
 		default: {
 			cwarn("Got unknown tnt reply body key: %u. Skipping its value", key);
 			break;

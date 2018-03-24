@@ -1,7 +1,7 @@
 #ifndef XSMY_H
 #define XSMY_H
 
-#include "xsendian.h"
+#include "endian_compat.h"
 #include <stdio.h>
 
 #ifndef I64
@@ -42,13 +42,6 @@ typedef uint64_t U64;
 #ifndef dObjBy
 #define dObjBy(Type,obj,ptr,xx) Type *obj = (Type *) ( (char *) ptr - (ptrdiff_t) &((Type *) 0)-> xx )
 #endif
-
-void *safecpy(const void *src,register size_t len) {
-	char *new = safemalloc(len+1);
-	memcpy(new,src,len+1);
-	new[len]=0;
-	return new;
-}
 
 #define _croak_cb(cb,...) STMT_START { \
 		/* warn(__VA_ARGS__);*/ \

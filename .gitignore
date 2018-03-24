@@ -29,3 +29,4 @@ dist/
 tnt_*
 
 EV-Tarantool16-*/
+.vscode

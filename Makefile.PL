@@ -42,7 +42,9 @@ WriteMakefile(
 	CONFIGURE         => sub {
 		require EV::MakeMaker;
 		return {EV::MakeMaker::ev_args(
-			INC => '-I. -I./xstnt -I./xsmy -I./libs/evcnn/src -I./libs/msgpuck -I./libs/crypto '. $ARES_CFLAGS,
+			INC => '-I. -I./xstarantool -I./libs/evcnn/src -I./libs/msgpuck -I./libs/crypto '. $ARES_CFLAGS,
+			OBJECT => '$(O_FILES) ./libs/msgpuck/msgpuck.o ./libs/msgpuck/hints.o',
+			LDFROM => '$(O_FILES) msgpuck.o hints.o'
 		)};
 	},
 );

@@ -1,5 +1,5 @@
-#ifndef XSENDIAN_H
-#define XSENDIAN_H
+#ifndef _ENDIAN_COMPAT_H_
+#define _ENDIAN_COMPAT_H_
 
 #ifndef le64toh
 
@@ -69,4 +69,4 @@
 
 #endif /* le64toh */
 
-#endif /* XSENDIAN_H */
+#endif /* _ENDIAN_COMPAT_H_ */
