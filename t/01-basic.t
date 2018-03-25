@@ -61,7 +61,6 @@ my $tnt = {
 };
 
 $tnt = Test::Tarantool16->new(
-	cleanup => 0,
 	title    => $tnt->{name},
 	host     => $tnt->{host},
 	port     => $tnt->{port},
