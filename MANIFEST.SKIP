@@ -64,3 +64,6 @@ Vagrantfile
 ^temp/
 ^bench/
 ^.vscode/
+^packpack
+^build
+^rpm
