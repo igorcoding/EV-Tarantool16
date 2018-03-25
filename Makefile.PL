@@ -36,7 +36,7 @@ WriteMakefile(
 		'constant'           => 0,
 	},
 	LIBS              => [ $ARES_LDFLAGS ],
-	DEFINE            => '-g -ggdb -O0 -std=c99 -Wall',
+	DEFINE            => '-g -ggdb -O1 -std=c99 -Wall',
 	LICENSE           => 'GPL',
 	dist              => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', PREOP => $preop },
 	CONFIGURE         => sub {

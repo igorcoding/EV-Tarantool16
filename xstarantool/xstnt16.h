@@ -1483,10 +1483,10 @@ static inline int parse_index_body_data(HV *spaces, const char *const data_begin
 				idx->fields = newAV();
 				av_extend(idx->fields, parts_count);
 
-				uint32_t part_i;
+				uint32_t part_i = 0;
 				int32_t ix = -1;
 				const char *str = NULL;
-				uint32_t str_len;
+				uint32_t str_len = 0;
 
 				for (part_i = 0; part_i < parts_count; ++part_i) {
 					switch(mp_typeof(*p)) {

@@ -73,7 +73,7 @@ $c->connect for 1..10;
 $c->disconnect;
 is $c->state, 'DISCONNECTED';
 
-my $w;$w = EV::timer 1,0,sub { undef $w; fail "Timed out"; exit; };
+$w = EV::timer 1,0,sub { undef $w; fail "Timed out"; exit; };
 
 $c->connect;
 EV::run( EV::RUN_ONCE )
