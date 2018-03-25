@@ -90,12 +90,18 @@ for (@tnts) {
 		}
 	});
 	EV::loop;
+
+	my $w; $w = EV::timer 1, 0, sub {
+		undef $w;
+		EV::unloop;
+	};
+	EV::loop;
 }
 
 my $timeout = 5;
 my $w_timeout; $w_timeout = AE::timer $timeout, 0, sub {
 	undef $w_timeout;
-	
+
 	fail "Couldn't connect to Multi in $timeout seconds";
 	EV::unloop;
 };

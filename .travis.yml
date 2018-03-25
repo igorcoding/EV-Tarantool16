@@ -1,29 +1,71 @@
-language: perl
-os:
-  - linux
-perl:
-  - '5.20'
-  - '5.18'
-  - '5.16'
-  - '5.14'
-  - '5.12'
-  - '5.10'
-install:
-  - provision/travis.sh
+sudo: false
+language: C
+services:
+  - docker
+
+cache:
+    directories:
+      - $HOME/.cache
+
+env:
+    global:
+      - PRODUCT=EV-Tarantool16
+      - ARCH=x86_64
+    matrix:
+      - OS=el DIST=7
+
 script:
-  - perl Makefile.PL
-  - make
-  - make test
-  - make dist
+  - git describe --long
+  - git clone https://github.com/packpack/packpack.git packpack
+  - packpack/packpack
+
+before_deploy:
+  - ls -l build/
+
 deploy:
-  provider: releases
-  skip_cleanup: true
-  api_key:
-    secure: Xnmab8XGFv2zR8OyszOeRxibYr9c3gavRyPokEPMkscOljamS9Uy0yYJ5x0sUWWozq6Dd1cg5Mkef7GG7tgSCqV+Fu57lpz4aHGu2OpnIsKGwrMDhNsS4qOYbEGpcIiE0YKRtIiGiJmK6kr8lmbCI8fdQakbW/7vZW1a1a154Aw=
-  file_glob: true
-  file: EV-Tarantool*.tar.gz
-  on:
-    tags: true
+  # Deploy packages to PackageCloud
+  - provider: packagecloud
+    username: igorcoding
+    repository: "tarantoolcontrib"
+    token: ${PACKAGECLOUD_TOKEN}
+    dist: ${OS}/${DIST}
+    package_glob: build/*.{rpm,deb,dsc}
+    skip_cleanup: true
+    on:
+      branch: master
+      condition: -n "${OS}" && -n "${DIST}" && -n "${PACKAGECLOUD_TOKEN}"
+
 notifications:
   email: true
-sudo: required
+
+
+
+# language: perl
+# os:
+#   - linux
+# perl:
+#   - '5.20'
+#   - '5.18'
+#   - '5.16'
+#   - '5.14'
+#   - '5.12'
+#   - '5.10'
+# install:
+#   - provision/travis.sh
+# script:
+#   - perl Makefile.PL
+#   - make
+#   - make test
+#   - make dist
+# deploy:
+#   provider: releases
+#   skip_cleanup: true
+#   api_key:
+#     secure: Xnmab8XGFv2zR8OyszOeRxibYr9c3gavRyPokEPMkscOljamS9Uy0yYJ5x0sUWWozq6Dd1cg5Mkef7GG7tgSCqV+Fu57lpz4aHGu2OpnIsKGwrMDhNsS4qOYbEGpcIiE0YKRtIiGiJmK6kr8lmbCI8fdQakbW/7vZW1a1a154Aw=
+#   file_glob: true
+#   file: EV-Tarantool*.tar.gz
+#   on:
+#     tags: true
+# notifications:
+#   email: true
+# sudo: required

@@ -10,7 +10,7 @@ use Scalar::Util 'weaken';
 use Errno;
 use EV::Tarantool16;
 use Test::More;
-BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
+BEGIN{ $ENV{TEST_FAST} || $ENV{TEST_FAST_MEM} and plan 'skip_all'; }
 use Test::Deep;
 use Data::Dumper;
 use Renewer;
@@ -109,7 +109,7 @@ diag '==== Memory tests ====' if $ENV{TEST_VERBOSE};
 
 subtest 'connect/disconnect test', sub {
 	# plan( skip_all => 'skip');
-	
+
 	for (0..5) {
 		my $cnt = 0;
 		my $start = time;
