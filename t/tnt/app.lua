@@ -16,7 +16,7 @@ local function bootstrap()
 		has_new_types = false,
 		types = {}
 	}
-	
+
 	if b.tarantool_ver >= "1.7.1-245" then
 		b.has_new_types = true
 		b.types.string = 'string'
@@ -65,13 +65,13 @@ local function init_tester(s)
 		{type=B.types.string, name='_t1'},
 		{type=B.types.string, name='_t2'},
 		{type=B.types.unsigned, name='_t3'},
-		{type=B.types.number, name='_t4', is_nullable = true},
+		{type=B.types.number, name='_t4'},
 		{type=B.types.any, name='_t5'},
 	}
 	s:format(_format)
 
 	i = s:create_index('primary', {type = 'tree', parts = {1, B.types.string, 2, B.types.string, 3, B.types.unsigned}})
-	i = s:create_index('tt', {type = 'tree', unique = false, parts = { {field = 4, type = 'number', is_nullable = true} } })
+	i = s:create_index('tt', {type = 'tree', unique = false, parts = { 4, 'number' } })
 	-- box.space.tester:insert({'s','a',3,4})
 end
 
