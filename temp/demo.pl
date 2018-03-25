@@ -10,7 +10,7 @@ use Time::HiRes 'sleep','time';
 use Data::Dumper;
 use Errno;
 use Scalar::Util 'weaken';
-use Renewer;
+# use Renewer;
 
 my $cfs = 0;
 my $connected;
@@ -96,7 +96,7 @@ EV::loop;
 # });
 # EV::loop;
 
-$c->select('tester', [], sub {
+$c->select('_vspace', [], sub {
 	say Dumper \@_;
 	EV::unloop;
 });

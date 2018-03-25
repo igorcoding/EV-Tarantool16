@@ -4,19 +4,21 @@ services:
   - docker
 
 cache:
-    directories:
-      - $HOME/.cache
+  directories:
+    - $HOME/.cache
 
 env:
-    global:
-      - PRODUCT=EV-Tarantool16
-      - ARCH=x86_64
-    matrix:
-      - OS=el DIST=7
+  global:
+    - PRODUCT=EV-Tarantool16
+    - ARCH=x86_64
+  matrix:
+    - OS=el DIST=7 VAR_TARANTOOL=1.6
+    - OS=el DIST=7 VAR_TARANTOOL=1.7
+    - OS=el DIST=7 VAR_TARANTOOL=1.9
 
 script:
   - git describe --long
-  - git clone https://github.com/packpack/packpack.git packpack
+  - git clone -b prebuild_fixes https://github.com/igorcoding/packpack.git packpack
   - packpack/packpack
 
 before_deploy:
@@ -33,7 +35,7 @@ deploy:
     skip_cleanup: true
     on:
       branch: master
-      condition: -n "${OS}" && -n "${DIST}" && -n "${PACKAGECLOUD_TOKEN}"
+      condition: -n "${OS}" && -n "${DIST}" && -n "${PACKAGECLOUD_TOKEN}" && "${VAR_TARANTOOL}" = "1.9"
 
 notifications:
   email: true
