@@ -12,7 +12,6 @@ env:
       - PRODUCT=EV-Tarantool16
       - ARCH=x86_64
     matrix:
-      - OS=el DIST=6
       - OS=el DIST=7
 
 script:
