@@ -9,7 +9,7 @@ use Test::More;
 BEGIN{ $ENV{TEST_FAST} and plan 'skip_all'; }
 
 my $c = EV::Tarantool16->new({
-	host => 'localhost',
+	host => 'localhost.',
 	port => 14032,
 	reconnect => 1/3,
 	connected => sub {
